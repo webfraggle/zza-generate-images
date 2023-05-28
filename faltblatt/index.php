@@ -3,10 +3,29 @@ error_reporting(E_ALL);
 ini_set("display_errors", 1);
 
 include_once("gfx_functions.inc.php");
+include_once("cors.inc.php");
+
+cors();
+
 $json = file_get_contents('php://input');
+$cache = true;
 if (!$json)
 {
     $json = file_get_contents("default.json");
+    $cache = false;
+}
+
+$hash = sha1($json);
+
+if ($cache)
+{
+    $imagefile = "./cache/".$hash.".png";
+    if (file_exists($imagefile))
+    {
+        header("Content-type: image/png");
+        readfile($imagefile);
+        exit;
+    }
 }
 
 $data = json_decode($json);
@@ -36,7 +55,7 @@ for ($i=0; $i < 13; $i++) {
     $char =  substr($vonnach,$i,1);
     if ($char && $char != " ")
     {
-        addResizedTextToImage($char,12,$font,"#3a3c3b",0.5,1,$bg,$xpos,119);
+        addResizedTextToImage($char,12,$font,"#3a3c3b",0.5,1,$bg,$xpos+5,119,"center");
     }
     $xpos += 14;
 }
@@ -67,7 +86,7 @@ for ($i=0; $i < count($vias); $i++) {
     $xpos += $width+2;
 }
 
-// Zugtyp
+// Entweder Zugtyp
 
 $nr = $data->zug1->nr;
 $type = "";
@@ -75,6 +94,7 @@ if (str_starts_with(strtolower($nr),"rb")) $type = "rb.png";
 if (str_starts_with(strtolower($nr),"ic")) $type = "ic.png";
 if (str_starts_with(strtolower($nr),"ice")) $type = "ice.png";
 if (str_starts_with(strtolower($nr),"re")) $type = "re.png";
+// TODO: Oder Verspätung
 
 if ($type)
 {
@@ -89,7 +109,6 @@ addResizedTextToImage("Gleis",12,$font,"#00000",0.5,1,$bg,27,34,"center");
 addResizedTextToImage($data->gleis,33,$font,"#00000",0.5,1,$bg,27,110,"center");
 
 
-// Verspätung
 
 
 $fg = imagecreatefrompng("./img/fg.png");
@@ -102,6 +121,20 @@ imagecopy($bg,$bg,3,135+10,52,10,183,120);
 
 
 header("Content-type: image/png");
+
+if ($cache)
+{   
+    $directory = "./cache";
+    if (!is_dir($directory)) {
+        if (mkdir($directory, 0777, true)) {
+            // echo "Directory created successfully.";
+        } else {
+            // echo "Failed to create directory.";
+        }
+    }
+    imagepng($bg, "./cache/".$hash.".png");
+}
+
 imagepng($bg);
 
 ?>

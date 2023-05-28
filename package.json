@@ -1,0 +1,22 @@
+{
+  "name": "zza-generate-images",
+  "version": "1.0.0",
+  "description": "Online-Generierung von Bilder für Zugzielanzeoger",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webfraggle/zza-generate-images.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/webfraggle/zza-generate-images/issues"
+  },
+  "homepage": "https://github.com/webfraggle/zza-generate-images#readme",
+  "dependencies": {
+    "http-server": "^14.1.1"
+  }
+}
