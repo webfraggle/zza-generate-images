@@ -1,2 +1,3 @@
 faltblatt/fonts/**/*.otf
 node_modules
+faltblatt/cache
