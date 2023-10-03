@@ -1,0 +1,43 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 6,
+    "abschnitt": "A-F",
+    "mirrored": false,
+    "intervalTime": 60,
+    "timeFactor": 10,
+    "stationNr": 8000115,
+    "mode": 1,
+    "zug1": {
+        "vonnach": "Sennhof-Keyburg",
+        "nr": "IC23",
+        "zeit": "15:54",
+        "via": "Othmarsingen - Mägenwil - Mellingen - Zürich HB - Winterthur",
+        "abw": 10,
+        "hinweis": "Abweichende Wagenreihung",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "von Fulda",
+        "nr": "ICE234",
+        "zeit": "12:45",
+        "via": "Neuhof - Gelnhausen - Hanau",
+        "abw": 5,
+        "hinweis": "Bitte nicht einsteigen",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Kassel über Bad Hersfeld",
+        "nr": "RE5",
+        "zeit": "13:12",
+        "via": "Via Zug3",
+        "abw": 20,
+        "hinweis": "Universal-WC fehlt",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

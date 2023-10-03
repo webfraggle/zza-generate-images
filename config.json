@@ -1,0 +1,16 @@
+{
+    "themes":[
+        {
+            "title":"Faltblatt",
+            "description":"",
+            "displaysize":"1.14",
+            "url":"./faltblatt/"
+        },
+        {
+            "title":"SBB v1",
+            "description":"",
+            "displaysize":"0.96",
+            "url":"./sbb-096-v1/"
+        }
+    ]
+}

@@ -39,3 +39,7 @@
     --bs-btn-disabled-bg: #fd7014;
     --bs-btn-disabled-border-color: #fd7014;
 }
+
+#image {
+  image-rendering: pixelated;
+}

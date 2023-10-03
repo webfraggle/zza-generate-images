@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/webfraggle/zza-generate-images#readme",
   "dependencies": {
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "php-server": "^1.0.0"
   }
 }

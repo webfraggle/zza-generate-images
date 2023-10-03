@@ -1,5 +1,5 @@
 // var endpoint = "./faltblatt/"
-var endpoint = "http://zza.yuv.de/i/faltblatt/";
+var endpoint = "";
 
 var config = {
     "folgezuege": "",
@@ -44,14 +44,54 @@ var config = {
     }
 }
 
+var themes = {};
 
 $(function() {
     console.log( "ready!" );
+    $.get( "config.json", function( data ) {
+        console.log(data);
+        themes = data;
+        createThemes();
+
+      });
 
     $("#sendBtn").click(loadPic);
+    $('#theme').change(themeChanged);
+    $('#image').bind("load", imageLoaded);
 
 });
 
+function createThemes()
+{
+    $('#theme')
+            .find('option')
+            .remove()
+        ;
+
+        themes.themes.forEach(theme => {
+        $('#theme').append($('<option>', {
+            value: theme.url,
+            text: theme.title + ' - ' + theme.displaysize
+        }));
+        
+    });
+    endpoint = themes.themes[0].url;
+}
+
+function imageLoaded(e)
+{
+    console.log('imageLoaded');
+    var img = $('#image');
+    var width = img.prop('naturalWidth');
+    var height = img.prop('naturalHeight');
+    img.width(width*2);
+    img.height(height*2);
+}
+function themeChanged(e)
+{
+    console.log($('#theme').val());
+    endpoint = $('#theme').val();
+}
 
 function loadPic()
 {
@@ -60,6 +100,8 @@ function loadPic()
     if ($("#via").val()) config.zug1.via = $("#via").val();
     if ($("#zeit").val()) config.zug1.zeit = $("#zeit").val();
     if ($("#nr").val()) config.zug1.nr = $("#nr").val();
+    if ($("#hinweis").val()) config.zug1.hinweis = $("#hinweis").val();
+    else config.zug1.hinweis = "";
     
     $.ajax({
         type: "POST",
