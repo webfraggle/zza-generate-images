@@ -67,15 +67,15 @@ function createThemes()
             .find('option')
             .remove()
         ;
-
+        i=0;
         themes.themes.forEach(theme => {
         $('#theme').append($('<option>', {
-            value: theme.url,
+            value: i,
             text: theme.title + ' - ' + theme.displaysize
         }));
-        
+        i++;
     });
-    endpoint = themes.themes[0].url;
+    setTheme(0);
 }
 
 function imageLoaded(e)
@@ -90,7 +90,15 @@ function imageLoaded(e)
 function themeChanged(e)
 {
     console.log($('#theme').val());
-    endpoint = $('#theme').val();
+    setTheme($('#theme').val());
+}
+
+function setTheme(nr)
+{
+    console.log("setTheme", nr);
+    endpoint = themes.themes[nr].url;
+    console.log(endpoint);
+   $("#description").html(themes.themes[nr].description+"<br>URL: <b>"+window.location.href+endpoint.replace("./","")+"</b>"); 
 }
 
 function loadPic()
@@ -102,6 +110,8 @@ function loadPic()
     if ($("#nr").val()) config.zug1.nr = $("#nr").val();
     if ($("#hinweis").val()) config.zug1.hinweis = $("#hinweis").val();
     else config.zug1.hinweis = "";
+    if ($("#abw").val()) config.zug1.abw = $("#abw").val();
+    else config.zug1.abw = 0;
     
     $.ajax({
         type: "POST",

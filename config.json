@@ -4,13 +4,15 @@
             "title":"Faltblatt",
             "description":"",
             "displaysize":"1.14",
-            "url":"./faltblatt/"
+            "url":"./faltblatt/",
+            "description":"<b>Faltblatt</b><br>Zuglogos: IC, ICE, RB und RE."
         },
         {
             "title":"SBB v1",
             "description":"",
             "displaysize":"0.96",
-            "url":"./sbb-096-v1/"
+            "url":"./sbb-096-v1/",
+            "description":"<b>Schweizer Bahn Displays</b><br>Zuglogos: RE, IC, ICN,EC, S, IR und VAE."
         }
     ]
 }
