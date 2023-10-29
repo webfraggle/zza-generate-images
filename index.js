@@ -101,6 +101,7 @@ function setTheme(nr)
    $("#description").html(themes.themes[nr].description+"<br>URL: <b>"+window.location.href+endpoint.replace("./","")+"</b>"); 
 }
 
+
 function loadPic()
 {
     if ($("#gleis").val()) config.gleis = $("#gleis").val();
