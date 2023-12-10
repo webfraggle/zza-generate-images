@@ -1,11 +1,11 @@
 {
     "themes":[
         {
-            "title":"Faltblatt",
+            "title":"ÖBB v1",
             "description":"",
-            "displaysize":"1.14",
-            "url":"./faltblatt/",
-            "description":"<b>Faltblatt</b><br>Zuglogos: IC, ICE, RB und RE."
+            "displaysize":"0.96",
+            "url":"./oebb-096-v1/",
+            "description":"<b>ÖBB Displays</b><br>Zuglogos: S<br><b>Spezial</b>: * als erstes Zeichen im Hinweis = gelber Hintergrund"
         },
         {
             "title":"SBB v1",
@@ -13,6 +13,20 @@
             "displaysize":"0.96",
             "url":"./sbb-096-v1/",
             "description":"<b>Schweizer Bahn Displays</b><br>Zuglogos: RE, IC, ICN,EC, S, IR und VAE."
+        },
+        {
+            "title":"U-Bahn MUC v1",
+            "description":"",
+            "displaysize":"0.96",
+            "url":"./umuc-096-v1/",
+            "description":"<b>U-Bahn München</b><br>Zuglogos: U1-8<br><b>Spezial</b>: Richtung = erster Zug Hinweis, Minuten = Differenz der Zeiten minus 5 Minuten"
+        },
+        {
+            "title":"Faltblatt",
+            "description":"",
+            "displaysize":"1.14",
+            "url":"./faltblatt/",
+            "description":"<b>Faltblatt</b><br>Zuglogos: IC, ICE, RB und RE."
         }
     ]
 }

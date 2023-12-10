@@ -1,56 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>ZZA Generate Images</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="styles.css">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>ZZA Generate Images</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe"
+    crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
-    <div class="container">
-        <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
-          <a href="https://www.modellbahn-displays.de" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto link-body-emphasis text-decoration-none">
-            <img style="max-width: 400px; width:90%;" src="img/logo.png" />
-            
-          </a>
-    
-          <ul class="nav nav-pills">
-            <li class="nav-item"><a href="https://www.modellbahn-displays.de" class="nav-link active" target="_blank">modellbahn-displays.de</a></li>
-            <li class="nav-item"><a href="https://github.com/webfraggle/zza-generate-images" class="nav-link" target="_blank">Github (Source)</a></li>
-            <li class="nav-item"><a href="https://webfraggle.etsy.com" class="nav-link" target="_blank">Etsy-Shop</a></li>
-          </ul>
-        </header>
+  <div class="container">
+    <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
+      <a href="https://www.modellbahn-displays.de"
+        class="d-flex align-items-center mb-3 mb-md-0 me-md-auto link-body-emphasis text-decoration-none">
+        <img style="max-width: 400px; width:90%;" src="img/logo.png" />
+
+      </a>
+
+      <ul class="nav nav-pills">
+        <li class="nav-item"><a href="https://www.modellbahn-displays.de" class="nav-link active"
+            target="_blank">modellbahn-displays.de</a></li>
+        <li class="nav-item"><a href="https://github.com/webfraggle/zza-generate-images" class="nav-link"
+            target="_blank">Github (Source)</a></li>
+        <li class="nav-item"><a href="https://webfraggle.etsy.com" class="nav-link" target="_blank">Etsy-Shop</a></li>
+      </ul>
+    </header>
+  </div>
+  <div class="container" style="padding-top: 30px; padding-bottom: 30px;">
+    <div class="row">
+      <div class="col-12">
+        <h1>Zugzielanzeiger Bildgenerator</h1>
       </div>
-      <div class="container" style="padding-top: 30px; padding-bottom: 30px;">
-            <div class="row">
-              <div class="col-sm-12">
-                <h1>Zugzielanzeiger Bildgenerator</h1>
-              </div>
-              <div class="col-sm-6">
-                <div class="row">
-                <div class="col-12">
-                        <label for="gleis" class="form-label">Theme</label>
-                        <select class="form-control" id="theme">
-              
-                        </select>
-                    </div>
-                </div>
-                <div class="row">
-                  <div class="col-12">
-                    <img id="image" />
-                  </div>
-                </div>
-              </div>
-              <div class="col-sm-6">
-                <div class="row">
-                  <div class="col-12" id="description"></div>
-                </div>
-                <div class="row">
-                    <!-- <div class="col-12">
+      <div class="col-12">
+        <div class="row">
+          <div class="col-12 col-md-4">
+            <label for="gleis" class="form-label">Theme</label>
+            <select class="form-control" id="theme">
+
+            </select>
+          </div>
+          <div class="col-12 col-md-8" id="description"></div>
+        </div>
+
+      </div>
+    </div>
+<hr>
+    <div class="row">
+      <!-- <div class="col-12">
                         <label for="gleis" class="form-label">Theme</label>
                         <select class="form-control" id="theme">
                           <option>1</option>
@@ -60,63 +63,130 @@
                           <option>5</option>
                         </select>
                     </div> -->
-                    <div class="col-3">
-                        <label for="gleis" class="form-label">Gleis</label>
-                        <input type="text" class="form-control" id="gleis" value="3">
-                    </div>
-                    <div class="col-3">
-                      <label for="zeit" class="form-label">Zeit</label>
-                      <input type="text" class="form-control" id="zeit" value="16:34">
-                  </div>
-                    <div class="col-3">
-                      <label for="abw" class="form-label">Verspätung</label>
-                      <input type="text" class="form-control" id="abw" value="0">
-                  </div>
-                  </div>
-                  <div class="row">
-                    <div class="col-12">
-                        <label for="vonnach" class="form-label">Von/Nach</label>
-                        <input type="text" class="form-control" id="vonnach" value="München">
-                    </div>
-                    <div class="col-12">
-                        <label for="via" class="form-label">Über</label>
-                        <input type="text" class="form-control" id="via" value="Würzburg - Nürnberg - Ingolstadt">
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="col-3">
-                        <label for="nr" class="form-label">Nr (RE, RB, IC, ICE)</label>
-                        <input type="text" class="form-control" id="nr" value="RB34">
-                    </div>
-                    <div class="col-9">
-                      <label for="nr" class="form-label">Hinweis</label>
-                      <input type="text" class="form-control" id="hinweis" value="">
-                  </div>
-                  </div>
-                  <div class="row">
-                  <div class="col-12">
-                    <button class="btn btn-primary" type="button" id="sendBtn">Generate Image</button>
-                  </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-    <div class="container">
-        <footer class="d-flex flex-wrap justify-content-between align-items-center py-3 my-4 border-top">
-          <p class="col-md-4 mb-0 text-body-secondary">&copy; 2023 Christoph Ketzler</p>
-       
-          <ul class="nav col-md-4 justify-content-end">
-            <li class="nav-item"><a href="https://www.modellbahn-displays.de" class="nav-link px-2 text-body-secondary" target="_blank">modellbahn-displays.de</a></li>
-            <li class="nav-item"><a href="https://github.com/webfraggle/zza-generate-images" class="nav-link px-2 text-body-secondary" target="_blank">Github (Source)</a></li>
-            <li class="nav-item"><a href="https://webfraggle.etsy.com" class="nav-link px-2 text-body-secondary" target="_blank">Etsy-Shop</a></li>
-          </ul>
-        </footer>
+      <div class="col-md-1 col-6">
+        <label for="gleis" class="form-label">Gleis</label>
+        <input type="text" class="form-control" id="gleis" value="3">
       </div>
-      
+      <div class="col-md-11 col-6">
+        .
+      </div>
 
 
-    <script src="index.js"></script>
-  </body>
+    </div>
+
+    <div class="row" id="zug1">
+      <div class="col-md-1 col-4">
+        <label for="zeit" class="form-label">Zeit</label>
+        <input type="text" class="form-control" id="zeit" value="">
+      </div>
+      <div class="col-md-1 col-4">
+        <label for="abw" class="form-label">Abweich.</label>
+        <input type="text" class="form-control" id="abw" value="">
+      </div>
+      <div class="col-md-1 col-4">
+        <label for="nr" class="form-label">Nr.</label>
+        <input type="text" class="form-control" id="nr" value="">
+      </div>
+      <div class="col-md-3 col-12">
+        <label for="vonnach" class="form-label">Von/Nach</label>
+        <input type="text" class="form-control" id="vonnach" value="">
+      </div>
+      <div class="col-md-4 col-12">
+        <label for="via" class="form-label">Über</label>
+        <input type="text" class="form-control" id="via" value="">
+      </div>
+      <div class="col-md-2 col-12">
+        <label for="hinweis" class="form-label">Hinweis</label>
+        <input type="text" class="form-control" id="hinweis" value="">
+      </div>
+    </div>
+
+    <div class="row" id="zug2" style="display:none;">
+      <div class="col-md-1 col-4">
+        <label for="zeit2" class="form-label">Zeit</label>
+        <input type="text" class="form-control" id="zeit2" value="">
+      </div>
+      <div class="col-md-1 col-4">
+        <label for="abw2" class="form-label">Abweich.</label>
+        <input type="text" class="form-control" id="abw2" value="">
+      </div>
+      <div class="col-md-1 col-4">
+        <label for="nr2" class="form-label">Nr.</label>
+        <input type="text" class="form-control" id="nr2" value="">
+      </div>
+      <div class="col-md-3 col-12">
+        <label for="vonnach2" class="form-label">Von/Nach</label>
+        <input type="text" class="form-control" id="vonnach2" value="">
+      </div>
+      <div class="col-md-4 col-12">
+        <label for="via2" class="form-label">Über</label>
+        <input type="text" class="form-control" id="via2" value="">
+      </div>
+      <div class="col-md-2 col-12">
+        <label for="hinweis2" class="form-label">Hinweis</label>
+        <input type="text" class="form-control" id="hinweis2" value="">
+      </div>
+    </div>
+
+
+    <div class="row" id="zug3" style="display:none;">
+      <div class="col-md-1 col-4">
+        <label for="zeit3" class="form-label">Zeit</label>
+        <input type="text" class="form-control" id="zeit3" value="">
+      </div>
+      <div class="col-md-1 col-4">
+        <label for="abw3" class="form-label">Abweich.</label>
+        <input type="text" class="form-control" id="abw3" value="">
+      </div>
+      <div class="col-md-1 col-4">
+        <label for="nr3" class="form-label">Nr.</label>
+        <input type="text" class="form-control" id="nr3" value="">
+      </div>
+      <div class="col-md-3 col-12">
+        <label for="vonnach3" class="form-label">Von/Nach</label>
+        <input type="text" class="form-control" id="vonnach3" value="">
+      </div>
+      <div class="col-md-4 col-12">
+        <label for="via3" class="form-label">Über</label>
+        <input type="text" class="form-control" id="via3" value="">
+      </div>
+      <div class="col-md-2 col-12">
+        <label for="hinweis3" class="form-label">Hinweis</label>
+        <input type="text" class="form-control" id="hinweis3" value="">
+      </div>
+    </div>
+
+
+
+
+    <div class="row" style="padding-top: 12px;">
+      <div class="col-md-6 col-12">
+        <button class="btn btn-primary" type="button" id="sendBtn">Generate Image</button>
+      </div>
+      <div class="col-md-6 col-12">
+        <img id="image" />
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <footer class="d-flex flex-wrap justify-content-between align-items-center py-3 my-4 border-top">
+      <p class="col-md-4 mb-0 text-body-secondary">&copy; 2023 Christoph Ketzler</p>
+
+      <ul class="nav col-md-4 justify-content-end">
+        <li class="nav-item"><a href="https://www.modellbahn-displays.de" class="nav-link px-2 text-body-secondary"
+            target="_blank">modellbahn-displays.de</a></li>
+        <li class="nav-item"><a href="https://github.com/webfraggle/zza-generate-images"
+            class="nav-link px-2 text-body-secondary" target="_blank">Github (Source)</a></li>
+        <li class="nav-item"><a href="https://webfraggle.etsy.com" class="nav-link px-2 text-body-secondary"
+            target="_blank">Etsy-Shop</a></li>
+      </ul>
+    </footer>
+  </div>
+
+
+
+  <script src="index.js"></script>
+</body>
+
 </html>

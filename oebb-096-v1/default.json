@@ -1,0 +1,43 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 6,
+    "abschnitt": "A-F",
+    "mirrored": false,
+    "intervalTime": 60,
+    "timeFactor": 10,
+    "stationNr": 8000115,
+    "mode": 1,
+    "zug1": {
+        "vonnach": "Neulengbach",
+        "nr": "S1",
+        "zeit": "15:54",
+        "via": "Wien Penzing - Wien Hüttendorf",
+        "abw": 10,
+        "hinweis": "*Hält nicht in Unter Tullnerbach!",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}
