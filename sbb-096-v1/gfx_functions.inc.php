@@ -11,6 +11,7 @@ function addResizedTextToImage($text,$size,$font,$color,$xFactor,$yFactor,$im,$x
     $bbox = imageftbbox($size*$fontfactor*2, 0, $font, $text,array("linespacing" => $linespacing));
     $width = abs($bbox[0])+abs($bbox[2]);
     $height = abs($bbox[1])+abs($bbox[5]);
+    if ($width <= 0 || $height <= 0) return 0;
     // print $width;
     // print $height;
     // print_r($bbox);
