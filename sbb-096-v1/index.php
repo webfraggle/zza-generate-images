@@ -55,22 +55,17 @@ if (!$hasCache)
     $vonnNachY = 66;
     $hinweis = trim($data->zug1->hinweis);
     $abw = trim($data->zug1->abw);
-    if ($hinweis || $abw > 0)
+    if ($hinweis)
     {
         $orange = imagecolorallocate($bg, 255, 0, 0);
-        imagefilledrectangle($bg, 2, 51, 79, 71, $orange);
-        if ($abw > 0)
-        {
-            $show = "Verspätung \nca. ".$abw." Minuten";
-        } else {
-            $show = $hinweis;
-        }
+        imagefilledrectangle($bg, 2, 52, 79, 71, $orange);
+        $show = $hinweis;
         
         $text = wrapText($show,$fontRegular,5.5,74);
 
-        addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,52,$align="top-left",true,0.9);
-        addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,52,$align="top-left",true,0.9);
-        $vonnNachY = 47;
+        addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,53,$align="top-left",true,0.9);
+        addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,53,$align="top-left",true,0.9);
+        $vonnNachY = 50;
     } 
 
     // Von Nach
@@ -130,9 +125,9 @@ if (!$hasCache)
     elseif (str_starts_with(strtolower($nr),"ec"))
     {
         $fg = imagecreatefrompng("./img/ec.png");
-        imagecopy($bg,$fg,48,11,0,0,imagesx($fg),imagesy($fg));
-        addResizedTextToImage($zahl,5.2,$fontRegular,"#ffffff",1,1,$bg,70,12);
-        addResizedTextToImage($zahl,5.2,$fontRegular,"#ffffff",1,1,$bg,70,12);
+        imagecopy($bg,$fg,43,11,0,0,imagesx($fg),imagesy($fg));
+        addResizedTextToImage($zahl,5.2,$fontRegular,"#ffffff",1,1,$bg,65,12);
+        addResizedTextToImage($zahl,5.2,$fontRegular,"#ffffff",1,1,$bg,65,12);
     } 
     elseif (str_starts_with(strtolower($nr),"icn"))
     {
@@ -173,6 +168,22 @@ if (!$hasCache)
         addResizedTextToImage($nr,5.5,$fontRegular,"#ffffff",1,1,$bg,49,11);
     }
     
+
+
+    $abw = intval($abw);
+    if ($abw > 0)
+    {
+        if ($hinweis)
+        {
+            $blau = imagecolorallocate($bg, 19, 42, 155);
+            imagefilledrectangle($bg, 43, 11, 48+31, 11+9, $blau);
+            addResizedTextToImage("+".$abw."’",8.2,$fontBold,"#fff048",1,1,$bg,45,10);
+        } else {
+            addResizedTextToImage("+".$abw."’",8.2,$fontBold,"#fff048",1,1,$bg,3,24);
+
+        }
+    }
+
     // Gleis
     //addResizedTextToImage("Gleis",12,$fontBold,"#00000",0.5,1,$bg,27,34,"center");
     
@@ -203,7 +214,6 @@ if (!$hasCache)
     }
 
 }
-
 // if (!$_GET['debug']) 
 // {
     header("Content-type: image/png");
