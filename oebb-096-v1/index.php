@@ -48,28 +48,54 @@ if (!$hasCache)
     
     
     $vonnNachX = 0;
-    // Stunden und Minute
-    $time = explode(":",$data->zug1->zeit);
-    $w = addResizedTextToImage($time[0].":".$time[1],6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
-    addResizedTextToImage($time[0].":".$time[1],6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
-    addResizedTextToImage($time[0].":".$time[1],6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
-    $vonnNachX += $w+2;
-
-    // Verspätung
     $vonnNachY = 27;
-    $abw = trim($data->zug1->abw);
-    $timeInMinutes = $time[0]*60+$time[1];
-    $newTimeInMinutes = $timeInMinutes + $abw;
-    $newTime = sprintf("%02d:%02d", floor($newTimeInMinutes/60), $newTimeInMinutes%60);
+    $w = 0;
+    
+    // Stunden und Minute
+    $rawTime = $data->zug1->zeit;
 
-    if ($abw > 0)
+    if (!$rawTime) $rawTime = "";
+    if (str_contains($rawTime, ":"))
     {
-        $w = addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
-        addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
-        addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
-        addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
+        $time = explode(":",$rawTime);
+        $w = addResizedTextToImage($time[0].":".$time[1],6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
+        addResizedTextToImage($time[0].":".$time[1],6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
+        addResizedTextToImage($time[0].":".$time[1],6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
         $vonnNachX += $w+2;
+
+        // Verspätung
+        $abw = trim($data->zug1->abw);
+        $timeInMinutes = $time[0]*60+$time[1];
+        $newTimeInMinutes = $timeInMinutes + $abw;
+        $newTime = sprintf("%02d:%02d", floor($newTimeInMinutes/60), $newTimeInMinutes%60);
+
+        if ($abw > 0)
+        {
+            $w = addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
+            addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
+            addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
+            addResizedTextToImage($newTime,6.0,$fontRegular,"#fbef52",1,1.2,$bg,$vonnNachX,29);
+            $vonnNachX += $w+2;
+        }
+
+    } else {
+        if (strlen($rawTime))
+        {
+            $w = addResizedTextToImage($rawTime,6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
+            addResizedTextToImage($rawTime,6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
+            addResizedTextToImage($rawTime,6.0,$fontRegular,"#ffffff",1,1.2,$bg,$vonnNachX,29);
+            $vonnNachX += $w+2;
+        }
     }
+    
+    
+    
+
+
+
+    
+
+    
 
 
      // Von Nach
