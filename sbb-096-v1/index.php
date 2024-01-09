@@ -68,15 +68,27 @@ if (!$hasCache)
     $abw = trim($data->zug1->abw);
     if ($hinweis)
     {
-        $orange = imagecolorallocate($bg, 255, 0, 0);
-        imagefilledrectangle($bg, 2, 52, 79, 71, $orange);
-        $show = $hinweis;
+        // wenn  Hinweis mit andere infos
+        if (trim($data->zug1->abw).trim($data->zug1->vonnach).trim($data->zug1->nr).trim($data->zug1->zeit).trim($data->zug1->via))
+        {
+            $orange = imagecolorallocate($bg, 255, 0, 0);
+            imagefilledrectangle($bg, 2, 52, 79, 71, $orange);
+            $show = $hinweis;
+            
+            $text = wrapText($show,$fontRegular,5.5,74);
+    
+            addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,53,$align="top-left",true,0.9);
+            addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,53,$align="top-left",true,0.9);
+            $vonnNachY = 50;
+        } else { 
+            // ohne andere Infos, nur einen Hinweis anzeigen
+            $fs = 8.5;
+            $text = wrapText($hinweis,$fontBold,$fs,156);
+    
+            addResizedTextToImage($text,$fs,$fontRegular,"#fff048",1,1,$bg,3,30,$align="top-left",true,0.9);
+            addResizedTextToImage($text,$fs,$fontRegular,"#fff048",1,1,$bg,3,30,$align="top-left",true,0.9);
+        }
         
-        $text = wrapText($show,$fontRegular,5.5,74);
-
-        addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,53,$align="top-left",true,0.9);
-        addResizedTextToImage($text,5.5,$fontRegular,"#ffffff",1,1,$bg,3,53,$align="top-left",true,0.9);
-        $vonnNachY = 50;
     } 
 
     // Von Nach
@@ -98,27 +110,28 @@ if (!$hasCache)
     
     // vias
     // Dots
-    $fg = imagecreatefrompng("./img/dottet-line.png");
-    imagecopy($bg,$fg,86,8,0,0,imagesx($fg),imagesy($fg));
-
-    $dot = imagecreatefrompng("./img/dot.png");
-    imagecopy($bg,$dot,84,15,0,0,imagesx($dot),imagesy($dot));
-
-    $vias = explode("-",$data->zug1->via);
-    $xpos = 94;
-    $ypos = 14;
-    for ($i=0; $i < count($vias); $i++) { 
-        $via = trim($vias[$i]);
-        
-        addResizedTextToImage($via,5.9,$fontRegular,"#ffffff",1,1,$bg,$xpos,$ypos);
-        addResizedTextToImage($via,5.9,$fontRegular,"#ffffff",1,1,$bg,$xpos,$ypos);
-        imagecopy($bg,$dot,84,15-14+$ypos,0,0,imagesx($dot),imagesy($dot));
-        $ypos += 11;
-        if ($i >= 4) break;
+    if (trim($data->zug1->via))
+    {
+        $fg = imagecreatefrompng("./img/dottet-line.png");
+        imagecopy($bg,$fg,86,8,0,0,imagesx($fg),imagesy($fg));
+    
+        $dot = imagecreatefrompng("./img/dot.png");
+        imagecopy($bg,$dot,84,15,0,0,imagesx($dot),imagesy($dot));
+    
+        $vias = explode("-",$data->zug1->via);
+        $xpos = 94;
+        $ypos = 14;
+        for ($i=0; $i < count($vias); $i++) { 
+            $via = trim($vias[$i]);
+            
+            addResizedTextToImage($via,5.9,$fontRegular,"#ffffff",1,1,$bg,$xpos,$ypos);
+            addResizedTextToImage($via,5.9,$fontRegular,"#ffffff",1,1,$bg,$xpos,$ypos);
+            imagecopy($bg,$dot,84,15-14+$ypos,0,0,imagesx($dot),imagesy($dot));
+            $ypos += 11;
+            if ($i >= 4) break;
+        }
     }
 
-    
-    
     
     $showTrain = true;
     $abw = intval($abw);
@@ -132,7 +145,6 @@ if (!$hasCache)
             $showTrain = false;
         } else {
             addResizedTextToImage("+".$abw."’",8.2,$fontBold,"#fff048",1,1,$bg,3,24);
-            
         }
     }
 

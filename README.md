@@ -6,4 +6,4 @@ http://zza.yuv.de/i/
 
 
 # Development
-node php-server.mjs;
+node php-server.mjs
