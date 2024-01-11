@@ -33,10 +33,15 @@ $hasCache = false; // cache immer überschreiben
 
 if (!$hasCache)
 {
+    $mode = "";
+    
     $data = json_decode($json);
     $fontBold = './fonts/nimbus-sans-l/NimbusSanL-Bol.otf';
     $fontRegular = './fonts/nimbus-sans-l/NimbusSanL-Reg.otf';
-    
+    if (!(trim($data->zug1->abw).trim($data->zug1->vonnach).trim($data->zug1->nr).trim($data->zug1->via)))
+    {
+        $mode = "infoOnly";
+    }
     $bg = imagecreatetruecolor(160, 160);
     imagealphablending($bg, true);
     imagesavealpha($bg, true);
@@ -48,17 +53,19 @@ if (!$hasCache)
     
     
     // Stunden und Minute
-    $rawTime = $data->zug1->zeit;
-    if (!$rawTime) $rawTime = "";
-    if (str_contains($rawTime, ":"))
+    if ($mode != "infoOnly")
     {
-        $time = explode(":",$rawTime);
-        addResizedTextToImage($time[0].":".$time[1],8.2,$fontBold,"#ffffff",1,1,$bg,3,10);
-    } else {
-        if (strlen($rawTime))
+        $rawTime = $data->zug1->zeit;
+        if (!$rawTime) $rawTime = "";
+        if (str_contains($rawTime, ":"))
         {
-            addResizedTextToImage($rawTime,8.2,$fontBold,"#ffffff",1,1,$bg,3,10);
-
+            $time = explode(":",$rawTime);
+            addResizedTextToImage($time[0].":".$time[1],8.2,$fontBold,"#ffffff",1,1,$bg,3,10);
+        } else {
+            if (strlen($rawTime))
+            {
+                addResizedTextToImage($rawTime,8.2,$fontBold,"#ffffff",1,1,$bg,3,10);
+            }
         }
     }
     
@@ -69,7 +76,7 @@ if (!$hasCache)
     if ($hinweis)
     {
         // wenn  Hinweis mit andere infos
-        if (trim($data->zug1->abw).trim($data->zug1->vonnach).trim($data->zug1->nr).trim($data->zug1->zeit).trim($data->zug1->via))
+        if ($mode != "infoOnly")
         {
             $orange = imagecolorallocate($bg, 255, 0, 0);
             imagefilledrectangle($bg, 2, 52, 79, 71, $orange);

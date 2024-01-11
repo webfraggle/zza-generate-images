@@ -12,7 +12,7 @@
             "description":"",
             "displaysize":"0.96",
             "url":"./sbb-096-v1/",
-            "description":"<b>Schweizer Bahn Displays</b><br>Zuglogos: RE, IC, ICN,EC, S, IR und VAE."
+            "description":"<b>Schweizer Bahn Displays</b><br>Zuglogos: RE, IC, ICN,EC, S, IR und VAE.<br><b>Spezial</b>: Nur Zeit & Hinweis zeigt nur den Hinweis, mittig in gelb."
         },
         {
             "title":"U-Bahn MUC v1",
