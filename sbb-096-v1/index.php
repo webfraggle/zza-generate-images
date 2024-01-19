@@ -38,6 +38,7 @@ if (!$hasCache)
     $data = json_decode($json);
     $fontBold = './fonts/nimbus-sans-l/NimbusSanL-Bol.otf';
     $fontRegular = './fonts/nimbus-sans-l/NimbusSanL-Reg.otf';
+    $fontItalic = './fonts/nimbus-sans-l/NimbusSanL-RegIta.otf';
     if (!(trim($data->zug1->abw).trim($data->zug1->vonnach).trim($data->zug1->nr).trim($data->zug1->via)))
     {
         $mode = "infoOnly";
@@ -159,8 +160,18 @@ if (!$hasCache)
     if ($showTrain)
     {
 
+        /*
+        ICE TGV PE BEX GEX EC IC IR NJ RJX VAE EXT CNL = rot
+        R auf Weiß wie S
+        PE GEX PE BEX PE kursiv, GEX normal
+        */
+
+        $onRed = ["ICE", "TGV", "PE", "BEX", "GEX", "EC", "IC", "IR", "NJ", "RJX", "VAE", "EXT", "CNL"];
         $nr = $data->zug1->nr;
         $type = "";
+        $t = "";
+        preg_match('/([a-zA-Z]+)(\d*)/', $nr, $matches, PREG_OFFSET_CAPTURE);
+        $t = isset($matches[1][0]) ? $matches[1][0] : "";
         $zahl = preg_replace("/[^0-9]/", '', $nr); 
         if (str_starts_with(strtolower($nr),"ic") 
         && !str_starts_with(strtolower($nr),"ice")
@@ -206,12 +217,32 @@ if (!$hasCache)
             addResizedTextToImage("RE".$zahl,5.3,$fontRegular,"#ff0000",1,1,$bg,49,12);
             addResizedTextToImage("RE".$zahl,5.3,$fontRegular,"#ff0000",1,1,$bg,49,12);
         }
-        elseif (str_starts_with(strtolower($nr),"s"))
+        elseif (strtolower($t) == "s" || strtolower($t) == "r")
         {
             $white = imagecolorallocate($bg, 255, 255, 255);
+            
+            
             imagefilledrectangle($bg, 48, 11, 48+31, 11+9, $white);
-            addResizedTextToImage("S".$zahl,5.3,$fontRegular,"#000000",1,1,$bg,49,12);
-            addResizedTextToImage("S".$zahl,5.3,$fontRegular,"#000000",1,1,$bg,49,12);
+            addResizedTextToImage($t.$zahl,5.3,$fontRegular,"#000000",1,1,$bg,49,12);
+            addResizedTextToImage($t.$zahl,5.3,$fontRegular,"#000000",1,1,$bg,49,12);
+        }
+        elseif (strtolower($nr) == "pe bex" || strtolower($nr) == "pe gex")
+        {
+            $white = imagecolorallocate($bg, 255, 0, 0);
+            
+            
+            imagefilledrectangle($bg, 44, 11, 44+35, 11+9, $white);
+            addResizedTextToImage($nr,5.3,$fontItalic,"#ffffff",1,1,$bg,44,12);
+            addResizedTextToImage($nr,5.3,$fontItalic,"#ffffff",1,1,$bg,44,12);
+        }
+        elseif (in_array(strtoupper($t), $onRed))
+        {
+            $white = imagecolorallocate($bg, 255, 0, 0);
+            
+            
+            imagefilledrectangle($bg, 44, 11, 44+34, 11+9, $white);
+            addResizedTextToImage($t.$zahl,5.3,$fontItalic,"#ffffff",1,1,$bg,44,12);
+            addResizedTextToImage($t.$zahl,5.3,$fontItalic,"#ffffff",1,1,$bg,44,12);
         } else {
             addResizedTextToImage($nr,5.5,$fontRegular,"#ffffff",1,1,$bg,49,11);
             addResizedTextToImage($nr,5.5,$fontRegular,"#ffffff",1,1,$bg,49,11);
