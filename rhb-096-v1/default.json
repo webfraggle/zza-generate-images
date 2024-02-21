@@ -1,6 +1,6 @@
 {
     "folgezuege": "Folgezüge",
-    "gleis": 6,
+    "gleis": "",
     "abschnitt": "A-F",
     "mirrored": false,
     "intervalTime": 60,
@@ -8,12 +8,12 @@
     "stationNr": 8000115,
     "mode": 1,
     "zug1": {
-        "vonnach": "Neulengbach",
-        "nr": "S1",
-        "zeit": "15:53",
-        "via": "Wien Penzing - Wien Hüttendorf",
-        "abw": 10,
-        "hinweis": "*Hält nicht in Unter Tullnerbach!",
+        "vonnach": "St. Moritz",
+        "nr": "RE",
+        "zeit": "11:30",
+        "via": "Filisur - Samedan",
+        "abw": "",
+        "hinweis": "",
         "fusszeile": "",
         "abschnitte": "",
         "reihung": ""
