@@ -8,12 +8,12 @@
     "stationNr": 8000115,
     "mode": 1,
     "zug1": {
-        "vonnach": "Sennhof-Kyburg",
+        "vonnach": "Frankfurt",
         "nr": "IC23",
-        "zeit": "15:54",
-        "via": "Othmarsingen - Mägenwil - Mellingen - Zürich HB - Winterthur",
+        "zeit": "13:30",
+        "via": "Neuhof - Gelnhausen - Hanau",
         "abw": 10,
-        "hinweis": "Abweichende Wagenreihung",
+        "hinweis": "",
         "fusszeile": "",
         "abschnitte": "",
         "reihung": ""

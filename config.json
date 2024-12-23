@@ -8,10 +8,24 @@
             "description":"<b>ÖBB Displays</b><br>Zuglogos: S<br><b>Spezial</b>: * als erstes Zeichen im Hinweis = gelber Hintergrund"
         },
         {
+            "title":"ÖBB v1",
+            "description":"",
+            "displaysize":"1.05",
+            "url":"./oebb-105-v1/",
+            "description":"<b>ÖBB Displays</b><br>Zuglogos: S<br><b>Spezial</b>: * als erstes Zeichen im Hinweis = gelber Hintergrund"
+        },
+        {
             "title":"SBB v1",
             "description":"",
             "displaysize":"0.96",
             "url":"./sbb-096-v1/",
+            "description":"<b>Schweizer Bahn Displays</b><br>Zuglogos: RE, IC, ICN,EC, S, IR und VAE.<br><b>Spezial</b>: Nur Zeit & Hinweis zeigt nur den Hinweis, mittig in gelb."
+        },
+        {
+            "title":"SBB v1",
+            "description":"",
+            "displaysize":"1.05",
+            "url":"./sbb-105-v1/",
             "description":"<b>Schweizer Bahn Displays</b><br>Zuglogos: RE, IC, ICN,EC, S, IR und VAE.<br><b>Spezial</b>: Nur Zeit & Hinweis zeigt nur den Hinweis, mittig in gelb."
         }
         ,
@@ -34,6 +48,13 @@
             "description":"",
             "displaysize":"1.14",
             "url":"./faltblatt/",
+            "description":"<b>Faltblatt</b><br>Zuglogos: IC, ICE, RB und RE."
+        },
+        {
+            "title":"Faltblatt",
+            "description":"",
+            "displaysize":"1.05",
+            "url":"./faltblatt-105-v1/",
             "description":"<b>Faltblatt</b><br>Zuglogos: IC, ICE, RB und RE."
         }
     ]

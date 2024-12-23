@@ -8,12 +8,12 @@
     "stationNr": 8000115,
     "mode": 1,
     "zug1": {
-        "vonnach": "Sennhof-Kyburg",
-        "nr": "IC23",
-        "zeit": "15:54",
-        "via": "Othmarsingen - Mägenwil - Mellingen - Zürich HB - Winterthur",
+        "vonnach": "Neulengbach",
+        "nr": "S1",
+        "zeit": "15:53",
+        "via": "Wien Penzing - Wien Hüttendorf",
         "abw": 10,
-        "hinweis": "Abweichende Wagenreihung",
+        "hinweis": "*Hält nicht in Unter Tullnerbach!",
         "fusszeile": "",
         "abschnitte": "",
         "reihung": ""
