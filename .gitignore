@@ -1,8 +1,5 @@
 faltblatt/fonts/**/*.otf
 node_modules
 /**/cache
-# faltblatt/cache
-# oebb-096-v1/cache
-rhb-096-v1/fonts/LLPIXEL3.ttf
-# rhb-096-v1/cache
-rhb-096-v1/fonts/04B_03__.TTF
+rhb-096-v1/fonts
+rhb-105-v1/fonts

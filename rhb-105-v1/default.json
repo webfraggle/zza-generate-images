@@ -1,0 +1,43 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": "",
+    "abschnitt": "A-F",
+    "mirrored": false,
+    "intervalTime": 60,
+    "timeFactor": 10,
+    "stationNr": 8000115,
+    "mode": 1,
+    "zug1": {
+        "vonnach": "St. Moritz",
+        "nr": "RE",
+        "zeit": "11:30",
+        "via": "Filisur - Samedan",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

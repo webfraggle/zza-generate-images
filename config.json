@@ -37,6 +37,13 @@
             "description":"<b>RhB Displays</b><br>."
         },
         {
+            "title":"RhB v1",
+            "description":"",
+            "displaysize":"1.05",
+            "url":"./rhb-105-v1/",
+            "description":"<b>RhB Displays</b><br>."
+        },
+        {
             "title":"U-Bahn MUC v1",
             "description":"",
             "displaysize":"0.96",
