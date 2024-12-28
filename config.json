@@ -56,6 +56,13 @@
             "displaysize":"1.05",
             "url":"./faltblatt-105-v1/",
             "description":"<b>Faltblatt</b><br>Zuglogos: IC, ICE, RB und RE."
+        },
+        {
+            "title":"Nederland v1",
+            "description":"",
+            "displaysize":"0.96",
+            "url":"./nederland-096-v1/",
+            "description":"<b>Nederland</b><br><br>"
         }
     ]
 }

@@ -84,8 +84,11 @@ function imageLoaded(e)
     var img = $('#image');
     var width = img.prop('naturalWidth');
     var height = img.prop('naturalHeight');
-    img.width(width*2);
-    img.height(height*2);
+    if (width < 240)
+    {
+        img.width(width*2);
+        img.height(height*2);
+    }
 }
 function themeChanged(e)
 {
@@ -181,7 +184,9 @@ function loadPic()
     else config.zug3.hinweis = "";
     if ($("#abw3").val()) config.zug3.abw = $("#abw3").val();
     else config.zug3.abw = 0;
-
+    var img = $('#image');
+    img.css('width', 'auto');
+    img.css('height', 'auto');
 
     $.ajax({
         type: "POST",
