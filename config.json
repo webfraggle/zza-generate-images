@@ -51,6 +51,13 @@
             "description":"<b>U-Bahn München</b><br>Zuglogos: U1-8<br><b>Spezial</b>: Richtung = erster Zug Hinweis, Minuten = Differenz der Zeiten minus 5 Minuten"
         },
         {
+            "title":"U-Bahn MUC v1",
+            "description":"",
+            "displaysize":"1.05",
+            "url":"./umuc-105-v1/",
+            "description":"<b>U-Bahn München</b><br>Zuglogos: U1-8<br><b>Spezial</b>: Richtung = erster Zug Hinweis, Minuten = Differenz der Zeiten minus 5 Minuten"
+        },
+        {
             "title":"Faltblatt",
             "description":"",
             "displaysize":"1.14",
