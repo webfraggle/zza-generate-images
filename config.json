@@ -84,6 +84,13 @@
             "displaysize":"1.05",
             "url":"./nederland-105-v1/",
             "description":"<b>Nederland</b><br><br>"
+        },
+        {
+            "title":"Stream Deck Icons v1",
+            "description":"",
+            "displaysize":"",
+            "url":"./streamdeck-v1/",
+            "description":"<b>Stream Deck Icons</b>"
         }
     ]
 }
