@@ -84,7 +84,7 @@ function imageLoaded(e)
     var img = $('#image');
     var width = img.prop('naturalWidth');
     var height = img.prop('naturalHeight');
-    if (width < 240)
+    if (width < 240 && width != 144)
     {
         img.width(width*2);
         img.height(height*2);
