@@ -101,6 +101,7 @@ if (!$hasCache)
 
     // Von Nach
     $vonnach = mb_convert_encoding($data->zug1->vonnach, 'ISO-8859-1', 'UTF-8');
+    $vonnach = str_replace("/","/ ",$vonnach);
     
     // Wordwrap
     $text = wrapText($vonnach,$fontRegular,11.85,111);
