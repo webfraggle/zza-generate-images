@@ -1,7 +1,8 @@
 <?php
 
 $username = "webfraggle";
-$url = "https://i.instagram.com/api/v1/users/web_profile_info/?username=".$username;
+// $url = "https://i.instagram.com/api/v1/users/web_profile_info/?username=".$username;
+$url = "https://social-media-users-data-api-production.lightricks.workers.dev/instagram?username=".$username;
 $hash = md5($url);
 $cacheFile = "./cache/".$hash.".json";
 $userAgent = "Instagram 76.0.0.15.395 Android (24/7.0; 640dpi; 1440x2560; samsung; SM-G930F; herolte; samsungexynos8890; en_US; 138226744)";
@@ -28,10 +29,20 @@ if (!is_dir($directory)) {
 if (!file_exists($cacheFile))
 {
     $reCache = true;
-}
-if (time() - filemtime($cacheFile) > 30*60)
+} else
 {
-    $reCache = true;
+    /**
+     * Überprüft, ob der Cache älter als 4 Stunden ist.
+     * 
+     * Der Cache lebt 4 Stunden (14400 Sekunden). Wenn die Differenz zwischen
+     * der aktuellen Zeit und der letzten Änderungszeit der Cache-Datei
+     * größer als 4 Stunden ist, wird der Cache als abgelaufen betrachtet
+     * und sollte neu generiert werden.
+     */
+    if (time() - filemtime($cacheFile) > 4*60*60)
+    {
+        $reCache = true;
+    }
 }
 
 
@@ -46,7 +57,15 @@ if ($reCache)
 
 $jsonString = file_get_contents($cacheFile);
 $data = json_decode($jsonString);
-$count = $data->data->user->edge_followed_by->count;
+
+// print_r($data);
+// print_r($data->followersCount);
+// exit;
+// $count = $data->data->user->edge_followed_by->count;
+$count = $data->followersCount;
+
+
+
 // print_r($data->data->user->edge_followed_by->count);
 
 $fontBold = './fonts/Roboto/Roboto-Bold.ttf';
