@@ -32,14 +32,14 @@ if (!file_exists($cacheFile))
 } else
 {
     /**
-     * Überprüft, ob der Cache älter als 4 Stunden ist.
+     * Überprüft, ob der Cache älter als 2 Stunden ist.
      * 
-     * Der Cache lebt 4 Stunden (14400 Sekunden). Wenn die Differenz zwischen
+     * Der Cache lebt 2 Stunden (7200 Sekunden). Wenn die Differenz zwischen
      * der aktuellen Zeit und der letzten Änderungszeit der Cache-Datei
-     * größer als 4 Stunden ist, wird der Cache als abgelaufen betrachtet
+     * größer als 2 Stunden ist, wird der Cache als abgelaufen betrachtet
      * und sollte neu generiert werden.
      */
-    if (time() - filemtime($cacheFile) > 4*60*60)
+    if (time() - filemtime($cacheFile) > 2*60*60)
     {
         $reCache = true;
     }
@@ -98,6 +98,8 @@ foreach ($chars as $char) {
 // addResizedTextToImage("@".$username,$s,$fontRegular,"#ffffff",1,1,$bg,$x,$y,"right");
 
 // imagecopy($bg,$bg,0,80,0,0,160,80);
+$dateTime = date("d.m.Y H:i:s", time() + 3600);
+addResizedTextToImage($dateTime,9,$fontBold,"#ffffff",1,1,$bg,160,138,"center");
 
 $fgimg = imagecreatefrompng("./img/fg320x170.png");
 imagecopy($bg,$fgimg,0,0,0,0,imagesx($fgimg),imagesy($fgimg));
