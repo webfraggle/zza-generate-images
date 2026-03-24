@@ -4,7 +4,13 @@
       "Bash(ls -d /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/*/)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(go mod:*)",
+      "Bash(go build:*)",
+      "Bash(go run:*)",
+      "Read(//tmp/**)",
+      "Bash(./zza render:*)",
+      "Bash(go test:*)"
     ]
   }
 }

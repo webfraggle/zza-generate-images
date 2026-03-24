@@ -21,6 +21,9 @@ layers:
     file: bg.png
     x: 0
     y: 0
+    rotate: "45"                                                                                                                                                                                                 
+    pivot_x: 80                                                                                                                                                                                                
+    pivot_y: 80  
 
   # Hintergrund (Platzhalter bis bg.png vorhanden)
   # - type: rect
@@ -48,6 +51,18 @@ layers:
     color: "#ffffff"
     align: left
 
+  - type: text
+    value: "{{zug1.abw}}"
+    x: 80
+    y: 10
+    font: bold
+    size: 16
+    color:
+      if: "greaterThan(zug1.abw, 0)"                                                                                                                                                                           
+      then: "#FF0000"                                                                                                                                                                                            
+      else: "#FFFFFF"
+    align: left
+
   # --- Zugnummer ---
   - type: text
     value: "{{zug1.nr}}"
@@ -58,12 +73,12 @@ layers:
     color: "#ffffff"
     align: left
 
-  - type: rect
-    x: 3
-    y: 10
-    width: 80
-    height: 60
-    color: "#ff0000"
+  # - type: rect
+  #   x: 3
+  #   y: 10
+  #   width: 80
+  #   height: 60
+  #   color: "#ff0000"
   # --- Ziel (vonnach) ---
   - type: text
     value: "{{zug1.vonnach}}"
@@ -75,14 +90,57 @@ layers:
     align: left
     width: 80
     height: 60
-    valign: bottom
+    valign: top
 
   # --- Hinweis ---
   # Phase 1: immer angezeigt — Phase 2 ergänzt: roten Hintergrund + nur wenn nicht leer
+  - type: rect
+    if: "not(isEmpty(zug1.hinweis))"  
+    x: 3
+    y: 10
+    width: 80
+    height: 60
+    color: "#ff0000"
+  - type: rect
+    if: "isEmpty(zug1.hinweis)"  
+    x: 3
+    y: 10
+    width: 80
+    height: 2
+    color: "#ffff00"
+  
   - type: text
     value: "{{zug1.hinweis}}"
     x: 3
     y: 53
+    font: regular
+    size: 11
+    color: "#ffffff"
+    align: left
+    max_width: 74
+  
+  - type: text
+    value: "{{zug1.hinweis | strip('*') | upper}}"
+    x: 80
+    y: 25
+    font: regular
+    size: 11
+    color: "#ffffff"
+    align: left
+    max_width: 74
+  - type: text
+    value: "{{now.hour}}:{{now.minute}}"
+    x: 80
+    y: 45
+    font: regular
+    size: 11
+    color: "#ffffff"
+    align: left
+    max_width: 74
+  - type: text
+    value: "{{now.minute | mul(6)}}"
+    x: 80
+    y: 55
     font: regular
     size: 11
     color: "#ffffff"
