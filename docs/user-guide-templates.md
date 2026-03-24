@@ -187,13 +187,46 @@ Gibt Text auf dem Bild aus. Der Text kann feste Werte oder Zugdaten enthalten (s
 | `font` | Schriftart-ID aus der `fonts`-Liste |
 | `size` | Schriftgröße in Punkten — Kommazahlen erlaubt, z.B. `8.2` |
 | `color` | Textfarbe als Hex-Wert |
-| `align` | Textausrichtung: `left` (Standard), `center`, `right` |
-| `max_width` | optional — maximale Breite in Pixeln, danach Zeilenumbruch |
+| `align` | Horizontale Ausrichtung: `left` (Standard), `center`, `right` |
+| `valign` | Vertikale Ausrichtung: `top` (Standard), `middle`, `bottom` — benötigt `height` |
+| `width` | optional — Boxbreite in Pixeln für Ausrichtung und Zeilenumbruch |
+| `height` | optional — Boxhöhe in Pixeln für vertikale Ausrichtung |
+| `max_width` | optional — maximale Breite für Zeilenumbruch (alternativ zu `width`) |
 
-**Ausrichtung:**
-- `left` — `x` ist die **linke** Kante des Textes
-- `center` — `x` ist der **Mittelpunkt** des Textes
-- `right` — `x` ist die **rechte** Kante des Textes
+**Horizontale Ausrichtung:**
+
+Ohne `width` ist `x` der Ankerpunkt:
+- `left` — `x` ist die linke Kante des Textes
+- `center` — `x` ist der Mittelpunkt des Textes
+- `right` — `x` ist die rechte Kante des Textes
+
+Mit `width` wird eine Box aufgespannt und der Text darin ausgerichtet:
+```yaml
+- type: text
+  value: "{{zug1.vonnach}}"
+  x: 80        # Box beginnt bei x=80
+  y: 10
+  width: 75    # Box ist 75px breit
+  align: right # Text rechtsbündig innerhalb der Box
+  font: bold
+  size: 14
+  color: "#FFFFFF"
+```
+
+**Vertikale Ausrichtung** (benötigt `height`):
+```yaml
+- type: text
+  value: "Gleis"
+  x: 130
+  y: 0
+  width: 30
+  height: 80   # Box ist 80px hoch
+  align: center
+  valign: middle  # Text vertikal zentriert in der Box
+  font: bold
+  size: 12
+  color: "#FFFFFF"
+```
 
 ---
 

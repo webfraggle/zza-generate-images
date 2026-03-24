@@ -48,7 +48,8 @@ type Layer struct {
 	Value    StringOrCond `yaml:"value"`
 	Font     string       `yaml:"font"`
 	Size     float64      `yaml:"size"`
-	Align    string       `yaml:"align"`
+	Align    string       `yaml:"align"`   // left (default) | center | right
+	Valign   string       `yaml:"valign"`  // top (default) | middle | bottom — needs height
 	MaxWidth int          `yaml:"max_width"`
 	// type: copy — source region to copy from
 	SrcX      int `yaml:"src_x"`

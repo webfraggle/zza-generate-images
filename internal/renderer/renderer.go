@@ -201,39 +201,70 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 	ascent := metrics.Ascent.Round()
 	lineHeight := metrics.Height.Round()
 
+	// Use width as wrap boundary if set, otherwise wrap at max_width.
+	wrapWidth := layer.MaxWidth
+	if layer.Width > 0 && wrapWidth == 0 {
+		wrapWidth = layer.Width
+	}
+
 	var lines []string
-	if layer.MaxWidth > 0 {
-		lines = wrapText(face, text, layer.MaxWidth)
+	if wrapWidth > 0 {
+		lines = wrapText(face, text, wrapWidth)
 	} else {
 		lines = []string{text}
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+
+	// Vertical alignment — requires height to be set.
+	startY := layer.Y
+	if layer.Height > 0 {
+		totalHeight := len(lines)*lineHeight
+		switch layer.Valign {
+		case "middle":
+			startY = layer.Y + (layer.Height-totalHeight)/2
+		case "bottom":
+			startY = layer.Y + layer.Height - totalHeight
+		}
 	}
 
 	img := &image.Uniform{C: c}
 
 	for i, line := range lines {
-		y := layer.Y + ascent + i*lineHeight
+		y := startY + ascent + i*lineHeight
 
+		// Horizontal alignment.
+		// With width: align within the box [X, X+Width].
+		// Without width: X is the anchor point (left edge / center / right edge).
 		var x int
 		switch layer.Align {
 		case "center":
-			w := measureText(face, line)
-			x = layer.X - w/2
+			lineW := measureText(face, line)
+			if layer.Width > 0 {
+				x = layer.X + (layer.Width-lineW)/2
+			} else {
+				x = layer.X - lineW/2
+			}
 		case "right":
-			w := measureText(face, line)
-			x = layer.X - w
+			lineW := measureText(face, line)
+			if layer.Width > 0 {
+				x = layer.X + layer.Width - lineW
+			} else {
+				x = layer.X - lineW
+			}
 		default: // left
 			x = layer.X
 		}
 
-		pt := fixed.Point26_6{
-			X: fixed.I(x),
-			Y: fixed.I(y),
-		}
 		d := &font.Drawer{
 			Dst:  dst,
 			Src:  img,
 			Face: face,
-			Dot:  pt,
+			Dot: fixed.Point26_6{
+				X: fixed.I(x),
+				Y: fixed.I(y),
+			},
 		}
 		d.DrawString(line)
 	}

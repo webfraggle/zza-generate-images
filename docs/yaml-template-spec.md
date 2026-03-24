@@ -138,7 +138,10 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
   size: 14            # Schriftgröße in Punkten
   color: "#FFFFFF"
   align: left         # left | center | right
-  max_width: 80       # optional — Text wird umgebrochen wenn breiter
+  valign: top         # top | middle | bottom — benötigt height
+  width: 80           # optional — Boxbreite für Ausrichtung + Zeilenumbruch
+  height: 20          # optional — Boxhöhe für vertikale Ausrichtung
+  max_width: 80       # optional — nur Zeilenumbruch (alternativ zu width)
 ```
 
 ---
