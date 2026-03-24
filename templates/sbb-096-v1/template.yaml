@@ -1,0 +1,45 @@
+meta:
+  name: "SBB 0.96\""
+  description: "Schweizer Bundesbahnen, 0.96 Zoll Display"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 160
+    height: 160
+
+# No fonts defined in this minimal test template.
+# Add font entries here once font files are present in this directory.
+fonts: []
+
+layers:
+  # Dark blue background
+  - type: rect
+    x: 0
+    y: 0
+    width: 160
+    height: 160
+    color: "#132a9b"
+
+  # Header bar
+  - type: rect
+    x: 0
+    y: 0
+    width: 160
+    height: 10
+    color: "#0d1f6e"
+
+  # Separator line
+  - type: rect
+    x: 0
+    y: 72
+    width: 160
+    height: 2
+    color: "#1e3dcc"
+
+  # Second row background
+  - type: rect
+    x: 0
+    y: 82
+    width: 160
+    height: 78
+    color: "#132a9b"
