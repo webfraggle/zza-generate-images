@@ -220,7 +220,7 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 	// Vertical alignment — requires height to be set.
 	startY := layer.Y
 	if layer.Height > 0 {
-		totalHeight := len(lines)*lineHeight
+		totalHeight := len(lines) * lineHeight
 		switch layer.Valign {
 		case "middle":
 			startY = layer.Y + (layer.Height-totalHeight)/2
@@ -351,27 +351,57 @@ func measureText(face font.Face, text string) int {
 }
 
 // wrapText breaks text into lines so that no line exceeds maxWidth pixels.
+// It splits at spaces first, then at hyphens, then forces a break mid-word
+// if a single token is still too wide.
 func wrapText(face font.Face, text string, maxWidth int) []string {
-	words := strings.Fields(text)
-	if len(words) == 0 {
+	// Split into space-separated words, then further split each word at hyphens
+	// so that e.g. "Sennhof-Kyburg" can break after the hyphen.
+	type token struct {
+		text     string
+		spaceBefore bool
+	}
+	var tokens []token
+	for i, word := range strings.Fields(text) {
+		parts := strings.SplitAfter(word, "-") // keeps the hyphen on the left part
+		for j, part := range parts {
+			tokens = append(tokens, token{
+				text:        part,
+				spaceBefore: i > 0 && j == 0, // space only before first part of each word
+			})
+		}
+	}
+	if len(tokens) == 0 {
 		return nil
 	}
 
 	var lines []string
 	current := ""
 
-	for _, word := range words {
-		candidate := word
-		if current != "" {
-			candidate = current + " " + word
+	for _, tok := range tokens {
+		sep := ""
+		if current != "" && tok.spaceBefore {
+			sep = " "
 		}
+		candidate := current + sep + tok.text
+
 		if measureText(face, candidate) <= maxWidth {
 			current = candidate
 		} else {
+			// Current token doesn't fit — flush current line first.
 			if current != "" {
 				lines = append(lines, current)
+				current = tok.text
+			} else {
+				// Single token wider than maxWidth — force character-level break.
+				for _, ch := range tok.text {
+					if measureText(face, current+string(ch)) <= maxWidth {
+						current += string(ch)
+					} else {
+						lines = append(lines, current)
+						current = string(ch)
+					}
+				}
 			}
-			current = word
 		}
 	}
 	if current != "" {

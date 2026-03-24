@@ -60,33 +60,37 @@ zza-generate-images/
 
 ---
 
-## Phase 1 — Go-Projektgerüst & Renderer-Kern
+## Phase 1 — Go-Projektgerüst & Renderer-Kern ✅
 
 **Ziel:** Go-Modul aufsetzen, YAML-Template laden, einfaches PNG rendern.
 
 ### Aufgaben
 1. `go.mod` initialisieren (`github.com/webfraggle/zza-generate-images`)
 2. Abhängigkeiten einbinden:
-   - `github.com/golang/freetype` — TrueType Font Rendering
-   - `golang.org/x/image` — Bildverarbeitung
+   - ~~`github.com/golang/freetype`~~ → **`golang.org/x/image/font/opentype`** (unterstützt OTF + TTF; freetype nur TTF)
+   - `golang.org/x/image` — Bildverarbeitung + Skalierung (CatmullRom)
    - `gopkg.in/yaml.v3` — YAML-Parsing
-   - `github.com/mattn/go-sqlite3` — SQLite
-3. YAML-Datenstruktur implementieren (`template.go`): `meta`, `fonts`, `layers`
+   - `github.com/spf13/cobra` — CLI (statt manuell)
+   - SQLite → **nicht in Phase 1** (erst ab Phase 5)
+3. YAML-Datenstruktur implementieren (`template.go`): `meta`, `fonts`, `layers`, `StringOrCond`
 4. Layer-Rendering implementieren (`renderer.go`):
-   - `type: image` — PNG einlesen und platzieren
+   - `type: image` — PNG/JPG einlesen, optional skalieren (CatmullRom)
    - `type: rect` — Rechteck zeichnen
-   - `type: text` — Text mit TrueType-Font rendern (inkl. `max_width`, `align`)
-   - `type: copy` — Bereich des Canvas auf andere Position kopieren (für gespiegelte Displays)
+   - `type: text` — Text mit OTF/TTF-Font rendern (`max_width`, `align`, `valign`, `width`, `height`)
+   - `type: copy` — Bereich des Canvas kopieren (für gespiegelte Displays)
 5. Variablen-Interpolation (`evaluator.go`): `{{zug1.zeit}}` aus JSON ersetzen
-6. Einfaches CLI: `zza render --template X --input X --output X`
+6. Sicherheits-Limits: `maxCanvasDimension=16384`, `maxLayers=256`, `maxFontFileBytes=50MB`
+7. Path-Traversal-Schutz: `sanitize.go` mit `ValidateTemplateName` + `SafeTemplatePath`
+8. CLI: `zza render -t <template> -i <input.json> -o <output.png>`
 
-### Agenten
-- **implementer** schreibt den Code
-- **security-reviewer** prüft evaluator.go (Injection-Risiko)
-- **code-reviewer** prüft Gesamtstruktur
+### Abweichungen vom ursprünglichen Plan
+- Font-Library: `opentype` statt `freetype` — Legacy-Themes verwenden `.otf`, freetype unterstützt nur `.ttf`
+- SQLite nicht in Phase 1 — erst in Phase 5 benötigt
+- `StringOrCond`-Typ hinzugefügt: YAML-Felder können einfacher String oder `if/then/else`-Map sein
+- Sicherheits-Ressourcenlimits und Path-Traversal-Schutz bereits in Phase 1 eingebaut (Security Review)
 
 ### Manueller Test (Phase 1)
-> Beschreibung folgt am Ende der Phase vom **test-describer** Agenten.
+Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-096-v1/default.json -o /tmp/out.png`
 
 ---
 

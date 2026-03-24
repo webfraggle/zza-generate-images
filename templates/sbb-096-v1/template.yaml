@@ -17,26 +17,26 @@ fonts:
 
 layers:
   # Hintergrundbild — aktivieren sobald bg.png vorhanden
-  # - type: image
-  #   file: bg.png
-  #   x: 0
-  #   y: 0
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
 
   # Hintergrund (Platzhalter bis bg.png vorhanden)
-  - type: rect
-    x: 0
-    y: 0
-    width: 160
-    height: 80
-    color: "#132a9b"
+  # - type: rect
+  #   x: 0
+  #   y: 0
+  #   width: 160
+  #   height: 80
+  #   color: "#132a9b"
 
-  # Header-Balken
-  - type: rect
-    x: 0
-    y: 0
-    width: 160
-    height: 10
-    color: "#0d1f6e"
+  # # Header-Balken
+  # - type: rect
+  #   x: 0
+  #   y: 0
+  #   width: 160
+  #   height: 10
+  #   color: "#0d1f6e"
 
   # --- Abfahrtszeit ---
   - type: text
@@ -44,7 +44,7 @@ layers:
     x: 3
     y: 10
     font: bold
-    size: 8.2
+    size: 16
     color: "#ffffff"
     align: left
 
@@ -54,20 +54,28 @@ layers:
     x: 49
     y: 11
     font: regular
-    size: 5.5
+    size: 11
     color: "#ffffff"
     align: left
 
+  - type: rect
+    x: 3
+    y: 10
+    width: 80
+    height: 60
+    color: "#ff0000"
   # --- Ziel (vonnach) ---
   - type: text
     value: "{{zug1.vonnach}}"
     x: 3
-    y: 56
+    y: 10
     font: regular
-    size: 7.9
+    size: 16
     color: "#ffffff"
     align: left
-    max_width: 74
+    width: 80
+    height: 60
+    valign: bottom
 
   # --- Hinweis ---
   # Phase 1: immer angezeigt — Phase 2 ergänzt: roten Hintergrund + nur wenn nicht leer
@@ -76,7 +84,7 @@ layers:
     x: 3
     y: 53
     font: regular
-    size: 5.5
+    size: 11
     color: "#ffffff"
     align: left
     max_width: 74
