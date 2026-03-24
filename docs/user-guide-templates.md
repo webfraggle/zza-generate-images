@@ -342,12 +342,204 @@ layers:
 
 ---
 
-## Noch nicht verfügbar (kommt bald)
+## Variablen und Ausdrücke
 
-Die folgenden Features sind geplant und werden in einer der nächsten Versionen verfügbar:
+Template-Werte wie `value`, `color`, `rotate` können Platzhalter enthalten: `{{ausdruck}}`.
 
-- **Bedingungen** — Layer nur anzeigen wenn eine Bedingung erfüllt ist (z.B. nur Hinweis anzeigen wenn nicht leer)
-- **Filter** — Text transformieren, z.B. `| strip('*')` um ein führendes Sternchen zu entfernen
-- **Zeit und Datum** — aktuelle Uhrzeit/Datum einbinden mit `{{now.hour}}`, `{{now | format('HH:mm')}}`
-- **Mathe-Filter** — für analoge Uhren: `{{now.minute | mul(6)}}` berechnet den Winkel des Minutenzeigers
-- **Bild-Rotation** — Zeigerbild um berechneten Winkel drehen für analoge Uhren
+### Zugdaten
+
+Zugdaten kommen als JSON vom Zugzielanzeiger. Verschachtelte Felder werden mit Punkt adressiert:
+
+```yaml
+value: "{{zug1.zeit}}"       # z.B. "15:54"
+value: "{{zug1.vonnach}}"    # z.B. "Zürich HB"
+value: "Gl. {{gleis}}"       # Textmix mit statischem Anteil
+```
+
+Fehlende Felder ergeben einen leeren String (kein Fehler).
+
+---
+
+## Filter-Pipeline
+
+Variablen können durch Filter verarbeitet werden: `{{variable | filter1 | filter2(arg)}}`.
+Mehrere Filter können hintereinandergeschaltet werden.
+
+### Text-Filter
+
+| Filter | Beschreibung | Beispiel | Ergebnis |
+|---|---|---|---|
+| `upper` | Grossbuchstaben | `{{zug.nr \| upper}}` | `IC23` → `IC23` |
+| `lower` | Kleinbuchstaben | `{{zug.nr \| lower}}` | `IC23` → `ic23` |
+| `trim` | Leerzeichen entfernen | `{{x \| trim}}` | `" hallo "` → `"hallo"` |
+| `strip('x')` | Präfix entfernen | `{{hinweis \| strip('*')}}` | `*Abw.` → `Abw.` |
+| `stripAll('x')` | Alle Vorkommen entfernen | `{{x \| stripAll('-')}}` | `a-b-c` → `abc` |
+| `stripBetween('{','}')` | Bereich entfernen | `{{x \| stripBetween('{','}')}}` | `Halt {x} ok` → `Halt  ok` |
+| `prefix('text')` | Präfix hinzufügen | `{{v \| prefix('+')}}` | `5` → `+5` |
+| `suffix(' min')` | Suffix hinzufügen | `{{v \| suffix(' min')}}` | `5` → `5 min` |
+
+**Beispiel mit Verkettung:**
+```yaml
+value: "{{zug1.hinweis | strip('*') | upper}}"
+# "*Abweichende Wagenreihung" → "ABWEICHENDE WAGENREIHUNG"
+```
+
+### Mathe-Filter
+
+| Filter | Beschreibung | Beispiel | Ergebnis |
+|---|---|---|---|
+| `mul(x)` | Multiplizieren | `{{now.minute \| mul(6)}}` | `30` → `180` |
+| `div(x)` | Dividieren | `{{x \| div(4)}}` | `10` → `2.5` |
+| `add(x)` | Addieren | `{{x \| add(5)}}` | `10` → `15` |
+| `sub(x)` | Subtrahieren | `{{x \| sub(3)}}` | `10` → `7` |
+| `round` | Runden (ganzzahlig) | `{{x \| round}}` | `3.7` → `4` |
+
+Division durch 0 ergibt `0`. Nicht-numerische Werte werden unverändert durchgereicht.
+
+---
+
+## Zeit-Variablen
+
+Die aktuelle Zeit steht über `{{now.*}}` zur Verfügung (wird einmal pro Render-Aufruf erfasst):
+
+| Variable | Beschreibung | Beispiel |
+|---|---|---|
+| `{{now}}` | Aktuelle Zeit HH:MM | `15:54` |
+| `{{now.hour}}` | Stunde (0–23) | `15` |
+| `{{now.hour12}}` | Stunde (1–12) | `3` |
+| `{{now.minute}}` | Minute (0–59) | `54` |
+| `{{now.second}}` | Sekunde (0–59) | `7` |
+| `{{now.day}}` | Tag (1–31) | `24` |
+| `{{now.month}}` | Monat (1–12) | `3` |
+| `{{now.year}}` | Jahr | `2026` |
+| `{{now.weekday}}` | Wochentag (Deutsch) | `Dienstag` |
+
+### Format-Filter
+
+Mit `format(muster)` kann die Zeit frei formatiert werden:
+
+| Token | Bedeutung | Beispiel |
+|---|---|---|
+| `HH` | Stunde 00–23 (2-stellig) | `15` |
+| `hh` | Stunde 01–12 (2-stellig) | `03` |
+| `mm` | Minute (2-stellig) | `54` |
+| `ss` | Sekunde (2-stellig) | `07` |
+| `dd` | Tag (2-stellig) | `24` |
+| `MM` | Monat (2-stellig) | `03` |
+| `yyyy` | Jahr (4-stellig) | `2026` |
+| `EE` | Wochentag kurz | `Di` |
+| `EEEE` | Wochentag lang | `Dienstag` |
+
+```yaml
+value: "{{now | format('HH:mm:ss')}}"    # → "15:54:07"
+value: "{{now | format('dd.MM.yyyy')}}"  # → "24.03.2026"
+value: "{{now | format('EEEE')}}"        # → "Dienstag"
+```
+
+---
+
+## Bedingungen
+
+### Layer-Bedingung (`if`)
+
+Ein Layer wird nur gezeichnet wenn die Bedingung erfüllt ist:
+
+```yaml
+layers:
+  # Hinweis-Layer nur anzeigen wenn nicht leer
+  - type: text
+    if: "not(isEmpty(zug1.hinweis))"
+    value: "{{zug1.hinweis | strip('*')}}"
+    x: 5
+    y: 60
+    font: normal
+    size: 10
+    color: "#FFCC00"
+
+  # Verspätungs-Rechteck nur anzeigen wenn Verspätung > 0
+  - type: rect
+    if: "greaterThan(zug1.abw, 0)"
+    x: 120
+    y: 5
+    width: 40
+    height: 16
+    color: "#FF0000"
+```
+
+### Bedingte Eigenschaftswerte (`if/then/else`)
+
+Eigenschaften wie `color` und `value` können bedingte Werte haben:
+
+```yaml
+- type: text
+  value: "{{zug1.nr}}"
+  color:
+    if: "greaterThan(zug1.abw, 0)"
+    then: "#FF4444"   # rot bei Verspätung
+    else: "#FFFFFF"   # weiss sonst
+```
+
+Fehlt `else`, ist der Fallback ein leerer String.
+
+### Verfügbare Bedingungsfunktionen
+
+| Funktion | Beschreibung |
+|---|---|
+| `isEmpty(feld)` | Wahr wenn das Feld fehlt oder leer ist |
+| `not(bedingung)` | Negation; verschachtelbar: `not(not(...))` |
+| `startsWith(feld, 'text')` | Wahr wenn Feldwert mit `text` beginnt |
+| `endsWith(feld, 'text')` | Wahr wenn Feldwert mit `text` endet |
+| `contains(feld, 'text')` | Wahr wenn Feldwert `text` enthält |
+| `equals(feld, 'wert')` | Wahr wenn Feldwert gleich `wert` ist |
+| `greaterThan(feld, zahl)` | Wahr wenn Feldwert (numerisch) grösser als `zahl` |
+
+---
+
+## Bild-Rotation
+
+Bilder (Typ `image`) können gedreht werden — nützlich für analoge Uhren oder drehbare Zeiger.
+
+```yaml
+- type: image
+  file: minutenzeiger.png
+  x: 20
+  y: 20
+  width: 80
+  height: 80
+  rotate: "{{now.minute | mul(6)}}"   # 0–59 min × 6° = 0–354°
+  pivot_x: 40   # Drehpunkt relativ zum Bild (X)
+  pivot_y: 40   # Drehpunkt relativ zum Bild (Y)
+```
+
+**`rotate`** — Drehwinkel in Grad (Uhrzeigersinn). Unterstützt Ausdrücke und Filter.
+
+**`pivot_x` / `pivot_y`** — Drehpunkt relativ zur oberen linken Ecke des **Bildes** (nicht der Canvas). Wenn beide `0` sind (Standardwert), wird der Bildmittelpunkt verwendet.
+
+### Beispiel: Analoge Uhr
+
+```yaml
+layers:
+  - type: image
+    file: zifferblatt.png
+    x: 0
+    y: 0
+    width: 200
+    height: 200
+
+  - type: image
+    file: stundenzeiger.png
+    x: 50
+    y: 10
+    width: 100
+    height: 180
+    rotate: "{{now.hour12 | mul(30)}}"  # 12 Stunden × 30° = 360°
+    # pivot_x/pivot_y nicht gesetzt → Bildmitte
+
+  - type: image
+    file: minutenzeiger.png
+    x: 50
+    y: 10
+    width: 100
+    height: 180
+    rotate: "{{now.minute | mul(6)}}"   # 60 Minuten × 6° = 360°
+```

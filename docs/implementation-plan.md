@@ -94,7 +94,7 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 
 ---
 
-## Phase 2 — Filter, Bedingungen, Zeit & Rotation
+## Phase 2 — Filter, Bedingungen, Zeit & Rotation ✅
 
 **Ziel:** Vollständiger Evaluator mit Filtern, if/elif/else, Zeitvariablen, Mathe-Filtern und Bild-Rotation.
 
@@ -130,7 +130,14 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 - **code-reviewer**
 
 ### Manueller Test (Phase 2)
-> Beschreibung folgt am Ende der Phase.
+
+6 manuelle Testfälle bestanden (2026-03-24):
+1. `{{zug1.hinweis | strip('*')}}` — Präfix entfernen
+2. `if: not(isEmpty(zug1.hinweis))` — Layer-Bedingung
+3. `color: {if/then/else}` — bedingte Farbe
+4. `{{now | format('HH:mm:ss')}}` — Zeitformatierung
+5. `{{now.minute | mul(6)}}` — Mathe-Filter für Winkelberechnung
+6. `rotate: "{{now.minute | mul(6)}}"` — Bild-Rotation mit Pivot
 
 ---
 
