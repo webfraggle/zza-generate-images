@@ -14,7 +14,39 @@ Gesammelte Ideen und Anforderungen — noch nicht priorisiert oder umgesetzt.
   - Templates sollen von Usern genutzt, angepasst und erstellt werden können
   - Ziel: Community kann eigene Layouts beisteuern ohne Go-Kenntnisse
 
+## Cache-Management
+
+- Dateibasierter Cache (SHA1-Hash des JSON-Inputs als Dateiname)
+- **Automatischer Cleanup** — verhindert volllaufenden Speicher (bekanntes Problem der PHP-Version)
+- Cleanup-Strategien (zu entscheiden):
+  - Nach Alter: Dateien älter als X Stunden/Tage löschen
+  - Nach Größe: Wenn Cache-Verzeichnis > X MB, älteste Dateien löschen
+  - Beides kombiniert
+- Cleanup läuft als interner Go-Goroutine (kein externer Cronjob nötig)
+- Konfigurierbar via Umgebungsvariable (max. Alter, max. Größe)
+- Strategie: **beides kombiniert** — nach Alter UND nach Gesamtgröße
+
+## Mitgelieferte Templates
+
+- Alle 14 bestehenden Themes werden als YAML-Templates übernommen
+- Basis: PHP-Logik und Assets aus `legacy/` als Referenz
+- Werden von Claude aus der PHP-Implementierung in das neue YAML-Format portiert
+
 ## Neue Features
+
+### Template-Galerie
+- Öffentliche Übersicht aller verfügbaren Templates
+- Zeigt: Template-Name, Vorschaubild, Beschreibung (aus `meta` im YAML)
+- Kein Login nötig zum Durchsuchen
+- Von dort direkt zur Render-URL oder zum Editor-Anfrageformular
+
+### Ausprobiermodus (pro Template)
+- Formular mit Zugwerten direkt in der Galerie/Detailseite
+- Vorschau des gerenderten PNGs in Echtzeit
+- Formular wird mit Werten aus `default.json` des Templates vorbelegt
+- `default.json` liegt flach im Template-Verzeichnis (wie die anderen Dateien)
+- `default.json` ist vom Template-Besitzer über den Editor editierbar
+- Kein Login nötig zum Ausprobieren
 
 ### Online Template Editor
 - Web-basiertes Editing-Tool für Templates
@@ -117,6 +149,25 @@ Gilt für: Template-Namen, hochgeladene Asset-Dateien
 
 - Bereinigung passiert **automatisch und transparent** — der User sieht den bereinigten Namen
 - Keine Fehlermeldung, kein Abbruch — einfach sanitizen und weitermachen
+
+## CLI-Modus
+
+- Lokale Nutzung als Binary (Windows + macOS)
+- Syntax: `zza render --template sbb-096-v1 --input zug.json --output bild.png`
+- Details werden später verfeinert
+
+## Technische Entscheidungen
+
+| Thema | Entscheidung |
+|---|---|
+| Sprache | Go |
+| Deployment | Docker Compose, kleine VM |
+| Lokale Binaries | Windows (.exe) + macOS |
+| Template-Format | YAML |
+| Datenbank | SQLite |
+| E-Mail | Eigener SMTP-Server — Konfiguration via Umgebungsvariablen in docker-compose.yml |
+| API-Struktur | Template-Name als erstes URL-Segment: `POST /{template}/render`, `GET /{template}/edit` |
+| Caching | Dateibasiert (SHA1-Hash wie bisher), mit automatischem Cleanup-Mechanismus |
 
 ## Hinweise / Kontext
 
