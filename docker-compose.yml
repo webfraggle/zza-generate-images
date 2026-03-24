@@ -1,0 +1,18 @@
+services:
+  zza:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      PORT: "8080"
+      TEMPLATES_DIR: /data/templates
+      CACHE_DIR: /data/cache
+      CACHE_MAX_AGE_HOURS: "24"
+      CACHE_MAX_SIZE_MB: "500"
+    volumes:
+      - ./templates:/data/templates:ro
+      - cache_data:/data/cache
+    restart: unless-stopped
+
+volumes:
+  cache_data:
