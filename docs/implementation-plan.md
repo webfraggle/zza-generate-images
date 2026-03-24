@@ -191,7 +191,7 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 
 ---
 
-## Phase 4 — Template-Galerie & Ausprobiermodus
+## Phase 4 — Template-Galerie & Ausprobiermodus ✅
 
 **Ziel:** Öffentliche Web-UI zum Durchsuchen und Ausprobieren von Templates.
 
@@ -211,8 +211,20 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 - **security-reviewer**
 - **code-reviewer**
 
+### Abweichungen vom Plan (Phase 4)
+- Static-Handler als Pre-Mux-Check implementiert (nicht via ServeMux-Route) — Go 1.22 ServeMux meldet Konflikt zwischen `GET /static/` und `GET /{template}/preview`
+- `renderAndServe` als gemeinsame Pipeline für Preview- und Render-Handler (DRY)
+
 ### Manueller Test (Phase 4)
-> Beschreibung folgt am Ende der Phase.
+
+7 manuelle Testfälle bestanden (2026-03-24):
+1. Galerie unter `/` zeigt Template-Karten mit Vorschaubild
+2. Static-Assets (`/static/app.css`) → 200
+3. Detail-Seite öffnet mit default.json vorausgefüllt
+4. Live-Preview aktualisiert sich bei JSON-Änderung (debounced)
+5. Ungültiges JSON zeigt Fehlermeldung
+6. `GET /sbb-096-v1/preview` → 200, gültiges PNG
+7. Unbekanntes Template → 404
 
 ---
 
