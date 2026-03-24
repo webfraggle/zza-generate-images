@@ -78,7 +78,16 @@ Dieser Ablauf ist bei **jeder Phase** einzuhalten. Keine Ausnahmen.
 
 - Phase wird in `docs/implementation-plan.md` als ✅ markiert
 - Erkenntnisse/Änderungen gegenüber dem Plan werden dort dokumentiert
-- Commit + Push
+- **Dokumentations-Check:** Sind alle `.md`-Dateien noch aktuell?
+  - `CLAUDE.md` — Architektur, Befehle, Struktur noch korrekt?
+  - `docs/requirements-collection.md` — neue Erkenntnisse eingearbeitet?
+  - `docs/yaml-template-spec.md` — Änderungen an der Spec dokumentiert?
+  - `docs/implementation-plan.md` — offene Punkte, Abweichungen notiert?
+- **Memory-Check:** Sind die Memory-Dateien unter `~/.claude/projects/.../memory/` noch aktuell?
+  - Neue Projektentscheidungen → `project_*.md`
+  - Neues User-Feedback → `feedback_*.md`
+  - Neue Referenzen → `reference_*.md`
+- Commit + Push (inkl. aktualisierter Docs)
 - Nächste Phase beginnt mit Schritt 1
 
 ---
@@ -116,6 +125,9 @@ Dieser Ablauf ist bei **jeder Phase** einzuhalten. Keine Ausnahmen.
                      ↓
 ┌─────────────────────────────────────────┐
 │  Schritt 7: Phasen-Abschluss            │
+│  - Docs (.md) aktualisieren             │
+│  - Memory aktualisieren                 │
+│  - Commit + Push                        │
 │  → nächste Phase                        │
 └─────────────────────────────────────────┘
 ```
