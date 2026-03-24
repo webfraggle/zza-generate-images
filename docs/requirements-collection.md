@@ -97,7 +97,7 @@ Gesammelte Ideen und Anforderungen — noch nicht priorisiert oder umgesetzt.
 - **YAML** — entschieden
   - Leserlicher als JSON (kein Anführungszeichen-Overhead, Kommentare möglich)
   - XML explizit ausgeschlossen (zu verbose)
-- Variablen-Referenzierung: offen — vermutlich `{{zug1.hinweis}}` o.ä.
+- Variablen-Referenzierung: `{{zug1.hinweis}}` — entschieden, siehe `docs/yaml-template-spec.md`
 
 ### Template-Verzeichnis
 - Jedes Template lebt in einem eigenen Verzeichnis (wie bisher die PHP-Themes)
