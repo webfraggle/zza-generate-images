@@ -141,7 +141,7 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 
 ---
 
-## Phase 3 — HTTP-Server & Render-Endpunkt
+## Phase 3 — HTTP-Server & Render-Endpunkt ✅
 
 **Ziel:** Go-HTTP-Server, Render-Route, Datei-Cache mit Cleanup.
 
@@ -167,8 +167,27 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 - **security-reviewer** — Path Traversal in Template-Namen, Cache-Pfaden
 - **code-reviewer**
 
+### Abweichungen vom Plan (Phase 3)
+- Cache-Key: SHA-256 statt SHA-1 (sicherer, kein Mehraufwand)
+- Cache-Key inkludiert Template-Name (verhindert Cross-Template-Kollisionen)
+- `RWMutex` statt `Mutex` im Cache (Get = RLock, Set/cleanup = Lock)
+- `GET /health` Endpunkt ergänzt (nicht im Plan, aber nützlich)
+- Port-Validierung in `config.ValidatePort` (1–65535)
+- Non-root User im Dockerfile (`zza:1000`)
+- `Content-Length` Header in PNG-Responses
+- Path-Traversal via `../../` wird von Go's ServeMux bereinigt → 404 (nicht 400); sicher
+
 ### Manueller Test (Phase 3)
-> Beschreibung folgt am Ende der Phase.
+
+8 manuelle Testfälle bestanden (2026-03-24):
+1. Server startet, Health-Check OK
+2. POST /sbb-096-v1/render → 200, image/png, X-Cache: MISS
+3. Zweiter gleicher Request → X-Cache: HIT
+4. Ungültiger Template-Name (Grossbuchstaben) → 400
+5. Path-Traversal `../../etc/passwd` → 404 (ServeMux bereinigt Pfad, kein Dateizugriff)
+6. Unbekanntes Template → 404
+7. Ungültiger JSON-Body → 400
+8. CORS Preflight OPTIONS → 204, Access-Control-Allow-Origin: *
 
 ---
 
