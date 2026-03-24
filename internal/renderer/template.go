@@ -50,6 +50,11 @@ type Layer struct {
 	Size     float64      `yaml:"size"`
 	Align    string       `yaml:"align"`
 	MaxWidth int          `yaml:"max_width"`
+	// type: copy — source region to copy from
+	SrcX      int `yaml:"src_x"`
+	SrcY      int `yaml:"src_y"`
+	SrcWidth  int `yaml:"src_width"`
+	SrcHeight int `yaml:"src_height"`
 }
 
 // StringOrCond can be either a plain string value or a conditional map (if/then/else).

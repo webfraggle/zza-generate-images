@@ -90,6 +90,8 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 			err = r.renderRect(dst, layer, eval)
 		case "text":
 			err = r.renderText(dst, tmpl, layer, eval)
+		case "copy":
+			err = renderCopy(dst, layer)
 		default:
 			return nil, fmt.Errorf("renderer: Render: layer %d: unknown type %q", i, layer.Type)
 		}
@@ -154,6 +156,15 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 	pt := image.Pt(layer.X, layer.Y)
 	r2 := src.Bounds().Add(pt)
 	draw.Draw(dst, r2, src, src.Bounds().Min, draw.Over)
+	return nil
+}
+
+// renderCopy copies a rectangular region of the canvas to another position.
+// Used for displays where the top half is mirrored to the bottom half.
+func renderCopy(dst *image.NRGBA, layer Layer) error {
+	src := dst.SubImage(image.Rect(layer.SrcX, layer.SrcY, layer.SrcX+layer.SrcWidth, layer.SrcY+layer.SrcHeight))
+	dstRect := image.Rect(layer.X, layer.Y, layer.X+layer.SrcWidth, layer.Y+layer.SrcHeight)
+	draw.Draw(dst, dstRect, src, image.Pt(layer.SrcX, layer.SrcY), draw.Src)
 	return nil
 }
 

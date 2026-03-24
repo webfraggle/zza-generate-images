@@ -72,6 +72,7 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
 | `image`  | Bilddatei einfügen   |
 | `rect`   | Gefülltes Rechteck   |
 | `text`   | Text ausgeben        |
+| `copy`   | Bereich kopieren (z.B. obere Hälfte auf untere Hälfte spiegeln) |
 
 ---
 
@@ -79,11 +80,36 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
 
 ```yaml
 - type: image
-  file: img/background.png
+  file: background.png
   x: 0
   y: 0
   width: 160    # optional — Standard: Originalgröße
   height: 80    # optional — Standard: Originalgröße
+  rotate: 0     # optional — Drehwinkel in Grad (kann Variable/Ausdruck sein)
+  pivot_x: 80   # optional — Drehmittelpunkt X (Standard: Bildmitte)
+  pivot_y: 40   # optional — Drehmittelpunkt Y (Standard: Bildmitte)
+```
+
+**Rotation** wird verwendet für analoge Uhren. Der Winkel kann über einen Ausdruck berechnet werden:
+
+```yaml
+# Minutenzeiger: 360° / 60 Minuten = 6° pro Minute
+- type: image
+  file: clock-minutes.png
+  x: 0
+  y: 0
+  rotate: "{{now.minute | mul(6)}}"
+  pivot_x: 80
+  pivot_y: 80
+
+# Stundenzeiger: 360° / 12 Stunden = 30° pro Stunde
+- type: image
+  file: clock-hour.png
+  x: 0
+  y: 0
+  rotate: "{{now.hour12 | mul(30)}}"
+  pivot_x: 80
+  pivot_y: 80
 ```
 
 ---
@@ -117,6 +143,24 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
 
 ---
 
+### type: copy
+
+Kopiert einen rechteckigen Bereich des Canvas auf eine andere Position. Wird verwendet um z.B. die obere Displayhälfte auf die untere zu spiegeln (typisch für Zugzielanzeiger mit zwei identischen Zeilen).
+
+```yaml
+- type: copy
+  # Quellbereich
+  src_x: 0
+  src_y: 0
+  src_width: 160
+  src_height: 80
+  # Zielposition
+  x: 0
+  y: 81
+```
+
+---
+
 ## Variablen
 
 Variablen aus dem JSON-Input werden mit `{{` und `}}` eingebettet.
@@ -132,8 +176,29 @@ Variablen aus dem JSON-Input werden mit `{{` und `}}` eingebettet.
 {{zug1.hinweis}}     Hinweistext        z.B. "*Hält nicht in ..."
 {{zug2.zeit}}        ... (analog für zug2, zug3)
 {{gleis}}            Gleisnummer        z.B. "3"
-{{now}}              Aktuelle Uhrzeit   z.B. "15:51"
 ```
+
+### Systemvariablen (automatisch befüllt)
+
+```
+{{now}}              Aktuelle Uhrzeit   z.B. "15:51"
+{{now.hour}}         Stunde 0–23        z.B. 15
+{{now.hour12}}       Stunde 1–12        z.B. 3
+{{now.minute}}       Minute 0–59        z.B. 51
+{{now.second}}       Sekunde 0–59       z.B. 7
+{{now.day}}          Tag 1–31           z.B. 24
+{{now.month}}        Monat 1–12         z.B. 3
+{{now.year}}         Jahr               z.B. 2026
+{{now.weekday}}      Wochentag          z.B. "Dienstag"
+```
+
+Datum/Zeit lässt sich auch formatieren:
+```yaml
+value: "{{now | format('HH:mm')}}"     # → "15:51"
+value: "{{now | format('dd.MM.yyyy')}}" # → "24.03.2026"
+```
+
+Format-Tokens: `HH` (Stunde 00–23), `hh` (Stunde 01–12), `mm` (Minute), `ss` (Sekunde), `dd` (Tag), `MM` (Monat), `yyyy` (Jahr), `EE` (Wochentag kurz), `EEEE` (Wochentag lang)
 
 ### Text-Filter
 
@@ -160,6 +225,20 @@ value: "{{zug1.hinweis | strip('*') | upper}}"      # Kombination: erst strip, d
 | `prefix('x')`               | Setzt Zeichen/Text `x` vor den Wert                       |
 | `suffix('x')`               | Hängt Zeichen/Text `x` an den Wert an                    |
 | `trim`                      | Entfernt führende und nachfolgende Leerzeichen            |
+| `format('pattern')`         | Datum/Zeit formatieren (nur für `now`-Variablen)          |
+| `mul(x)`                    | Multipliziert Zahlenwert mit x                            |
+| `div(x)`                    | Dividiert Zahlenwert durch x                              |
+| `add(x)`                    | Addiert x zum Zahlenwert                                  |
+| `sub(x)`                    | Subtrahiert x vom Zahlenwert                              |
+| `round`                     | Rundet auf ganze Zahl                                     |
+
+**Mathe-Filter Beispiele** (typisch für analoge Uhren):
+```yaml
+rotate: "{{now.minute | mul(6)}}"           # Minutenzeiger: 0–354°
+rotate: "{{now.hour12 | mul(30)}}"          # Stundenzeiger grob: 0–330°
+rotate: "{{now.second | mul(6)}}"           # Sekundenzeiger: 0–354°
+value:  "{{now.hour | mul(30) | round}}"    # Winkel als Zahl ausgeben
+```
 
 ---
 

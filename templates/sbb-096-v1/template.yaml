@@ -7,20 +7,30 @@ meta:
     width: 160
     height: 160
 
-# No fonts defined in this minimal test template.
-# Add font entries here once font files are present in this directory.
-fonts: []
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+  - id: italic
+    file: NimbusSanL-RegIta.otf
 
 layers:
-  # Dark blue background
+  # Hintergrundbild — aktivieren sobald bg.png vorhanden
+  # - type: image
+  #   file: bg.png
+  #   x: 0
+  #   y: 0
+
+  # Hintergrund (Platzhalter bis bg.png vorhanden)
   - type: rect
     x: 0
     y: 0
     width: 160
-    height: 160
+    height: 80
     color: "#132a9b"
 
-  # Header bar
+  # Header-Balken
   - type: rect
     x: 0
     y: 0
@@ -28,18 +38,54 @@ layers:
     height: 10
     color: "#0d1f6e"
 
-  # Separator line
-  - type: rect
-    x: 0
-    y: 72
-    width: 160
-    height: 2
-    color: "#1e3dcc"
+  # --- Abfahrtszeit ---
+  - type: text
+    value: "{{zug1.zeit}}"
+    x: 3
+    y: 10
+    font: bold
+    size: 8.2
+    color: "#ffffff"
+    align: left
 
-  # Second row background
-  - type: rect
+  # --- Zugnummer ---
+  - type: text
+    value: "{{zug1.nr}}"
+    x: 49
+    y: 11
+    font: regular
+    size: 5.5
+    color: "#ffffff"
+    align: left
+
+  # --- Ziel (vonnach) ---
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 3
+    y: 56
+    font: regular
+    size: 7.9
+    color: "#ffffff"
+    align: left
+    max_width: 74
+
+  # --- Hinweis ---
+  # Phase 1: immer angezeigt — Phase 2 ergänzt: roten Hintergrund + nur wenn nicht leer
+  - type: text
+    value: "{{zug1.hinweis}}"
+    x: 3
+    y: 53
+    font: regular
+    size: 5.5
+    color: "#ffffff"
+    align: left
+    max_width: 74
+
+  # --- Obere Hälfte auf untere Hälfte spiegeln ---
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 160
+    src_height: 80
     x: 0
-    y: 82
-    width: 160
-    height: 78
-    color: "#132a9b"
+    y: 81

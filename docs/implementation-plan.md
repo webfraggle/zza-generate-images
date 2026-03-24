@@ -76,6 +76,7 @@ zza-generate-images/
    - `type: image` — PNG einlesen und platzieren
    - `type: rect` — Rechteck zeichnen
    - `type: text` — Text mit TrueType-Font rendern (inkl. `max_width`, `align`)
+   - `type: copy` — Bereich des Canvas auf andere Position kopieren (für gespiegelte Displays)
 5. Variablen-Interpolation (`evaluator.go`): `{{zug1.zeit}}` aus JSON ersetzen
 6. Einfaches CLI: `zza render --template X --input X --output X`
 
@@ -89,9 +90,9 @@ zza-generate-images/
 
 ---
 
-## Phase 2 — Filter, Bedingungen & vollständiger Evaluator
+## Phase 2 — Filter, Bedingungen, Zeit & Rotation
 
-**Ziel:** Alle Template-Features implementieren: Filter, if/elif/else, leere Felder.
+**Ziel:** Vollständiger Evaluator mit Filtern, if/elif/else, Zeitvariablen, Mathe-Filtern und Bild-Rotation.
 
 ### Aufgaben
 1. Filter-Pipeline (`evaluator.go`):
@@ -104,6 +105,20 @@ zza-generate-images/
    - Eigenschafts-Ebene: `if/then/elif/then/else` für Farben, Werte etc.
 3. Bedingungsfunktionen: `startsWith`, `endsWith`, `contains`, `isEmpty`, `equals`, `greaterThan`, `not`
 4. Leere Felder: werden leer dargestellt, kein Fehler
+5. **Systemvariablen Zeit** (`evaluator.go`):
+   - `{{now}}` → aktuelle Uhrzeit als `HH:MM`
+   - `{{now.hour}}`, `{{now.hour12}}`, `{{now.minute}}`, `{{now.second}}`
+   - `{{now.day}}`, `{{now.month}}`, `{{now.year}}`, `{{now.weekday}}`
+   - Filter `format('HH:mm')` für individuelle Formatierung
+6. **Mathe-Filter** (`evaluator.go`):
+   - `mul(x)`, `div(x)`, `add(x)`, `sub(x)`, `round`
+   - Eingabe und Ausgabe als String — Konvertierung intern
+   - Typischer Einsatz: `{{now.minute | mul(6)}}` → Winkel für Uhrzeiger
+7. **Bild-Rotation** (`renderer.go`):
+   - Neues Feld `rotate` auf `type: image` — Winkel in Grad
+   - `pivot_x`, `pivot_y` — Drehmittelpunkt (Standard: Bildmitte)
+   - `rotate` kann Variable/Ausdruck sein: `"{{now.minute | mul(6)}}"`
+   - Rotation via `golang.org/x/image/draw` mit affiner Transformation
 
 ### Agenten
 - **implementer**
