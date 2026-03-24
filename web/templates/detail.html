@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}} — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a href="/">← Galerie</a>
+    <h1>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</h1>
+    <p>{{.Meta.Description}}</p>
+  </header>
+  <main class="editor">
+    <div class="editor-pane">
+      <label>JSON-Daten</label>
+      <textarea id="json-input" spellcheck="false">{{.DefaultJSON}}</textarea>
+      <div id="error-msg" class="error"></div>
+    </div>
+    <div class="preview-pane">
+      <label>Vorschau</label>
+      {{if .HasDefault}}
+      <img id="preview-img" src="/{{.Name}}/preview" alt="Vorschau">
+      {{else}}
+      <img id="preview-img" alt="Vorschau" style="display:none">
+      {{end}}
+      <div id="spinner" class="spinner" style="display:none"></div>
+    </div>
+  </main>
+  <script>
+    const templateName = "{{.Name}}";
+    const textarea  = document.getElementById("json-input");
+    const img       = document.getElementById("preview-img");
+    const errorMsg  = document.getElementById("error-msg");
+    const spinner   = document.getElementById("spinner");
+    let debounce;
+
+    textarea.addEventListener("input", () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(render, 600);
+    });
+
+    async function render() {
+      let body;
+      try {
+        body = JSON.stringify(JSON.parse(textarea.value));
+        errorMsg.textContent = "";
+      } catch (e) {
+        errorMsg.textContent = "Ungültiges JSON: " + e.message;
+        return;
+      }
+
+      spinner.style.display = "block";
+      img.style.opacity = "0.4";
+
+      try {
+        const resp = await fetch("/" + templateName + "/render", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: body,
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          errorMsg.textContent = "Fehler " + resp.status + ": " + text.trim();
+          return;
+        }
+        const blob = await resp.blob();
+        const oldSrc = img.src;
+        img.onload = () => {
+          if (oldSrc && oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
+          img.style.display = "block";
+        };
+        img.src = URL.createObjectURL(blob);
+      } catch (e) {
+        errorMsg.textContent = "Netzwerkfehler: " + e.message;
+      } finally {
+        spinner.style.display = "none";
+        img.style.opacity = "1";
+      }
+    }
+  </script>
+</body>
+</html>

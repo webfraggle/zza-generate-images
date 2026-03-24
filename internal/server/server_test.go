@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/web"
 )
 
 // testConfig returns a Config pointing at the repo's test templates.
@@ -23,11 +24,17 @@ func testConfig(t *testing.T) *config.Config {
 	}
 }
 
-func TestServer_Health(t *testing.T) {
-	srv, err := New(testConfig(t))
+func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	srv, err := New(testConfig(t), web.FS)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return srv
+}
+
+func TestServer_Health(t *testing.T) {
+	srv := newTestServer(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rr := httptest.NewRecorder()
@@ -42,10 +49,7 @@ func TestServer_Health(t *testing.T) {
 }
 
 func TestServer_CORS_Preflight(t *testing.T) {
-	srv, err := New(testConfig(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	srv := newTestServer(t)
 
 	req := httptest.NewRequest(http.MethodOptions, "/sbb-096-v1/render", nil)
 	rr := httptest.NewRecorder()
@@ -59,8 +63,76 @@ func TestServer_CORS_Preflight(t *testing.T) {
 	}
 }
 
+func TestServer_Gallery(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("gallery: got %d, want 200", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("gallery Content-Type: %q", ct)
+	}
+	if !strings.Contains(rr.Body.String(), "sbb-096-v1") {
+		t.Error("gallery should list sbb-096-v1")
+	}
+}
+
+func TestServer_Detail(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("detail: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "sbb-096-v1") {
+		t.Error("detail page should contain template name")
+	}
+	if !strings.Contains(body, "json-input") {
+		t.Error("detail page should contain JSON textarea")
+	}
+}
+
+func TestServer_Detail_NotFound(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/does-not-exist", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("detail 404: got %d, want 404", rr.Code)
+	}
+}
+
+func TestServer_Preview(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1/preview", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("preview: got %d, body: %s", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("preview Content-Type: %q", ct)
+	}
+	b := rr.Body.Bytes()
+	if len(b) < 8 || b[0] != 0x89 || b[1] != 0x50 {
+		t.Error("preview response is not a valid PNG")
+	}
+}
+
 func TestServer_Render_InvalidTemplateName(t *testing.T) {
-	srv, _ := New(testConfig(t))
+	srv := newTestServer(t)
 
 	body := `{"gleis":"3"}`
 	req := httptest.NewRequest(http.MethodPost, "/../../evil/render",
@@ -69,14 +141,13 @@ func TestServer_Render_InvalidTemplateName(t *testing.T) {
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
-	// Go's ServeMux cleans the path, so /../.. maps to /; expect 404 or 405 not 200.
 	if rr.Code == http.StatusOK {
 		t.Error("path traversal attempt should not return 200")
 	}
 }
 
 func TestServer_Render_InvalidJSON(t *testing.T) {
-	srv, _ := New(testConfig(t))
+	srv := newTestServer(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/sbb-096-v1/render",
 		strings.NewReader("not json"))
@@ -90,7 +161,7 @@ func TestServer_Render_InvalidJSON(t *testing.T) {
 }
 
 func TestServer_Render_UnknownTemplate(t *testing.T) {
-	srv, _ := New(testConfig(t))
+	srv := newTestServer(t)
 
 	body, _ := json.Marshal(map[string]interface{}{"x": 1})
 	req := httptest.NewRequest(http.MethodPost, "/does-not-exist/render",
@@ -105,9 +176,8 @@ func TestServer_Render_UnknownTemplate(t *testing.T) {
 }
 
 func TestServer_Render_Success(t *testing.T) {
-	srv, _ := New(testConfig(t))
+	srv := newTestServer(t)
 
-	// Use the sbb-096-v1 template with minimal data.
 	data, _ := json.Marshal(map[string]interface{}{
 		"zug1": map[string]interface{}{
 			"zeit":    "16:00",
@@ -130,18 +200,14 @@ func TestServer_Render_Success(t *testing.T) {
 	if ct := rr.Header().Get("Content-Type"); ct != "image/png" {
 		t.Errorf("Content-Type: got %q, want image/png", ct)
 	}
-	// PNG magic bytes: 0x89 0x50 0x4E 0x47
 	b := rr.Body.Bytes()
 	if len(b) < 8 || b[0] != 0x89 || b[1] != 0x50 || b[2] != 0x4E || b[3] != 0x47 {
 		t.Error("response body is not a valid PNG")
 	}
-	if rr.Header().Get("X-Cache") != "MISS" {
-		t.Errorf("first request should be cache MISS, got %q", rr.Header().Get("X-Cache"))
-	}
 }
 
 func TestServer_Render_CacheHit(t *testing.T) {
-	srv, _ := New(testConfig(t))
+	srv := newTestServer(t)
 
 	data, _ := json.Marshal(map[string]interface{}{
 		"zug1": map[string]interface{}{

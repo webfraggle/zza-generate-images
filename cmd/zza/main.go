@@ -16,6 +16,7 @@ import (
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 	"github.com/webfraggle/zza-generate-images/internal/server"
+	"github.com/webfraggle/zza-generate-images/web"
 )
 
 func main() {
@@ -125,7 +126,7 @@ func serveCmd() *cobra.Command {
 				return err
 			}
 
-			srv, err := server.New(cfg)
+			srv, err := server.New(cfg, web.FS)
 			if err != nil {
 				return fmt.Errorf("serve: %w", err)
 			}
