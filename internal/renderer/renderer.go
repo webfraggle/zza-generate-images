@@ -7,22 +7,27 @@ import (
 	"image/draw"
 	_ "image/jpeg"
 	_ "image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/math/f64"
 	"golang.org/x/image/math/fixed"
 	xdraw "golang.org/x/image/draw"
 	"gopkg.in/yaml.v3"
 )
 
 // Renderer loads templates and renders them to images.
+// Safe for concurrent use.
 type Renderer struct {
 	TemplatesDir string
-	fontCache    map[string]*opentype.Font // key: absolute file path
+	fontMu       sync.RWMutex
+	fontCache    map[string]*opentype.Font // key: absolute file path; guarded by fontMu
 }
 
 // New creates a new Renderer with the given templates directory.
@@ -81,7 +86,9 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 	eval := NewEvaluator(data)
 
 	for i, layer := range tmpl.Layers {
-		// Phase 1: if-conditions on layers are not evaluated — always render.
+		if layer.If != "" && !eval.EvalCondition(layer.If) {
+			continue
+		}
 		var err error
 		switch layer.Type {
 		case "image":
@@ -142,15 +149,34 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 			return fmt.Errorf("renderImage: scaled dimensions %dx%d exceed maximum %d", w, h, maxCanvasDimension)
 		}
 		if w <= 0 {
-			// Preserve aspect ratio.
-			w = src.Bounds().Dx() * h / src.Bounds().Dy()
+			// Preserve aspect ratio — use float to avoid integer division truncation.
+			w = int(math.Round(float64(src.Bounds().Dx()) * float64(h) / float64(src.Bounds().Dy())))
+			if w < 1 {
+				w = 1
+			}
 		}
 		if h <= 0 {
-			h = src.Bounds().Dy() * w / src.Bounds().Dx()
+			h = int(math.Round(float64(src.Bounds().Dy()) * float64(w) / float64(src.Bounds().Dx())))
+			if h < 1 {
+				h = 1
+			}
 		}
 		scaled := image.NewNRGBA(image.Rect(0, 0, w, h))
 		xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), src, src.Bounds(), xdraw.Over, nil)
 		src = scaled
+	}
+
+	// Apply rotation if the rotate field is non-empty and non-zero.
+	rotStr := strings.TrimSpace(eval.Interpolate(layer.Rotate.Resolve(eval)))
+	if rotStr != "" && rotStr != "0" {
+		deg, err := strconv.ParseFloat(rotStr, 64)
+		if err != nil {
+			return fmt.Errorf("renderImage: invalid rotate value %q: %w", rotStr, err)
+		}
+		if deg != 0 {
+			applyImageRotation(dst, src, layer.X, layer.Y, layer.PivotX, layer.PivotY, deg)
+			return nil
+		}
 	}
 
 	pt := image.Pt(layer.X, layer.Y)
@@ -159,9 +185,48 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 	return nil
 }
 
+// applyImageRotation draws src into dst rotated by deg degrees around the pivot point.
+// The pivot is relative to the source image; defaults to image center when both are zero.
+// Uses a destination-to-source affine transform for correct bilinear sampling.
+// src must have Bounds().Min == (0,0); sub-images should be converted to full images first.
+func applyImageRotation(dst *image.NRGBA, src image.Image, layerX, layerY, pivotX, pivotY int, deg float64) {
+	theta := deg * math.Pi / 180.0
+	cosA := math.Cos(theta)
+	sinA := math.Sin(theta)
+
+	bounds := src.Bounds()
+	// Offset source origin so the math below assumes (0,0) origin.
+	originX := float64(bounds.Min.X)
+	originY := float64(bounds.Min.Y)
+
+	// Default pivot: image center when both are zero.
+	px, py := float64(pivotX), float64(pivotY)
+	if pivotX == 0 && pivotY == 0 {
+		px = float64(bounds.Dx()) / 2
+		py = float64(bounds.Dy()) / 2
+	}
+
+	// Canvas pivot position.
+	cpx := float64(layerX) + px
+	cpy := float64(layerY) + py
+
+	// dst→src affine transform: for each canvas pixel, find the corresponding source pixel.
+	// Derived by inverting: src→canvas = translate(layerX,layerY) then rotate around (cpx,cpy).
+	// originX/Y adjusts for sub-images whose Bounds().Min != (0,0).
+	s2d := f64.Aff3{
+		cosA, sinA, -cosA*cpx - sinA*cpy + px + originX,
+		-sinA, cosA, sinA*cpx - cosA*cpy + py + originY,
+	}
+	xdraw.BiLinear.Transform(dst, s2d, src, src.Bounds(), xdraw.Over, nil)
+}
+
 // renderCopy copies a rectangular region of the canvas to another position.
 // Used for displays where the top half is mirrored to the bottom half.
+// The copy is performed before any overlap — source and dest should not overlap.
 func renderCopy(dst *image.NRGBA, layer Layer) error {
+	if layer.SrcWidth <= 0 || layer.SrcHeight <= 0 {
+		return fmt.Errorf("renderCopy: src_width and src_height must be positive (got %dx%d)", layer.SrcWidth, layer.SrcHeight)
+	}
 	src := dst.SubImage(image.Rect(layer.SrcX, layer.SrcY, layer.SrcX+layer.SrcWidth, layer.SrcY+layer.SrcHeight))
 	dstRect := image.Rect(layer.X, layer.Y, layer.X+layer.SrcWidth, layer.Y+layer.SrcHeight)
 	draw.Draw(dst, dstRect, src, image.Pt(layer.SrcX, layer.SrcY), draw.Src)
@@ -170,7 +235,7 @@ func renderCopy(dst *image.NRGBA, layer Layer) error {
 
 // renderRect draws a filled rectangle layer.
 func (r *Renderer) renderRect(dst *image.NRGBA, layer Layer, eval *Evaluator) error {
-	colorStr := eval.Interpolate(layer.Color.String())
+	colorStr := eval.Interpolate(layer.Color.Resolve(eval))
 	c, err := parseColor(colorStr)
 	if err != nil {
 		return fmt.Errorf("renderRect: %w", err)
@@ -183,8 +248,8 @@ func (r *Renderer) renderRect(dst *image.NRGBA, layer Layer, eval *Evaluator) er
 
 // renderText draws a text layer.
 func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator) error {
-	text := eval.Interpolate(layer.Value.String())
-	colorStr := eval.Interpolate(layer.Color.String())
+	text := eval.Interpolate(layer.Value.Resolve(eval))
+	colorStr := eval.Interpolate(layer.Color.Resolve(eval))
 
 	c, err := parseColor(colorStr)
 	if err != nil {
@@ -226,6 +291,10 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			startY = layer.Y + (layer.Height-totalHeight)/2
 		case "bottom":
 			startY = layer.Y + layer.Height - totalHeight
+		}
+		// Clamp: never render above the box top (can happen if more lines than height).
+		if startY < layer.Y {
+			startY = layer.Y
 		}
 	}
 
@@ -317,7 +386,10 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 
 	absPath := filepath.Join(dir, filename)
 
-	if cached, ok := r.fontCache[absPath]; ok {
+	r.fontMu.RLock()
+	cached, ok := r.fontCache[absPath]
+	r.fontMu.RUnlock()
+	if ok {
 		return cached, nil
 	}
 
@@ -340,7 +412,9 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 		return nil, fmt.Errorf("getFont: parsing %q: %w", filename, err)
 	}
 
+	r.fontMu.Lock()
 	r.fontCache[absPath] = otf
+	r.fontMu.Unlock()
 	return otf, nil
 }
 

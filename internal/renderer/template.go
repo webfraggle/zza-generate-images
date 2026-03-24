@@ -51,6 +51,10 @@ type Layer struct {
 	Align    string       `yaml:"align"`   // left (default) | center | right
 	Valign   string       `yaml:"valign"`  // top (default) | middle | bottom — needs height
 	MaxWidth int          `yaml:"max_width"`
+	// type: image — optional rotation
+	Rotate StringOrCond `yaml:"rotate"`  // degrees; supports expressions: "{{now.minute | mul(6)}}"
+	PivotX int          `yaml:"pivot_x"` // rotation pivot X relative to image; 0+0 defaults to center
+	PivotY int          `yaml:"pivot_y"` // rotation pivot Y relative to image; 0+0 defaults to center
 	// type: copy — source region to copy from
 	SrcX      int `yaml:"src_x"`
 	SrcY      int `yaml:"src_y"`
@@ -71,13 +75,22 @@ type condMap struct {
 	els    string
 }
 
-// String returns the resolved value.
-// Phase 1: returns plain value, or else-branch if conditional, or empty string.
+// String returns the plain value or the else-branch for conditionals.
+// Use Resolve(eval) when an Evaluator is available to properly evaluate conditions.
 func (s StringOrCond) String() string {
-	if s.cond != nil {
-		return s.cond.els
+	return s.Resolve(nil)
+}
+
+// Resolve evaluates the condition (if present) using eval and returns the matching branch.
+// Falls back to the else-branch when eval is nil or the condition is false.
+func (s StringOrCond) Resolve(eval *Evaluator) string {
+	if s.cond == nil {
+		return s.raw
 	}
-	return s.raw
+	if eval != nil && eval.EvalCondition(s.cond.ifExpr) {
+		return s.cond.then
+	}
+	return s.cond.els
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler for StringOrCond.
