@@ -60,9 +60,9 @@
 
 <script type="module">
 // ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
-// EditorState must come from the same codemirror instance as lang packages;
-// importing it separately from @codemirror/state causes duplicate-module errors.
-import { EditorView, EditorState, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
+// EditorView constructor accepts doc+extensions directly — no EditorState needed.
+// ?deps= pins shared @codemirror/state to the same instance as codemirror.
+import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
 import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?deps=codemirror@6.0.1';
 import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
 
@@ -137,15 +137,14 @@ async function openFile(name) {
     li.classList.toggle('active', li.dataset.name === name)
   );
 
-  // Build CodeMirror state.
+  // Build CodeMirror editor.
   const lang = name.endsWith('.yaml') ? yaml() : jsonLang();
-  const state = EditorState.create({
+  if (cmView) cmView.destroy();
+  cmView = new EditorView({
     doc: content,
     extensions: [basicSetup, lang],
+    parent: cmHost,
   });
-
-  if (cmView) cmView.destroy();
-  cmView = new EditorView({ state, parent: cmHost });
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
