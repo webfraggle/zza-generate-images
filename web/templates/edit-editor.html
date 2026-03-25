@@ -150,6 +150,13 @@ async function openFile(name) {
 // ── Save ──────────────────────────────────────────────────────────────────────
 btnSave.addEventListener('click', saveFile);
 
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    e.preventDefault();
+    saveFile();
+  }
+});
+
 async function saveFile() {
   if (!cmView) return;
   const content = cmView.state.doc.toString();
