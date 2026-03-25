@@ -328,8 +328,38 @@ for i in 1 2 3 4; do curl -s -X POST http://localhost:8080/default/edit -d "emai
 - **security-reviewer** — File Upload, Dateitype-Whitelist, Dateinamen-Sanitizing, Token-Prüfung bei jedem Request
 - **code-reviewer**
 
+### Status: ✅ Abgeschlossen
+
+**Implementiert:**
+- `internal/editor/files.go` — ListFiles, ReadTextFile, WriteTextFile, UploadFile, DeleteFile mit Path-Traversal-Schutz, Typ-Whitelist (.yaml/.json editierbar, .png/.jpg/.ttf/.otf uploadbar), atomischem Write (temp+rename), 10 MiB Upload-Limit
+- `internal/editor/starter/template.yaml` + `default.json` — Starter-Dateien als go:embed, direkt im Quellcode editierbar
+- `editor_handlers.go` — GET /files, GET /file/{name}, POST /save, POST /upload, DELETE /file/{name}, alle mit requireToken
+- `server.go` — template.yaml Mod-Time im PNG-Cache-Key für automatische Cache-Invalidierung
+- `edit-editor.html` — 3-Spalten-Layout (Dateiliste | CodeMirror 6 YAML/JSON | Test-JSON + Preview), Tab-Indent via DOM-Event, Cmd+S/Ctrl+S Speichern, Blob-URL-Revocation
+- Render-Fehler (YAML-Parse, fehlende Fonts etc.) werden direkt im Preview-Bereich angezeigt
+
+**Fixes während Entwicklung:**
+- CodeMirror duplicate-state Fehler: EditorState-Import entfernt, EditorView direkt mit doc+extensions
+- `codemirror@6.0.1` exportiert keymap/indentWithTab nicht — Tab via DOM keydown Handler gelöst
+- Preview aktualisiert sich nach jedem Save (nicht nur default.json)
+- default.json und template.yaml sind schreibgeschützt (nicht löschbar)
+
+**Security Review:** BEDINGT OK — alle Findings behoben (Upload-Fehler 500 statt 400, loadFiles-Fehler mit User-Feedback, Blob-URL Revocation)
+**Code Review:** APPROVED WITH MINOR COMMENTS
+
+**User-OK:** 2026-03-25 ✅
+
 ### Manueller Test (Phase 6)
-> Beschreibung folgt am Ende der Phase.
+
+1. Editor-Link öffnen → 3-Spalten-Layout, template.yaml öffnet sich automatisch
+2. Dateiliste — alle Template-Dateien aufgelistet, default.json und template.yaml ohne Löschen-Button
+3. Datei öffnen — default.json klicken → öffnet im Editor
+4. Preview — default.json wird automatisch geladen, Preview-Bild erscheint rechts
+5. YAML editieren & Cmd+S → "Gespeichert ✓", Preview aktualisiert sich
+6. Datei hochladen — .png/.jpg/.ttf/.otf via + Button
+7. Datei löschen — hochgeladene Datei mit × löschen
+8. YAML-Fehler einbauen → Fehlermeldung erscheint in roter Box im Preview-Bereich
+9. Falsches Token → 401
 
 ---
 
