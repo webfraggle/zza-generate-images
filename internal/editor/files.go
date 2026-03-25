@@ -44,6 +44,7 @@ var uploadExts = map[string]bool{
 // protectedFiles cannot be deleted.
 var protectedFiles = map[string]bool{
 	"template.yaml": true,
+	"default.json":  true,
 }
 
 // safeNameRe restricts filenames to alphanumerics, dots, underscores and hyphens.
