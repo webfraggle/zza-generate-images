@@ -33,13 +33,20 @@ var emailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`)
 
 // RegisterEditorRoutes wires the editor auth routes into the server.
 // It is called optionally from cmd/zza/main.go when a DB is available.
+// Routes under /edit/{token} are registered on a separate mux (s.editorHandler)
+// to avoid conflicts with the wildcard pattern GET /{template}/preview on the main mux.
 func (s *Server) RegisterEditorRoutes(db *sql.DB, cfg EditorConfig) {
 	es := &editorState{db: db, cfg: cfg, tmpl: s.htmlTmpl, tdir: s.templatesDir}
 
+	// /{template}/edit stays on the main mux — no conflict.
 	s.mux.HandleFunc("GET /{template}/edit", es.handleEditRequest)
 	s.mux.HandleFunc("POST /{template}/edit", es.handleEditSubmit)
-	s.mux.HandleFunc("GET /edit/{token}", es.handleEditor)
-	s.mux.HandleFunc("POST /edit/{token}/save", es.handleSave)
+
+	// /edit/{token} routes go on a dedicated mux dispatched via ServeHTTP pre-check.
+	editMux := http.NewServeMux()
+	editMux.HandleFunc("GET /edit/{token}", es.handleEditor)
+	editMux.HandleFunc("POST /edit/{token}/save", es.handleSave)
+	s.editorHandler = editMux
 }
 
 // editRequestData is the view model for the edit-request page.

@@ -26,6 +26,7 @@ const maxRequestBodyBytes = 1 << 20 // 1 MiB
 type Server struct {
 	mux           *http.ServeMux
 	staticHandler http.Handler
+	editorHandler http.Handler // handles /edit/{token} routes to avoid mux conflicts
 	rend          *renderer.Renderer
 	cache         *Cache
 	templatesDir  string
@@ -67,11 +68,15 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 }
 
 // ServeHTTP implements http.Handler.
-// Static asset requests (/static/...) are handled before the mux to avoid
-// routing conflicts between "GET /static/" and "GET /{template}/preview".
+// /static/... and /edit/... are dispatched before the mux to avoid routing
+// conflicts with wildcard patterns like "GET /{template}/preview".
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/static/") {
 		s.staticHandler.ServeHTTP(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/edit/") && s.editorHandler != nil {
+		s.editorHandler.ServeHTTP(w, r)
 		return
 	}
 	s.mux.ServeHTTP(w, r)
