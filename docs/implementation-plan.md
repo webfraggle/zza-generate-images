@@ -271,6 +271,10 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 
 **Code Review:** APPROVED WITH MINOR COMMENTS — keine blockers, Tech-Debt in Phase 6 addressieren
 
+**Nachträgliche Änderung:** E-Mail-Adressen werden im Klartext gespeichert (statt HMAC-Hash) — HMAC verursachte permanente Lockouts nach Neustarts ohne persistenten Secret. E-Mail-Vergleich ist case-insensitiv.
+
+**User-OK:** 2026-03-25 — inkl. SMTP-Versand manuell getestet ✅
+
 ### Manueller Test (Phase 5)
 
 **Voraussetzungen:** Server läuft ohne SMTP-Config (`SMTP_HOST` nicht gesetzt)
