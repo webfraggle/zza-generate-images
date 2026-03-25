@@ -62,7 +62,8 @@
 // ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
 // EditorView constructor accepts doc+extensions directly — no EditorState needed.
 // ?deps= pins shared @codemirror/state to the same instance as codemirror.
-import { EditorView, basicSetup, keymap, indentWithTab } from 'https://esm.sh/codemirror@6.0.1';
+import { EditorView, basicSetup, keymap } from 'https://esm.sh/codemirror@6.0.1';
+import { indentWithTab } from 'https://esm.sh/@codemirror/commands?deps=codemirror@6.0.1';
 import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?deps=codemirror@6.0.1';
 import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
 
