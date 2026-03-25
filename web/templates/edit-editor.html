@@ -60,10 +60,11 @@
 
 <script type="module">
 // ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
-import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
-import { EditorState }            from 'https://esm.sh/@codemirror/state@6.4.1';
-import { yaml }                   from 'https://esm.sh/@codemirror/lang-yaml@6.1.1';
-import { json as jsonLang }       from 'https://esm.sh/@codemirror/lang-json@6.0.1';
+// EditorState must come from the same codemirror instance as lang packages;
+// importing it separately from @codemirror/state causes duplicate-module errors.
+import { EditorView, EditorState, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
+import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?deps=codemirror@6.0.1';
+import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TOKEN    = '{{.Token}}';

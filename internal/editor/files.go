@@ -20,15 +20,24 @@ var starterYAML = []byte(`meta:
   author: ""
   version: "1.0"
   canvas:
-    width: 320
-    height: 160
+    width: 240
+    height: 240
 
 layers:
+  # Obere Hälfte
   - type: rect
     x: 0
     y: 0
-    width: 320
-    height: 160
+    width: 240
+    height: 120
+    color: "#1a1a1a"
+
+  # Untere Hälfte (Kopie der oberen)
+  - type: rect
+    x: 0
+    y: 120
+    width: 240
+    height: 120
     color: "#1a1a1a"
 `)
 
