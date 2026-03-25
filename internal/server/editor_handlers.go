@@ -2,6 +2,7 @@ package server
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"html/template"
 	"log"
@@ -44,8 +45,28 @@ func (s *Server) RegisterEditorRoutes(db *sql.DB, cfg EditorConfig) {
 	// /edit/{token} routes go on a dedicated mux dispatched via ServeHTTP pre-check.
 	editMux := http.NewServeMux()
 	editMux.HandleFunc("GET /edit/{token}", es.handleEditor)
+	editMux.HandleFunc("GET /edit/{token}/files", es.handleListFiles)
+	editMux.HandleFunc("GET /edit/{token}/file/{filename}", es.handleGetFile)
 	editMux.HandleFunc("POST /edit/{token}/save", es.handleSave)
+	editMux.HandleFunc("POST /edit/{token}/upload", es.handleUpload)
+	editMux.HandleFunc("DELETE /edit/{token}/file/{filename}", es.handleDeleteFile)
 	s.editorHandler = editMux
+}
+
+// requireToken validates the hex token in the request path and returns the
+// associated template name. Returns ("", false) and writes an HTTP error if invalid.
+func (es *editorState) requireToken(w http.ResponseWriter, r *http.Request) (string, bool) {
+	tok := r.PathValue("token")
+	if !isHexToken(tok) {
+		http.Error(w, "invalid token", http.StatusBadRequest)
+		return "", false
+	}
+	name, err := editor.ValidateToken(es.db, tok)
+	if err != nil {
+		http.Error(w, "Link ungültig oder abgelaufen.", http.StatusUnauthorized)
+		return "", false
+	}
+	return name, true
 }
 
 // editRequestData is the view model for the edit-request page.
@@ -145,13 +166,13 @@ func (es *editorState) handleEditSubmit(w http.ResponseWriter, r *http.Request) 
 	_ = es.tmpl.ExecuteTemplate(w, "edit-sent.html", templateName)
 }
 
-// editorViewData is the view model for the editor placeholder page.
+// editorViewData is the view model for the editor page.
 type editorViewData struct {
 	Token        string
 	TemplateName string
 }
 
-// handleEditor validates the token and shows the editor (Phase 6 will add the full UI).
+// handleEditor validates the token and shows the editor UI.
 func (es *editorState) handleEditor(w http.ResponseWriter, r *http.Request) {
 	tok := r.PathValue("token")
 	if !isHexToken(tok) {
@@ -172,19 +193,126 @@ func (es *editorState) handleEditor(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleSave is a Phase 5 stub; Phase 6 will implement actual file saving.
+// handleListFiles returns a JSON list of files in the template directory.
+func (es *editorState) handleListFiles(w http.ResponseWriter, r *http.Request) {
+	templateName, ok := es.requireToken(w, r)
+	if !ok {
+		return
+	}
+	files, err := editor.ListFiles(es.tdir, templateName)
+	if err != nil {
+		log.Printf("editor: list files %q: %v", templateName, err)
+		http.Error(w, "could not list files", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"files": files})
+}
+
+// handleGetFile returns the text content of a .yaml or .json file.
+func (es *editorState) handleGetFile(w http.ResponseWriter, r *http.Request) {
+	templateName, ok := es.requireToken(w, r)
+	if !ok {
+		return
+	}
+	filename := r.PathValue("filename")
+	data, err := editor.ReadTextFile(es.tdir, templateName, filename)
+	switch {
+	case errors.Is(err, editor.ErrForbidden), errors.Is(err, editor.ErrInvalidName):
+		http.Error(w, "forbidden", http.StatusForbidden)
+	case errors.Is(err, editor.ErrFileNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case err != nil:
+		log.Printf("editor: read file %q/%q: %v", templateName, filename, err)
+		http.Error(w, "could not read file", http.StatusInternalServerError)
+	default:
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write(data)
+	}
+}
+
+// saveRequest is the JSON body for the save endpoint.
+type saveRequest struct {
+	Filename string `json:"filename"`
+	Content  string `json:"content"`
+}
+
+// handleSave writes an edited .yaml or .json file back to disk.
 func (es *editorState) handleSave(w http.ResponseWriter, r *http.Request) {
-	tok := r.PathValue("token")
-	if !isHexToken(tok) {
-		http.Error(w, "invalid token", http.StatusBadRequest)
+	templateName, ok := es.requireToken(w, r)
+	if !ok {
 		return
 	}
-	if _, err := editor.ValidateToken(es.db, tok); err != nil {
-		http.Error(w, "Link ungültig oder abgelaufen.", http.StatusUnauthorized)
+
+	var req saveRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	// Phase 6 will implement the actual save logic.
-	http.Error(w, "not implemented yet", http.StatusNotImplemented)
+
+	err := editor.WriteTextFile(es.tdir, templateName, req.Filename, []byte(req.Content))
+	switch {
+	case errors.Is(err, editor.ErrForbidden), errors.Is(err, editor.ErrInvalidName):
+		http.Error(w, "forbidden", http.StatusForbidden)
+	case err != nil:
+		log.Printf("editor: write file %q/%q: %v", templateName, req.Filename, err)
+		http.Error(w, "could not save file", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// handleUpload receives a multipart file upload and stores it in the template directory.
+func (es *editorState) handleUpload(w http.ResponseWriter, r *http.Request) {
+	templateName, ok := es.requireToken(w, r)
+	if !ok {
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, editor.MaxUploadBytes+512)
+	if err := r.ParseMultipartForm(editor.MaxUploadBytes); err != nil {
+		http.Error(w, "request too large or invalid", http.StatusBadRequest)
+		return
+	}
+
+	f, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "missing file field", http.StatusBadRequest)
+		return
+	}
+	defer f.Close()
+
+	if uploadErr := editor.UploadFile(es.tdir, templateName, header.Filename, f); uploadErr != nil {
+		if errors.Is(uploadErr, editor.ErrForbidden) || errors.Is(uploadErr, editor.ErrInvalidName) {
+			http.Error(w, "file type not allowed", http.StatusForbidden)
+		} else {
+			log.Printf("editor: upload %q/%q: %v", templateName, header.Filename, uploadErr)
+			http.Error(w, "upload failed", http.StatusInternalServerError)
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleDeleteFile removes an asset file from the template directory.
+func (es *editorState) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	templateName, ok := es.requireToken(w, r)
+	if !ok {
+		return
+	}
+	filename := r.PathValue("filename")
+	err := editor.DeleteFile(es.tdir, templateName, filename)
+	switch {
+	case errors.Is(err, editor.ErrForbidden), errors.Is(err, editor.ErrInvalidName):
+		http.Error(w, "forbidden", http.StatusForbidden)
+	case errors.Is(err, editor.ErrFileNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case err != nil:
+		log.Printf("editor: delete file %q/%q: %v", templateName, filename, err)
+		http.Error(w, "could not delete file", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 // isHexToken checks that s is a 64-character lowercase hex string

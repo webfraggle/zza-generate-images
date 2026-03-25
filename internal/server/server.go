@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -225,7 +227,14 @@ func (s *Server) renderAndServe(w http.ResponseWriter, templateName string, body
 	// the same key may each render and write the same PNG. This is intentional
 	// (last-write-wins with identical bytes) and avoids the complexity of
 	// singleflight deduplication for a low-traffic local server.
-	key := s.cache.Key(templateName, body)
+	//
+	// The template.yaml mod-time is included in the cache key so that saving
+	// the YAML via the editor automatically invalidates stale PNG cache entries.
+	var modStamp []byte
+	if info, err := os.Stat(filepath.Join(s.templatesDir, templateName, "template.yaml")); err == nil {
+		modStamp = strconv.AppendInt(nil, info.ModTime().UnixNano(), 10)
+	}
+	key := s.cache.Key(templateName, append(body, modStamp...))
 	if cached, hit := s.cache.Get(key); hit {
 		w.Header().Set("Content-Type", "image/png")
 		w.Header().Set("Content-Length", strconv.Itoa(len(cached)))
