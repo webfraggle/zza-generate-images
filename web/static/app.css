@@ -326,3 +326,20 @@ body.editor-page { display: flex; flex-direction: column; height: 100vh; overflo
 }
 .preview-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .no-preview { color: var(--mid); font-size: 1.5rem; }
+
+.render-error-box {
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  padding: 12px 14px;
+  background: #fff3f3;
+  border: 1px solid #ffcccc;
+  border-radius: var(--radius);
+  color: #c00;
+  font-family: "SFMono-Regular", "Consolas", "Menlo", monospace;
+  font-size: .78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+}

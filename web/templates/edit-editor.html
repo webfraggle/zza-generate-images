@@ -51,8 +51,8 @@
         <div id="spinner" class="spinner" hidden></div>
         <img id="preview-img" alt="" hidden>
         <span id="no-preview" class="no-preview">—</span>
+        <pre id="render-error" class="render-error-box" hidden></pre>
       </div>
-      <p id="render-error" class="error" hidden></p>
     </div>
   </div>
 
@@ -86,6 +86,7 @@ const spinner     = document.getElementById('spinner');
 const previewImg  = document.getElementById('preview-img');
 const noPreview   = document.getElementById('no-preview');
 const renderErr   = document.getElementById('render-error');
+
 const uploadInput = document.getElementById('file-upload');
 const uploadStatus= document.getElementById('upload-status');
 
@@ -195,7 +196,7 @@ async function renderPreview() {
   const body = jsonInput.value.trim();
   if (!body) return;
 
-  spinner.hidden  = false;
+  spinner.hidden    = false;
   previewImg.hidden = true;
   noPreview.hidden  = true;
   renderErr.hidden  = true;
@@ -207,19 +208,18 @@ async function renderPreview() {
       body,
     });
     if (!res.ok) {
-      renderErr.textContent = await res.text();
+      const msg = (await res.text()).trim();
+      renderErr.textContent = msg;
       renderErr.hidden = false;
-      noPreview.hidden = false;
     } else {
       if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
       prevBlobUrl       = URL.createObjectURL(await res.blob());
       previewImg.src    = prevBlobUrl;
       previewImg.hidden = false;
     }
-  } catch {
-    renderErr.textContent = 'Netzwerkfehler';
+  } catch (e) {
+    renderErr.textContent = 'Netzwerkfehler: ' + e.message;
     renderErr.hidden = false;
-    noPreview.hidden = false;
   } finally {
     spinner.hidden = true;
   }

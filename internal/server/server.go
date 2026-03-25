@@ -247,23 +247,23 @@ func (s *Server) renderAndServe(w http.ResponseWriter, templateName string, body
 	// Parse JSON data.
 	var data map[string]interface{}
 	if err := json.Unmarshal(body, &data); err != nil {
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		http.Error(w, "Ungültiges JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Load template.
 	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
 	if err != nil {
-		http.Error(w, "template not found: "+templateName, http.StatusNotFound)
 		log.Printf("render: load template %q: %v", templateName, err)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 
 	// Render.
 	img, err := s.rend.Render(tmpl, data)
 	if err != nil {
-		http.Error(w, "render error", http.StatusInternalServerError)
 		log.Printf("render: %q: %v", templateName, err)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 
