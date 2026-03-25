@@ -13,6 +13,25 @@ import (
 // MaxUploadBytes is the maximum size for uploaded asset files (10 MiB).
 const MaxUploadBytes = 10 << 20
 
+// starterYAML is written when a new template directory is created.
+var starterYAML = []byte(`meta:
+  name: "Neues Template"
+  description: ""
+  author: ""
+  version: "1.0"
+  canvas:
+    width: 320
+    height: 160
+
+layers:
+  - type: rect
+    x: 0
+    y: 0
+    width: 320
+    height: 160
+    color: "#1a1a1a"
+`)
+
 var (
 	ErrFileNotFound = errors.New("editor: file not found")
 	ErrForbidden    = errors.New("editor: access denied")
@@ -102,6 +121,26 @@ func SanitizeFilename(name string) string {
 		}
 	}
 	return b.String()
+}
+
+// InitTemplate creates the template directory and seeds it with a starter
+// template.yaml if it does not already exist. It is a no-op if the directory
+// is already present.
+func InitTemplate(templatesDir, templateName string) error {
+	dir, err := templateDir(templatesDir, templateName)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("editor: creating template dir: %w", err)
+	}
+	yamlPath := filepath.Join(dir, "template.yaml")
+	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
+		if err := os.WriteFile(yamlPath, starterYAML, 0o644); err != nil {
+			return fmt.Errorf("editor: writing starter template: %w", err)
+		}
+	}
+	return nil
 }
 
 // ListFiles returns all files in the template directory.

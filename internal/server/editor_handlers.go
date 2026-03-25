@@ -186,6 +186,13 @@ func (es *editorState) handleEditor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure the template directory exists and has a starter template.yaml.
+	if err := editor.InitTemplate(es.tdir, templateName); err != nil {
+		log.Printf("edit-editor: init template %q: %v", templateName, err)
+		http.Error(w, "could not initialise template directory", http.StatusInternalServerError)
+		return
+	}
+
 	d := editorViewData{Token: tok, TemplateName: templateName}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := es.tmpl.ExecuteTemplate(w, "edit-editor.html", d); err != nil {
