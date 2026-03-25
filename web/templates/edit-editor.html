@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editor — {{.TemplateName}} — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a href="/{{.TemplateName}}">← Vorschau</a>
+    <h1>Editor</h1>
+    <p>{{.TemplateName}}</p>
+  </header>
+  <main style="max-width:600px;margin:60px auto;padding:0 24px;text-align:center">
+    <p style="font-size:2.5rem;margin-bottom:20px">🚧</p>
+    <h2 style="font-size:1.2rem;margin-bottom:12px">Editor-UI kommt in Phase 6</h2>
+    <p style="color:#5a5a5a">
+      Dein Token ist gültig und du bist als Besitzer von
+      <strong>{{.TemplateName}}</strong> authentifiziert.<br>
+      Die vollständige Editor-Oberfläche (YAML-Editor, Datei-Upload, Live-Preview)
+      wird in Phase 6 implementiert.
+    </p>
+    <p style="margin-top:24px;font-size:.82rem;color:#aaa;font-family:monospace">
+      Token: {{.Token}}
+    </p>
+  </main>
+</body>
+</html>

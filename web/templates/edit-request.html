@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Template bearbeiten — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a href="/">← Galerie</a>
+    <h1>Template bearbeiten</h1>
+    <p>{{if .MetaName}}{{.MetaName}}{{else}}{{.TemplateName}}{{end}}</p>
+  </header>
+  <main style="max-width:480px;margin:40px auto;padding:0 24px">
+    {{if .IsNew}}
+    <p style="margin-bottom:16px;color:#5a5a5a">
+      Das Template <strong>{{.TemplateName}}</strong> hat noch keinen Besitzer.
+      Gib deine E-Mail-Adresse ein, um es zu übernehmen und einen Editier-Link zu erhalten.
+    </p>
+    {{else}}
+    <p style="margin-bottom:16px;color:#5a5a5a">
+      Gib deine E-Mail-Adresse ein. Du erhältst einen Editier-Link, falls die Adresse
+      mit der registrierten Adresse für <strong>{{.TemplateName}}</strong> übereinstimmt.
+    </p>
+    {{end}}
+    {{if .Error}}
+    <p style="color:#EB0000;margin-bottom:16px">{{.Error}}</p>
+    {{end}}
+    <form method="POST" action="/{{.TemplateName}}/edit">
+      <label style="display:block;margin-bottom:6px;font-weight:600">E-Mail-Adresse</label>
+      <input type="email" name="email" required autocomplete="email"
+             style="width:100%;padding:10px 12px;border:1px solid #d8d8d8;border-radius:4px;font-size:1rem;outline:none">
+      <button type="submit"
+              style="margin-top:14px;width:100%;padding:11px;background:#EB0000;color:#fff;border:none;border-radius:4px;font-size:1rem;font-weight:600;cursor:pointer">
+        Editier-Link anfordern
+      </button>
+    </form>
+  </main>
+</body>
+</html>

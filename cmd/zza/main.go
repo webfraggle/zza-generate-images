@@ -12,8 +12,13 @@ import (
 	"syscall"
 	"time"
 
+	"crypto/rand"
+	"encoding/hex"
+
 	"github.com/spf13/cobra"
 	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/internal/db"
+	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 	"github.com/webfraggle/zza-generate-images/internal/server"
 	"github.com/webfraggle/zza-generate-images/web"
@@ -115,21 +120,58 @@ func serveCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Start the HTTP render server",
 		Long: `Start the HTTP server. Configuration via environment variables:
-  PORT                 (default: 8080)
-  TEMPLATES_DIR        (default: ./templates)
-  CACHE_DIR            (default: ./cache)
-  CACHE_MAX_AGE_HOURS  (default: 24)
-  CACHE_MAX_SIZE_MB    (default: 500)`,
+  PORT                    (default: 8080)
+  TEMPLATES_DIR           (default: ./templates)
+  CACHE_DIR               (default: ./cache)
+  CACHE_MAX_AGE_HOURS     (default: 24)
+  CACHE_MAX_SIZE_MB       (default: 500)
+  DB_PATH                 (default: ./zza.db)
+  HMAC_SECRET             (default: auto-generated — set for persistent email hashes)
+  EDIT_TOKEN_TTL_HOURS    (default: 24)
+  BASE_URL                (default: http://localhost:8080)
+  SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Load()
 			if err := config.ValidatePort(cfg.Port); err != nil {
 				return err
 			}
 
+			// Resolve HMAC secret — warn if not set persistently.
+			hmacSecret := cfg.HMACSecret
+			if hmacSecret == "" {
+				b := make([]byte, 32)
+				_, _ = rand.Read(b)
+				hmacSecret = hex.EncodeToString(b)
+				log.Println("WARNING: HMAC_SECRET not set — using ephemeral key. " +
+					"Set HMAC_SECRET for persistent template ownership across restarts.")
+			}
+
+			// Open database.
+			database, err := db.Open(cfg.DBPath)
+			if err != nil {
+				return fmt.Errorf("serve: opening database: %w", err)
+			}
+			defer database.Close()
+			log.Printf("database: %s", cfg.DBPath)
+
 			srv, err := server.New(cfg, web.FS)
 			if err != nil {
 				return fmt.Errorf("serve: %w", err)
 			}
+
+			// Register editor routes.
+			srv.RegisterEditorRoutes(database, server.EditorConfig{
+				HMACSecret: hmacSecret,
+				TokenTTL:   time.Duration(cfg.EditTokenTTLHours) * time.Hour,
+				Mail: editor.MailConfig{
+					Host:    cfg.SMTPHost,
+					Port:    cfg.SMTPPort,
+					User:    cfg.SMTPUser,
+					Pass:    cfg.SMTPPass,
+					From:    cfg.SMTPFrom,
+					BaseURL: cfg.BaseURL,
+				},
+			})
 
 			// Start cache cleanup every 15 minutes.
 			ctx, cancel := context.WithCancel(context.Background())

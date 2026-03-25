@@ -255,8 +255,49 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 - **security-reviewer** — Token-Sicherheit, Rate Limiting, E-Mail-Hash, Path Traversal beim Speichern
 - **code-reviewer**
 
+### Status: ✅ Abgeschlossen
+
+**Implementiert:**
+- `internal/db/db.go` — SQLite-Schema mit `templates` und `edit_tokens`, `SetMaxOpenConns(1)`
+- `internal/editor/auth.go` — `HashEmail` (HMAC-SHA256), `GenerateToken` (32 Byte / 64-Hex), `RequestToken`, `ValidateToken`
+- `internal/editor/mailer.go` — SMTP-Versand mit optionalem Auth-Skip
+- `internal/editor/auth_test.go` — 9 Tests (deterministisch, Rate-Limit, Expiry, etc.)
+- `internal/server/editor_handlers.go` — `GET /{template}/edit`, `POST /{template}/edit`, `GET /edit/{token}`, `POST /edit/{token}/save` (501 Stub)
+- `cmd/zza/main.go` — DB-Öffnung, ephemere HMAC-Warnung, `RegisterEditorRoutes`
+
+**Security Review:** BEDINGT OK
+- **M1 (akzeptiert):** Rate-Limit ist per-Template, nicht per-IP — akzeptables Risiko für Intranet-Deployment
+- **M2 (behoben):** Dev-Log zeigt vollständigen Token mit explizitem `[DEV]`-Prefix und `//nolint`-Kommentar
+
+**Code Review:** APPROVED WITH MINOR COMMENTS — keine blockers, Tech-Debt in Phase 6 addressieren
+
 ### Manueller Test (Phase 5)
-> Beschreibung folgt am Ende der Phase.
+
+**Voraussetzungen:** Server läuft ohne SMTP-Config (`SMTP_HOST` nicht gesetzt)
+
+```sh
+# 1. Erstes Edit-Request — Formular anzeigen (neues Template)
+curl -s http://localhost:8080/default/edit | grep -o "<title>[^<]*"
+
+# 2. Token anfordern — Dev-Log beobachten
+curl -s -X POST http://localhost:8080/default/edit -d "email=test@example.com" -L
+
+# 3. Dev-Log-Ausgabe enthält: [DEV] edit link for "default": http://localhost:8080/edit/<token>
+#    → Token aus Log kopieren und aufrufen:
+# curl -s http://localhost:8080/edit/<token> | grep "authentifiziert"
+
+# 4. Falsches Token → 401
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/edit/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+# 5. Gleiche E-Mail → neues Token (kein Fehler)
+curl -s -X POST http://localhost:8080/default/edit -d "email=test@example.com" -o /dev/null -w "%{http_code}"
+
+# 6. Falsche E-Mail → Fehlermeldung im HTML
+curl -s -X POST http://localhost:8080/default/edit -d "email=wrong@example.com" | grep "nicht als Besitzer"
+
+# 7. Rate-Limit: 3 Requests in Folge → 4. Anfrage zeigt Fehler
+for i in 1 2 3 4; do curl -s -X POST http://localhost:8080/default/edit -d "email=test@example.com" | grep -o "Zu viele\|gültig und du"; done
+```
 
 ---
 

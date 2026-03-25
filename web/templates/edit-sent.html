@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Link gesendet — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <a href="/">← Galerie</a>
+    <h1>Link gesendet</h1>
+    <p>{{.}}</p>
+  </header>
+  <main style="max-width:480px;margin:40px auto;padding:0 24px;text-align:center">
+    <p style="font-size:2.5rem;margin-bottom:16px">✉️</p>
+    <p style="color:#5a5a5a">
+      Falls die E-Mail-Adresse korrekt ist, erhältst du in Kürze einen Editier-Link
+      für das Template <strong>{{.}}</strong>.
+    </p>
+    <p style="margin-top:16px;color:#5a5a5a;font-size:.9rem">
+      Der Link ist für die konfigurierte Dauer gültig. Schau auch im Spam-Ordner nach.
+    </p>
+  </main>
+</body>
+</html>
