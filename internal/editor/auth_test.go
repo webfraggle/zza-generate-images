@@ -8,8 +8,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const testSecret = "test-secret"
-
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
@@ -20,7 +18,7 @@ func openTestDB(t *testing.T) *sql.DB {
 	CREATE TABLE templates (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL UNIQUE,
-		email_hash TEXT NOT NULL,
+		email TEXT NOT NULL,
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE TABLE edit_tokens (
@@ -35,22 +33,6 @@ func openTestDB(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() { db.Close() })
 	return db
-}
-
-func TestHashEmail_Deterministic(t *testing.T) {
-	h1 := HashEmail("user@example.com", testSecret)
-	h2 := HashEmail("user@example.com", testSecret)
-	if h1 != h2 {
-		t.Error("same input should produce same hash")
-	}
-}
-
-func TestHashEmail_DiffSecret(t *testing.T) {
-	h1 := HashEmail("user@example.com", "secret-a")
-	h2 := HashEmail("user@example.com", "secret-b")
-	if h1 == h2 {
-		t.Error("different secrets should produce different hashes")
-	}
 }
 
 func TestGenerateToken_Unique(t *testing.T) {
@@ -69,7 +51,7 @@ func TestGenerateToken_Unique(t *testing.T) {
 
 func TestRequestToken_NewTemplate(t *testing.T) {
 	db := openTestDB(t)
-	tok, err := RequestToken(db, "my-template", "owner@example.com", testSecret, time.Hour)
+	tok, err := RequestToken(db, "my-template", "owner@example.com", time.Hour)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,12 +62,12 @@ func TestRequestToken_NewTemplate(t *testing.T) {
 
 func TestRequestToken_ExistingTemplate_WrongEmail(t *testing.T) {
 	db := openTestDB(t)
-	_, err := RequestToken(db, "tmpl", "owner@example.com", testSecret, time.Hour)
+	_, err := RequestToken(db, "tmpl", "owner@example.com", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Second request with wrong email.
-	_, err = RequestToken(db, "tmpl", "other@example.com", testSecret, time.Hour)
+	_, err = RequestToken(db, "tmpl", "other@example.com", time.Hour)
 	if err != ErrEmailMismatch {
 		t.Errorf("expected ErrEmailMismatch, got %v", err)
 	}
@@ -93,8 +75,8 @@ func TestRequestToken_ExistingTemplate_WrongEmail(t *testing.T) {
 
 func TestRequestToken_ExistingTemplate_CorrectEmail(t *testing.T) {
 	db := openTestDB(t)
-	_, _ = RequestToken(db, "tmpl", "owner@example.com", testSecret, time.Hour)
-	tok, err := RequestToken(db, "tmpl", "owner@example.com", testSecret, time.Hour)
+	_, _ = RequestToken(db, "tmpl", "owner@example.com", time.Hour)
+	tok, err := RequestToken(db, "tmpl", "owner@example.com", time.Hour)
 	if err != nil {
 		t.Fatalf("same owner should get a new token: %v", err)
 	}
@@ -103,15 +85,24 @@ func TestRequestToken_ExistingTemplate_CorrectEmail(t *testing.T) {
 	}
 }
 
+func TestRequestToken_EmailCaseInsensitive(t *testing.T) {
+	db := openTestDB(t)
+	_, _ = RequestToken(db, "tmpl", "Owner@Example.COM", time.Hour)
+	_, err := RequestToken(db, "tmpl", "owner@example.com", time.Hour)
+	if err != nil {
+		t.Errorf("email comparison should be case-insensitive, got %v", err)
+	}
+}
+
 func TestRequestToken_RateLimit(t *testing.T) {
 	db := openTestDB(t)
 	email := "owner@example.com"
 	for i := 0; i < maxTokensPerHour; i++ {
-		if _, err := RequestToken(db, "tmpl", email, testSecret, time.Hour); err != nil {
+		if _, err := RequestToken(db, "tmpl", email, time.Hour); err != nil {
 			t.Fatalf("request %d failed unexpectedly: %v", i+1, err)
 		}
 	}
-	_, err := RequestToken(db, "tmpl", email, testSecret, time.Hour)
+	_, err := RequestToken(db, "tmpl", email, time.Hour)
 	if err != ErrRateLimited {
 		t.Errorf("expected ErrRateLimited after %d requests, got %v", maxTokensPerHour, err)
 	}
@@ -119,7 +110,7 @@ func TestRequestToken_RateLimit(t *testing.T) {
 
 func TestValidateToken_Valid(t *testing.T) {
 	db := openTestDB(t)
-	tok, _ := RequestToken(db, "tmpl", "owner@example.com", testSecret, time.Hour)
+	tok, _ := RequestToken(db, "tmpl", "owner@example.com", time.Hour)
 
 	name, err := ValidateToken(db, tok)
 	if err != nil {
@@ -132,7 +123,7 @@ func TestValidateToken_Valid(t *testing.T) {
 
 func TestValidateToken_Expired(t *testing.T) {
 	db := openTestDB(t)
-	tok, _ := RequestToken(db, "tmpl", "owner@example.com", testSecret, -time.Second) // already expired
+	tok, _ := RequestToken(db, "tmpl", "owner@example.com", -time.Second) // already expired
 	_, err := ValidateToken(db, tok)
 	if err != ErrTokenInvalid {
 		t.Errorf("expected ErrTokenInvalid for expired token, got %v", err)

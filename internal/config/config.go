@@ -18,7 +18,6 @@ type Config struct {
 	DBPath string
 
 	// Editor / Auth
-	HMACSecret        string // HMAC_SECRET — signs email hashes; auto-generated if empty (warn)
 	EditTokenTTLHours int    // EDIT_TOKEN_TTL_HOURS
 	BaseURL           string // BASE_URL — used in email links (e.g. "https://zza.example.com")
 
@@ -38,7 +37,6 @@ type Config struct {
 //	CACHE_MAX_AGE_HOURS     default 24
 //	CACHE_MAX_SIZE_MB       default 500
 //	DB_PATH                 default "./zza.db"
-//	HMAC_SECRET             default "" (auto-generated at startup — warn)
 //	EDIT_TOKEN_TTL_HOURS    default 24
 //	BASE_URL                default "http://localhost:8080"
 //	SMTP_HOST               default ""
@@ -54,7 +52,6 @@ func Load() *Config {
 		CacheMaxAgeHours:  envInt("CACHE_MAX_AGE_HOURS", 24),
 		CacheMaxSizeMB:    int64(envInt("CACHE_MAX_SIZE_MB", 500)),
 		DBPath:            envStr("DB_PATH", "./zza.db"),
-		HMACSecret:        envStr("HMAC_SECRET", ""),
 		EditTokenTTLHours: envInt("EDIT_TOKEN_TTL_HOURS", 24),
 		BaseURL:           envStr("BASE_URL", "http://localhost:8080"),
 		SMTPHost:          envStr("SMTP_HOST", ""),

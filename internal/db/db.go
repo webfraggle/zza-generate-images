@@ -12,7 +12,7 @@ const schema = `
 CREATE TABLE IF NOT EXISTS templates (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT    NOT NULL UNIQUE,
-    email_hash TEXT    NOT NULL,
+    email      TEXT    NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -16,9 +16,8 @@ import (
 
 // EditorConfig holds configuration for the editor auth flow.
 type EditorConfig struct {
-	HMACSecret string
-	TokenTTL   time.Duration
-	Mail       editor.MailConfig
+	TokenTTL time.Duration
+	Mail     editor.MailConfig
 }
 
 // editorState holds DB and config for editor HTTP handlers.
@@ -114,7 +113,7 @@ func (es *editorState) handleEditSubmit(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Issue token.
-	tok, err := editor.RequestToken(es.db, templateName, email, es.cfg.HMACSecret, es.cfg.TokenTTL)
+	tok, err := editor.RequestToken(es.db, templateName, email, es.cfg.TokenTTL)
 	if err != nil {
 		var msg string
 		switch {

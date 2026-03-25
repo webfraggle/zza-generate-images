@@ -12,9 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"crypto/rand"
-	"encoding/hex"
-
 	"github.com/spf13/cobra"
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/internal/db"
@@ -136,16 +133,6 @@ func serveCmd() *cobra.Command {
 				return err
 			}
 
-			// Resolve HMAC secret — warn if not set persistently.
-			hmacSecret := cfg.HMACSecret
-			if hmacSecret == "" {
-				b := make([]byte, 32)
-				_, _ = rand.Read(b)
-				hmacSecret = hex.EncodeToString(b)
-				log.Println("WARNING: HMAC_SECRET not set — using ephemeral key. " +
-					"Set HMAC_SECRET for persistent template ownership across restarts.")
-			}
-
 			// Open database.
 			database, err := db.Open(cfg.DBPath)
 			if err != nil {
@@ -161,8 +148,7 @@ func serveCmd() *cobra.Command {
 
 			// Register editor routes.
 			srv.RegisterEditorRoutes(database, server.EditorConfig{
-				HMACSecret: hmacSecret,
-				TokenTTL:   time.Duration(cfg.EditTokenTTLHours) * time.Hour,
+				TokenTTL: time.Duration(cfg.EditTokenTTLHours) * time.Hour,
 				Mail: editor.MailConfig{
 					Host:    cfg.SMTPHost,
 					Port:    cfg.SMTPPort,

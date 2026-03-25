@@ -2,13 +2,12 @@
 package editor
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -19,18 +18,10 @@ const (
 
 // Sentinel errors returned by auth functions.
 var (
-	ErrRateLimited  = errors.New("editor: too many token requests — please try again later")
+	ErrRateLimited   = errors.New("editor: too many token requests — please try again later")
 	ErrEmailMismatch = errors.New("editor: email address does not match the template owner")
 	ErrTokenInvalid  = errors.New("editor: token is invalid or has expired")
 )
-
-// HashEmail returns a constant-time HMAC-SHA256 hex digest of the email address.
-// Using a server-side secret prevents offline dictionary attacks on the stored hashes.
-func HashEmail(email, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(email))
-	return hex.EncodeToString(mac.Sum(nil))
-}
 
 // GenerateToken returns a cryptographically random 64-character hex token.
 func GenerateToken() (string, error) {
@@ -45,26 +36,26 @@ func GenerateToken() (string, error) {
 //
 // For templates with no DB record yet, a new ownership record is created.
 // For templates that already have an owner, the supplied email is verified
-// against the stored hash — a mismatch returns ErrEmailMismatch.
+// against the stored address — a mismatch returns ErrEmailMismatch.
 //
 // Returns ErrRateLimited when more than maxTokensPerHour tokens have been
 // issued for this template within the last hour.
-func RequestToken(db *sql.DB, templateName, email, hmacSecret string, ttl time.Duration) (string, error) {
-	emailHash := HashEmail(email, hmacSecret)
+func RequestToken(db *sql.DB, templateName, email string, ttl time.Duration) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
 
 	// Look up existing ownership record.
 	var templateID int64
-	var storedHash string
+	var storedEmail string
 	err := db.QueryRow(
-		`SELECT id, email_hash FROM templates WHERE name = ?`, templateName,
-	).Scan(&templateID, &storedHash)
+		`SELECT id, email FROM templates WHERE name = ?`, templateName,
+	).Scan(&templateID, &storedEmail)
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		// New template: register ownership.
 		res, insertErr := db.Exec(
-			`INSERT INTO templates (name, email_hash) VALUES (?, ?)`,
-			templateName, emailHash,
+			`INSERT INTO templates (name, email) VALUES (?, ?)`,
+			templateName, email,
 		)
 		if insertErr != nil {
 			return "", fmt.Errorf("editor: registering template: %w", insertErr)
@@ -76,7 +67,7 @@ func RequestToken(db *sql.DB, templateName, email, hmacSecret string, ttl time.D
 
 	default:
 		// Existing template: verify ownership.
-		if !hmac.Equal([]byte(storedHash), []byte(emailHash)) {
+		if !strings.EqualFold(storedEmail, email) {
 			return "", ErrEmailMismatch
 		}
 	}
