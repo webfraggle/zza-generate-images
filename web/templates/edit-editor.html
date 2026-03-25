@@ -63,8 +63,6 @@
 // EditorView constructor accepts doc+extensions directly — no EditorState needed.
 // ?deps= pins shared @codemirror/state to the same instance as codemirror.
 import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
-import { keymap }        from 'https://esm.sh/@codemirror/view?deps=codemirror@6.0.1';
-import { indentWithTab } from 'https://esm.sh/@codemirror/commands?deps=codemirror@6.0.1';
 import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?deps=codemirror@6.0.1';
 import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
 
@@ -145,7 +143,7 @@ async function openFile(name) {
   if (cmView) cmView.destroy();
   cmView = new EditorView({
     doc: content,
-    extensions: [basicSetup, lang, keymap.of([indentWithTab])],
+    extensions: [basicSetup, lang],
     parent: cmHost,
   });
 }
@@ -157,6 +155,15 @@ document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') {
     e.preventDefault();
     saveFile();
+  }
+});
+
+// Tab-Taste im Editor: einrücken statt Fokus wechseln.
+// Wird als DOM-Event abgefangen da codemirror@6.0.1 keymap nicht re-exportiert.
+cmHost.addEventListener('keydown', e => {
+  if (e.key === 'Tab' && cmView) {
+    e.preventDefault();
+    cmView.dispatch(cmView.state.replaceSelection(e.shiftKey ? '' : '  '));
   }
 });
 
