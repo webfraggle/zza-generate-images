@@ -161,7 +161,7 @@ async function saveFile() {
   if (res.ok) {
     showSaveStatus('Gespeichert ✓', false);
     setTimeout(hideSaveStatus, 2500);
-    if (currentFile === 'default.json') schedulePreview();
+    schedulePreview(); // re-render after every save (YAML or JSON)
   } else {
     showSaveStatus('Fehler beim Speichern.', true);
   }

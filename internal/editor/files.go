@@ -1,6 +1,7 @@
 package editor
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -13,33 +14,11 @@ import (
 // MaxUploadBytes is the maximum size for uploaded asset files (10 MiB).
 const MaxUploadBytes = 10 << 20
 
-// starterYAML is written when a new template directory is created.
-var starterYAML = []byte(`meta:
-  name: "Neues Template"
-  description: ""
-  author: ""
-  version: "1.0"
-  canvas:
-    width: 240
-    height: 240
+//go:embed starter/template.yaml
+var starterYAML []byte
 
-layers:
-  # Obere Hälfte
-  - type: rect
-    x: 0
-    y: 0
-    width: 240
-    height: 120
-    color: "#1a1a1a"
-
-  # Untere Hälfte (Kopie der oberen)
-  - type: rect
-    x: 0
-    y: 120
-    width: 240
-    height: 120
-    color: "#1a1a1a"
-`)
+//go:embed starter/default.json
+var starterDefaultJSON []byte
 
 var (
 	ErrFileNotFound = errors.New("editor: file not found")
@@ -146,7 +125,13 @@ func InitTemplate(templatesDir, templateName string) error {
 	yamlPath := filepath.Join(dir, "template.yaml")
 	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
 		if err := os.WriteFile(yamlPath, starterYAML, 0o644); err != nil {
-			return fmt.Errorf("editor: writing starter template: %w", err)
+			return fmt.Errorf("editor: writing starter template.yaml: %w", err)
+		}
+	}
+	jsonPath := filepath.Join(dir, "default.json")
+	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
+		if err := os.WriteFile(jsonPath, starterDefaultJSON, 0o644); err != nil {
+			return fmt.Errorf("editor: writing starter default.json: %w", err)
 		}
 	}
 	return nil
