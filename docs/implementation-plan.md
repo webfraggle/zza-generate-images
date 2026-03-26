@@ -518,15 +518,7 @@ Vorgehen pro Theme:
 
 ---
 
-## Phase 9 — Frontend-Design
-
-**Ziel:** _(noch zu planen)_
-
-### Status: Planung ausstehend
-
----
-
-## Phase 10 — Cross-Platform Binaries & Docker Finalisierung
+## Phase 9 — Cross-Platform Binaries & Docker Finalisierung
 
 **Ziel:** Release-Build für alle Plattformen, Docker Compose produktionsreif.
 
@@ -545,8 +537,16 @@ Vorgehen pro Theme:
 - **implementer**
 - **security-reviewer** — Docker-Config, exposed Ports, Volume-Permissions
 
-### Manueller Test (Phase 10)
+### Manueller Test (Phase 9)
 > Beschreibung folgt am Ende der Phase.
+
+---
+
+## Phase 10 — Frontend-Design & UX-Optimierungen
+
+**Ziel:** _(noch zu planen — nach MVP-Launch)_
+
+### Status: Planung ausstehend
 
 ---
 
@@ -561,8 +561,8 @@ Phase 1 (Renderer-Kern)
               │     └── Phase 6 (Editor-Frontend)
               └── Phase 7 (Superuser)
 Phase 8 (Template-Portierung) — parallel ab Phase 3 möglich
-Phase 9 (Frontend-Design) — Planung ausstehend
-Phase 10 (Binaries + Docker) — am Ende
+Phase 9 (Binaries + Docker) — MVP-Launch
+Phase 10 (Frontend-Design & UX) — nach MVP-Launch, Planung ausstehend
 ```
 
 ---
