@@ -129,6 +129,9 @@ Abgeschlossen ✅ — `go run ./cmd/zza render -t sbb-096-v1 -i templates/sbb-09
 - **security-reviewer** — besonderes Augenmerk auf Template-Injection
 - **code-reviewer**
 
+### Abweichungen vom Plan (Phase 2)
+- `elif` wurde **nicht implementiert** — `StringOrCond` unterstützt nur `if/then/else` (einstufig). Wird in einer eigenen Aufgabe nachgezogen (siehe „elif-Erweiterung" nach Phase 6).
+
 ### Manueller Test (Phase 2)
 
 6 manuelle Testfälle bestanden (2026-03-24):
@@ -363,6 +366,67 @@ for i in 1 2 3 4; do curl -s -X POST http://localhost:8080/default/edit -d "emai
 
 ---
 
+## elif-Erweiterung — Mehrstufige Bedingungen im Evaluator
+
+**Ziel:** `if/elif/else` in YAML-Eigenschafts-Werten vollständig unterstützen (war in Phase 2 geplant, aber nicht implementiert).
+
+### Hintergrund
+
+`StringOrCond` in `internal/renderer/template.go` unterstützt derzeit nur einstufiges `if/then/else`. Für komplexere Templates (z. B. Farb-Auswahl mit mehr als zwei Zuständen) wird eine `elif`-Kette benötigt:
+
+```yaml
+color:
+  if:   equals(status, 'delayed')
+  then: '#FF0000'
+  elif: equals(status, 'cancelled')
+  then: '#888888'
+  else: '#FFFFFF'
+```
+
+### Aufgaben
+
+1. **`internal/renderer/template.go`** — `condMap` auf Slice umstellen:
+   ```go
+   type condMap struct {
+     branches []condBranch  // if/elif-Paare
+     els      string
+   }
+   type condBranch struct {
+     ifExpr string
+     then   string
+   }
+   ```
+2. **`UnmarshalYAML`** — wiederholte `elif`/`then`-Schlüssel als Kette parsen (YAML-Reihenfolge via `yaml.Node` erhalten)
+3. **`Resolve()`** — Branches der Reihe nach auswerten, erstes `true` gewinnt
+4. **Tests** — `elif`-Ketten mit 0, 1 und N `elif`-Zweigen
+
+### Agenten
+- **implementer**
+- **security-reviewer** — Template-Injection durch neue Ausdruck-Zweige
+- **code-reviewer**
+
+### Status: ✅ Abgeschlossen
+
+**Implementiert:**
+- `condBranch`-Typ + `condMap.branches []condBranch` in `template.go`
+- `UnmarshalYAML` parst `if`/`elif`/`then`/`else` via `yaml.Node.Content` (duplicate-key-sicher)
+- `Resolve()` iteriert Branches, erstes `true` gewinnt
+- DoS-Schutz: `maxCondBranches = 50`
+- Validierung: `then` ohne `if`/`elif` und `if`/`elif` ohne `then` geben Fehler zurück
+- 11 neue Tests (inkl. 3 Fehlertests)
+
+**Security Review:** APPROVED WITH MINOR COMMENTS — alle Findings behoben
+**Code Review:** APPROVED WITH MINOR COMMENTS — alle Findings behoben
+
+### Manueller Test (elif-Erweiterung)
+
+3 manuelle Testfälle bestanden (2026-03-26):
+1. `if`-Branch (`status=delayed`) → roter Hintergrund
+2. `elif`-Branch (`status=cancelled`) → grauer Hintergrund
+3. `else`-Branch (`status=on-time`) → grüner Hintergrund
+
+---
+
 ## Phase 7 — Superuser-Bereich
 
 **Ziel:** Admin-Zugang mit Token + TOTP.
@@ -386,8 +450,34 @@ for i in 1 2 3 4; do curl -s -X POST http://localhost:8080/default/edit -d "emai
 - **security-reviewer** — TOTP-Implementierung, Session-Sicherheit, Brute-Force-Schutz
 - **code-reviewer**
 
+### Status: ✅ Abgeschlossen — User-OK 2026-03-26
+
+**Implementiert:**
+- `internal/admin/totp.go` — RFC 6238 TOTP, Replay-Guard, `GenerateSecret`, `OTPAuthURL`
+- `internal/admin/session.go` — `SessionStore` (8h TTL), `LoginLimiter` (5/15min), `TOTPReplayGuard`
+- `internal/server/admin_handlers.go` — alle Admin-Handler, `requireSession`, constant-time Token-Vergleich
+- `internal/server/cache.go` — `Stats()` + `Flush()`
+- 4 Admin-HTML-Templates (login, overview, cache, editor)
+- `ADMIN_TOKEN`, `TOTP_SECRET`, `SECURE_COOKIES` Env-Vars
+- `zza totp-setup` CLI-Command
+
+**Security Review:** CHANGES REQUIRED → alle Findings behoben
+**Code Review:** APPROVED WITH MINOR COMMENTS → alle Findings behoben
+
 ### Manueller Test (Phase 7)
-> Beschreibung folgt am Ende der Phase.
+
+8 manuelle Testfälle bestanden (2026-03-26):
+
+1. **Admin deaktiviert ohne Env-Vars** — Server startet, `/admin` antwortet nicht (404)
+2. **totp-setup** — `zza totp-setup` gibt Secret + otpauth://-URL aus; QR-Code in Authenticator-App scannen
+3. **Login-Seite** — GET `/admin/login` → Formular mit Token- und TOTP-Feld
+4. **Login mit falschem Token** — POST → Fehlermeldung „Falscher Token oder TOTP-Code."
+5. **Login mit korrekten Credentials** — POST → Redirect auf `/admin`, Session-Cookie gesetzt
+6. **Übersicht** — `/admin` zeigt Template-Liste mit Edit-Links
+7. **Template-Editor** — `/admin/{name}` öffnet CodeMirror-Editor (wie User-Editor)
+8. **Rate-Limiting** — 5 Fehlversuche → 429; Note: In-Memory-Limiter, Server-Neustart für Test nötig
+
+**User-OK:** 2026-03-26 ✅
 
 ---
 
