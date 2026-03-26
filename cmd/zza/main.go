@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/webfraggle/zza-generate-images/internal/admin"
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/internal/db"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
@@ -35,6 +36,7 @@ func rootCmd() *cobra.Command {
 	}
 	root.AddCommand(renderCmd())
 	root.AddCommand(serveCmd())
+	root.AddCommand(totpSetupCmd())
 	return root
 }
 
@@ -112,6 +114,29 @@ func renderCmd() *cobra.Command {
 	return cmd
 }
 
+func totpSetupCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "totp-setup",
+		Short: "Generate a TOTP secret for admin authentication",
+		Long: `Generates a new TOTP secret and prints it along with an otpauth:// URL.
+
+Steps:
+  1. Run this command and scan the otpauth:// URL with your authenticator app.
+  2. Set the printed TOTP_SECRET value in your environment or .env file.
+  3. Also set a long random ADMIN_TOKEN.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			secret, err := admin.GenerateSecret()
+			if err != nil {
+				return err
+			}
+			url := admin.OTPAuthURL(secret, "ZZA", "admin")
+			fmt.Fprintf(cmd.OutOrStdout(), "TOTP_SECRET=%s\n\n", secret)
+			fmt.Fprintf(cmd.OutOrStdout(), "otpauth URL (scan with authenticator):\n%s\n", url)
+			return nil
+		},
+	}
+}
+
 func serveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "serve",
@@ -145,6 +170,13 @@ func serveCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("serve: %w", err)
 			}
+
+			// Register admin routes.
+			srv.RegisterAdminRoutes(database, server.AdminConfig{
+				AdminToken:    cfg.AdminToken,
+				TOTPSecret:    cfg.TOTPSecret,
+				SecureCookies: cfg.SecureCookies,
+			})
 
 			// Register editor routes.
 			srv.RegisterEditorRoutes(database, server.EditorConfig{

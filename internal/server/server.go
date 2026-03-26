@@ -29,6 +29,7 @@ type Server struct {
 	mux           *http.ServeMux
 	staticHandler http.Handler
 	editorHandler http.Handler // handles /edit/{token} routes to avoid mux conflicts
+	adminHandler  http.Handler // handles /admin/... routes to avoid mux conflicts
 	rend          *renderer.Renderer
 	cache         *Cache
 	templatesDir  string
@@ -47,7 +48,19 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 		return nil, fmt.Errorf("server: %w", err)
 	}
 
-	tmpl, err := template.ParseFS(webFS, "templates/*.html")
+	funcMap := template.FuncMap{
+		"formatBytes": func(b int64) string {
+			switch {
+			case b >= 1<<20:
+				return fmt.Sprintf("%.1f MB", float64(b)/(1<<20))
+			case b >= 1<<10:
+				return fmt.Sprintf("%.1f KB", float64(b)/(1<<10))
+			default:
+				return fmt.Sprintf("%d B", b)
+			}
+		},
+	}
+	tmpl, err := template.New("").Funcs(funcMap).ParseFS(webFS, "templates/*.html")
 	if err != nil {
 		return nil, fmt.Errorf("server: parsing HTML templates: %w", err)
 	}
@@ -79,6 +92,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(r.URL.Path, "/edit/") && s.editorHandler != nil {
 		s.editorHandler.ServeHTTP(w, r)
+		return
+	}
+	if (r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/")) && s.adminHandler != nil {
+		s.adminHandler.ServeHTTP(w, r)
 		return
 	}
 	s.mux.ServeHTTP(w, r)
@@ -255,7 +272,7 @@ func (s *Server) renderAndServe(w http.ResponseWriter, templateName string, body
 	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
 	if err != nil {
 		log.Printf("render: load template %q: %v", templateName, err)
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		http.Error(w, "template not found", http.StatusNotFound)
 		return
 	}
 

@@ -27,6 +27,11 @@ type Config struct {
 	SMTPUser string
 	SMTPPass string
 	SMTPFrom string
+
+	// Admin
+	AdminToken    string // ADMIN_TOKEN
+	TOTPSecret    string // TOTP_SECRET (Base32)
+	SecureCookies bool   // SECURE_COOKIES — set to true in production (HTTPS)
 }
 
 // Load reads configuration from environment variables and applies defaults.
@@ -59,6 +64,9 @@ func Load() *Config {
 		SMTPUser:          envStr("SMTP_USER", ""),
 		SMTPPass:          envStr("SMTP_PASS", ""),
 		SMTPFrom:          envStr("SMTP_FROM", ""),
+		AdminToken:        envStr("ADMIN_TOKEN", ""),
+		TOTPSecret:        envStr("TOTP_SECRET", ""),
+		SecureCookies:     envStr("SECURE_COOKIES", "") == "true",
 	}
 }
 

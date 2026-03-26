@@ -166,6 +166,48 @@ func (c *Cache) cleanup() error {
 	return nil
 }
 
+// CacheStats holds a snapshot of the current cache state.
+type CacheStats struct {
+	FileCount  int
+	TotalBytes int64
+	Dir        string
+}
+
+// Stats returns a snapshot of the current cache contents.
+func (c *Cache) Stats() CacheStats {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var totalBytes int64
+	var count int
+	_ = filepath.WalkDir(c.dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if info, infoErr := d.Info(); infoErr == nil {
+			totalBytes += info.Size()
+			count++
+		}
+		return nil
+	})
+	return CacheStats{FileCount: count, TotalBytes: totalBytes, Dir: c.dir}
+}
+
+// Flush removes all cached PNG files from the cache directory.
+func (c *Cache) Flush() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entries, err := os.ReadDir(c.dir)
+	if err != nil {
+		return fmt.Errorf("cache: flush: reading dir: %w", err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			_ = os.Remove(filepath.Join(c.dir, e.Name()))
+		}
+	}
+	return nil
+}
+
 func (c *Cache) filePath(key string) string {
 	// key is a 64-char hex string — safe to use directly as filename.
 	return filepath.Join(c.dir, key+".png")
