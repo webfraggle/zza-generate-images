@@ -62,17 +62,25 @@ type Layer struct {
 	SrcHeight int `yaml:"src_height"`
 }
 
-// StringOrCond can be either a plain string value or a conditional map (if/then/else).
-// In Phase 1, the else value is used as the default when an if/then is present.
+// maxCondBranches limits the number of if/elif branches in a single StringOrCond to prevent DoS.
+const maxCondBranches = 50
+
+// StringOrCond can be either a plain string value or a conditional map (if/elif/then/else).
 type StringOrCond struct {
 	raw  string
 	cond *condMap
 }
 
-type condMap struct {
+// condBranch holds a single if/elif condition and its then-value.
+type condBranch struct {
 	ifExpr string
 	then   string
-	els    string
+}
+
+// condMap holds an ordered list of if/elif branches and a final else fallback.
+type condMap struct {
+	branches []condBranch
+	els      string
 }
 
 // String returns the plain value or the else-branch for conditionals.
@@ -81,19 +89,25 @@ func (s StringOrCond) String() string {
 	return s.Resolve(nil)
 }
 
-// Resolve evaluates the condition (if present) using eval and returns the matching branch.
-// Falls back to the else-branch when eval is nil or the condition is false.
+// Resolve evaluates branches in order and returns the first matching then-value.
+// Falls back to the else-branch when eval is nil or no branch matches.
 func (s StringOrCond) Resolve(eval *Evaluator) string {
 	if s.cond == nil {
 		return s.raw
 	}
-	if eval != nil && eval.EvalCondition(s.cond.ifExpr) {
-		return s.cond.then
+	if eval != nil {
+		for _, b := range s.cond.branches {
+			if eval.EvalCondition(b.ifExpr) {
+				return b.then
+			}
+		}
 	}
 	return s.cond.els
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler for StringOrCond.
+// Supports if/then/else (single branch) and if/then/elif/then/.../else (multi-branch).
+// yaml.Node preserves duplicate keys (elif, then) in Content order.
 func (s *StringOrCond) UnmarshalYAML(value *yaml.Node) error {
 	switch value.Kind {
 	case yaml.ScalarNode:
@@ -102,19 +116,35 @@ func (s *StringOrCond) UnmarshalYAML(value *yaml.Node) error {
 		return nil
 
 	case yaml.MappingNode:
-		// Parse if/then/else map
 		cm := &condMap{}
+		var pendingExpr string
+		hasPending := false
+
 		for i := 0; i+1 < len(value.Content); i += 2 {
 			key := value.Content[i].Value
 			val := value.Content[i+1].Value
 			switch key {
-			case "if":
-				cm.ifExpr = val
+			case "if", "elif":
+				if hasPending {
+					return fmt.Errorf("renderer: '%s' without preceding 'then'", key)
+				}
+				if len(cm.branches) >= maxCondBranches {
+					return fmt.Errorf("renderer: too many if/elif branches (max %d)", maxCondBranches)
+				}
+				pendingExpr = val
+				hasPending = true
 			case "then":
-				cm.then = val
+				if !hasPending {
+					return fmt.Errorf("renderer: 'then' without preceding 'if' or 'elif'")
+				}
+				cm.branches = append(cm.branches, condBranch{ifExpr: pendingExpr, then: val})
+				hasPending = false
 			case "else":
 				cm.els = val
 			}
+		}
+		if hasPending {
+			return fmt.Errorf("renderer: 'if'/'elif' without following 'then'")
 		}
 		s.cond = cm
 		s.raw = ""

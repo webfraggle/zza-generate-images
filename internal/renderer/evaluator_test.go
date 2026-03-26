@@ -1,8 +1,12 @@
 package renderer
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // fixedEval returns an Evaluator with known data and a fixed time (2026-03-24 15:54:07, Tuesday).
@@ -315,6 +319,164 @@ func TestCondition_StartsWith_EmptyArg(t *testing.T) {
 	// empty prefix always matches
 	if !e.EvalCondition("startsWith(zug1.hinweis, '')") {
 		t.Error("empty prefix should always match")
+	}
+}
+
+// --- StringOrCond / elif ---
+
+// parseStringOrCond is a helper that parses a YAML fragment into a StringOrCond.
+func parseStringOrCond(t *testing.T, yamlStr string) StringOrCond {
+	t.Helper()
+	type wrapper struct {
+		V StringOrCond `yaml:"v"`
+	}
+	var w wrapper
+	if err := yaml.Unmarshal([]byte("v:\n"+yamlStr), &w); err != nil {
+		t.Fatalf("yaml.Unmarshal: %v", err)
+	}
+	return w.V
+}
+
+func TestStringOrCond_PlainString(t *testing.T) {
+	s := parseStringOrCond(t, `  hello`)
+	if got := s.Resolve(nil); got != "hello" {
+		t.Errorf("got %q, want %q", got, "hello")
+	}
+}
+
+func TestStringOrCond_IfThenElse_TrueBranch(t *testing.T) {
+	yaml := `
+  if:   equals(status, 'ok')
+  then: green
+  else: red`
+	e := fixedEval(map[string]interface{}{"status": "ok"})
+	s := parseStringOrCond(t, yaml)
+	if got := s.Resolve(e); got != "green" {
+		t.Errorf("got %q, want %q", got, "green")
+	}
+}
+
+func TestStringOrCond_IfThenElse_FalseBranch(t *testing.T) {
+	yaml := `
+  if:   equals(status, 'ok')
+  then: green
+  else: red`
+	e := fixedEval(map[string]interface{}{"status": "fail"})
+	s := parseStringOrCond(t, yaml)
+	if got := s.Resolve(e); got != "red" {
+		t.Errorf("got %q, want %q", got, "red")
+	}
+}
+
+func TestStringOrCond_Elif_FirstBranch(t *testing.T) {
+	raw := `
+  if:   equals(status, 'delayed')
+  then: '#FF0000'
+  elif: equals(status, 'cancelled')
+  then: '#888888'
+  else: '#FFFFFF'`
+	e := fixedEval(map[string]interface{}{"status": "delayed"})
+	s := parseStringOrCond(t, raw)
+	if got := s.Resolve(e); got != "#FF0000" {
+		t.Errorf("got %q, want %q", got, "#FF0000")
+	}
+}
+
+func TestStringOrCond_Elif_SecondBranch(t *testing.T) {
+	raw := `
+  if:   equals(status, 'delayed')
+  then: '#FF0000'
+  elif: equals(status, 'cancelled')
+  then: '#888888'
+  else: '#FFFFFF'`
+	e := fixedEval(map[string]interface{}{"status": "cancelled"})
+	s := parseStringOrCond(t, raw)
+	if got := s.Resolve(e); got != "#888888" {
+		t.Errorf("got %q, want %q", got, "#888888")
+	}
+}
+
+func TestStringOrCond_Elif_ElseBranch(t *testing.T) {
+	raw := `
+  if:   equals(status, 'delayed')
+  then: '#FF0000'
+  elif: equals(status, 'cancelled')
+  then: '#888888'
+  else: '#FFFFFF'`
+	e := fixedEval(map[string]interface{}{"status": "on-time"})
+	s := parseStringOrCond(t, raw)
+	if got := s.Resolve(e); got != "#FFFFFF" {
+		t.Errorf("got %q, want %q", got, "#FFFFFF")
+	}
+}
+
+func TestStringOrCond_MultipleElif(t *testing.T) {
+	raw := `
+  if:   equals(x, '1')
+  then: one
+  elif: equals(x, '2')
+  then: two
+  elif: equals(x, '3')
+  then: three
+  else: other`
+	for _, tc := range []struct{ val, want string }{
+		{"1", "one"}, {"2", "two"}, {"3", "three"}, {"9", "other"},
+	} {
+		e := fixedEval(map[string]interface{}{"x": tc.val})
+		s := parseStringOrCond(t, raw)
+		if got := s.Resolve(e); got != tc.want {
+			t.Errorf("x=%q: got %q, want %q", tc.val, got, tc.want)
+		}
+	}
+}
+
+func TestStringOrCond_NoElif_NilEval(t *testing.T) {
+	raw := `
+  if:   equals(x, '1')
+  then: one
+  else: fallback`
+	s := parseStringOrCond(t, raw)
+	// nil eval → always falls back to else
+	if got := s.Resolve(nil); got != "fallback" {
+		t.Errorf("got %q, want %q", got, "fallback")
+	}
+}
+
+func TestStringOrCond_Error_ThenWithoutIf(t *testing.T) {
+	type wrapper struct {
+		V StringOrCond `yaml:"v"`
+	}
+	var w wrapper
+	err := yaml.Unmarshal([]byte("v:\n  then: oops"), &w)
+	if err == nil {
+		t.Error("expected error for 'then' without 'if'")
+	}
+}
+
+func TestStringOrCond_Error_IfWithoutThen(t *testing.T) {
+	type wrapper struct {
+		V StringOrCond `yaml:"v"`
+	}
+	var w wrapper
+	err := yaml.Unmarshal([]byte("v:\n  if: equals(x, '1')"), &w)
+	if err == nil {
+		t.Error("expected error for 'if' without 'then'")
+	}
+}
+
+func TestStringOrCond_Error_TooManyBranches(t *testing.T) {
+	var sb strings.Builder
+	sb.WriteString("v:\n  if: equals(x, '0')\n  then: zero\n")
+	for i := 1; i <= maxCondBranches; i++ {
+		fmt.Fprintf(&sb, "  elif: equals(x, '%d')\n  then: val%d\n", i, i)
+	}
+	type wrapper struct {
+		V StringOrCond `yaml:"v"`
+	}
+	var w wrapper
+	err := yaml.Unmarshal([]byte(sb.String()), &w)
+	if err == nil {
+		t.Errorf("expected error when exceeding maxCondBranches (%d)", maxCondBranches)
 	}
 }
 
