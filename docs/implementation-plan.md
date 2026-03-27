@@ -427,6 +427,29 @@ color:
 
 ---
 
+## loop-Erweiterung — `type: loop` + `split_by` im Renderer
+
+**Ziel:** Via-Stationen (und ähnliche Listen) als gesplitteten String iterieren und pro Element Sub-Layer rendern.
+
+### Aufgaben
+1. `Layer`-Struct: neues Feld `Layers []Layer` (Sub-Layer), `SplitBy string`, `StepY int`, `MaxItems int`, `Var string`
+2. Renderer (`render.go`): `type: loop` auswerten — String splitten, pro Element Sub-Layer mit angepasstem Y-Offset und Loop-Variable im Scope rendern
+3. Evaluator: Loop-Variablen (`item`, `loop.index`, `loop.y`) in den Scope aufnehmen
+4. Spec: `type: loop` ist bereits dokumentiert (`yaml-template-spec.md`)
+5. Tests: leerer String, ein Element, N Elemente, `max_items`-Limit
+
+### Agenten
+- **implementer**
+- **security-reviewer**
+- **code-reviewer**
+
+### Status: Implementierung ausstehend
+
+### Manueller Test (loop-Erweiterung)
+> Beschreibung folgt am Ende der Erweiterung.
+
+---
+
 ## Phase 7 — Superuser-Bereich
 
 **Ziel:** Admin-Zugang mit Token + TOTP.

@@ -146,6 +146,46 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
 
 ---
 
+### type: loop
+
+Iteriert über einen gesplitteten String und rendert Sub-Layer für jedes Element. Typisch für Via-Stationen bei SBB (Icon + Text pro Station).
+
+```yaml
+- type: loop
+  value: "{{zug1.via}}"   # String der gesplittet wird
+  split_by: "|"            # Trennzeichen
+  var: "item"              # Name der Loop-Variable (in Sub-Layern als {{item}} verfügbar)
+  y: 30                    # Start-Y (absolut)
+  step_y: 12               # Y-Versatz pro Iteration
+  max_items: 6             # Sicherheits-Limit (DoS-Schutz)
+  layers:                  # Sub-Layer — y-Positionen relativ zum aktuellen Loop-Y
+    - type: image
+      file: via-dot.png
+      x: 45
+      y: 0                 # relativ: tatsächliches Y = loop.y + 0
+    - type: text
+      value: "{{item}}"
+      x: 55
+      y: 0
+      font: regular
+      size: 9
+      color: "#888888"
+      max_width: 100
+```
+
+**Automatische Loop-Variablen** (in Sub-Layern verfügbar):
+
+| Variable       | Beschreibung                              |
+|----------------|-------------------------------------------|
+| `{{item}}`     | Aktuelles Element (Name via `var`)        |
+| `{{loop.index}}`| Aktueller Index, 0-basiert               |
+| `{{loop.y}}`   | Absolutes Y des aktuellen Elements        |
+
+**Leere Elemente** nach dem Split werden übersprungen.
+**Wenn `value` leer ist**, wird der Loop nicht ausgeführt (kein Fehler).
+
+---
+
 ### type: copy
 
 Kopiert einen rechteckigen Bereich des Canvas auf eine andere Position. Wird verwendet um z.B. die obere Displayhälfte auf die untere zu spiegeln (typisch für Zugzielanzeiger mit zwei identischen Zeilen).
@@ -362,16 +402,28 @@ layers:
     align: left
     max_width: 110
 
-  # Via
-  - type: text
+  # Via-Stationen als Liste (SBB-Stil: Icon + Text pro Station)
+  - type: loop
     value: "{{zug1.via}}"
-    x: 45
+    split_by: "|"
+    var: "via_item"
     y: 30
-    font: regular
-    size: 9
-    color: "#AAAAAA"
-    align: left
-    max_width: 110
+    step_y: 12
+    max_items: 4
+    layers:
+      - type: image
+        file: via-dot.png
+        x: 45
+        y: 2
+      - type: text
+        value: "{{via_item}}"
+        x: 55
+        y: 0
+        font: regular
+        size: 9
+        color: "#AAAAAA"
+        align: left
+        max_width: 100
 
   # Hinweistext — Farbe abhängig ob Sternchen
   - type: text
@@ -398,5 +450,5 @@ layers:
 | `elif`-Syntax | Wiederholtes Schlüsselwort (wie oben gezeigt) |
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |
-| Repeat/Loop | Nicht vorgesehen — zug1/zug2/zug3 werden einzeln adressiert |
+| Repeat/Loop | `type: loop` mit `split_by` — kein eigenständiger split-Filter (würde Evaluator auf Listen-Rückgabe erweitern) |
 | Leere Felder | Werden leer dargestellt — kein Fehler. Sonderbehandlung via `if isEmpty(...)` |
