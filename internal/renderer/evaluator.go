@@ -263,7 +263,7 @@ func (e *Evaluator) evalCond(expr string, depth int) bool {
 		}
 	case "isEmpty":
 		return fieldVal == ""
-	case "equals":
+	case "eq", "equals":
 		if len(args) == 2 {
 			return fieldVal == unquote(args[1])
 		}

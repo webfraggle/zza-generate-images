@@ -69,34 +69,23 @@ const (
 	maxFontFileBytes   = 50 * 1024 * 1024 // 50 MB
 )
 
-// Render creates an image from the template and input data.
-func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.NRGBA, error) {
-	w, h := tmpl.Meta.Canvas.Width, tmpl.Meta.Canvas.Height
-	if w <= 0 || h <= 0 {
-		return nil, fmt.Errorf("renderer: Render: invalid canvas dimensions %dx%d", w, h)
-	}
-	if w > maxCanvasDimension || h > maxCanvasDimension {
-		return nil, fmt.Errorf("renderer: Render: canvas dimensions %dx%d exceed maximum %d", w, h, maxCanvasDimension)
-	}
-	if len(tmpl.Layers) > maxLayers {
-		return nil, fmt.Errorf("renderer: Render: template has %d layers, maximum is %d", len(tmpl.Layers), maxLayers)
-	}
-
-	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
-	eval := NewEvaluator(data)
-
+// renderLayers renders a slice of layers in order, handling:
+//   - Layer-level if/elif/else chains on typed layers
+//   - Block-level if/elif/else nodes (Type == "", has Layers)
+//
+// Set inLoop=true when called from renderLoop to prevent nested loops.
+func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer, eval *Evaluator, inLoop bool) error {
 	chainSatisfied := false
 	inChain := false
-	for i, layer := range tmpl.Layers {
-		// Evaluate if/elif/else chain to decide whether to render this layer.
+	for i, layer := range layers {
 		render := false
 		switch {
-		case layer.Elif != "" || layer.Else:
+		case layer.Elif != "" || bool(layer.Else):
 			if !inChain {
-				return nil, fmt.Errorf("renderer: Render: layer %d: elif/else without preceding if", i)
+				return fmt.Errorf("layer %d: elif/else without preceding if", i)
 			}
 			if !chainSatisfied {
-				if layer.Else {
+				if bool(layer.Else) {
 					render = true
 				} else if eval.EvalCondition(layer.Elif) {
 					chainSatisfied = true
@@ -118,6 +107,16 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 		if !render {
 			continue
 		}
+
+		// Block-level node: no type, has sub-layers.
+		if layer.Type == "" {
+			if err := r.renderLayers(dst, tmpl, layer.Layers, eval, inLoop); err != nil {
+				return fmt.Errorf("block layer %d: %w", i, err)
+			}
+			continue
+		}
+
+		// Typed layer dispatch.
 		var err error
 		switch layer.Type {
 		case "image":
@@ -129,15 +128,39 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 		case "copy":
 			err = renderCopy(dst, layer, eval)
 		case "loop":
+			if inLoop {
+				return fmt.Errorf("layer %d: nested loops are not supported", i)
+			}
 			err = r.renderLoop(dst, tmpl, layer, eval)
 		default:
-			return nil, fmt.Errorf("renderer: Render: layer %d: unknown type %q", i, layer.Type)
+			return fmt.Errorf("layer %d: unknown type %q", i, layer.Type)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("renderer: Render: layer %d (%s): %w", i, layer.Type, err)
+			return fmt.Errorf("layer %d (%s): %w", i, layer.Type, err)
 		}
 	}
+	return nil
+}
 
+// Render creates an image from the template and input data.
+func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.NRGBA, error) {
+	w, h := tmpl.Meta.Canvas.Width, tmpl.Meta.Canvas.Height
+	if w <= 0 || h <= 0 {
+		return nil, fmt.Errorf("renderer: Render: invalid canvas dimensions %dx%d", w, h)
+	}
+	if w > maxCanvasDimension || h > maxCanvasDimension {
+		return nil, fmt.Errorf("renderer: Render: canvas dimensions %dx%d exceed maximum %d", w, h, maxCanvasDimension)
+	}
+	if len(tmpl.Layers) > maxLayers {
+		return nil, fmt.Errorf("renderer: Render: template has %d layers, maximum is %d", len(tmpl.Layers), maxLayers)
+	}
+
+	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
+	eval := NewEvaluator(data)
+
+	if err := r.renderLayers(dst, tmpl, tmpl.Layers, eval, false); err != nil {
+		return nil, fmt.Errorf("renderer: Render: %w", err)
+	}
 	return dst, nil
 }
 
@@ -517,56 +540,8 @@ func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			"loop.index": displayIdx,
 		})
 
-		subChainSatisfied := false
-		subInChain := false
-		for j, sub := range layer.Layers {
-			render := false
-			switch {
-			case sub.Elif != "" || sub.Else:
-				if !subInChain {
-					return fmt.Errorf("renderLoop: sub-layer %d: elif/else without preceding if", j)
-				}
-				if !subChainSatisfied {
-					if sub.Else {
-						render = true
-					} else if childEval.EvalCondition(sub.Elif) {
-						subChainSatisfied = true
-						render = true
-					}
-				}
-			case sub.If != "":
-				subInChain = true
-				subChainSatisfied = false
-				if childEval.EvalCondition(sub.If) {
-					subChainSatisfied = true
-					render = true
-				}
-			default:
-				subInChain = false
-				subChainSatisfied = false
-				render = true
-			}
-			if !render {
-				continue
-			}
-			var err error
-			switch sub.Type {
-			case "image":
-				err = r.renderImage(dst, tmpl, sub, childEval)
-			case "rect":
-				err = r.renderRect(dst, sub, childEval)
-			case "text":
-				err = r.renderText(dst, tmpl, sub, childEval)
-			case "copy":
-				err = renderCopy(dst, sub, childEval)
-			case "loop":
-				return fmt.Errorf("renderLoop: sub-layer %d: nested loops are not supported", j)
-			default:
-				return fmt.Errorf("renderLoop: sub-layer %d: unsupported type %q", j, sub.Type)
-			}
-			if err != nil {
-				return fmt.Errorf("renderLoop: item %d, sub-layer %d (%s): %w", displayIdx, j, sub.Type, err)
-			}
+		if err := r.renderLayers(dst, tmpl, layer.Layers, childEval, true); err != nil {
+			return fmt.Errorf("renderLoop: item %d: %w", displayIdx, err)
 		}
 		displayIdx++
 	}
