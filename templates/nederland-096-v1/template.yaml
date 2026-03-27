@@ -84,23 +84,19 @@ layers:
     max_width: 82
 
   # Uhrzeiger (Stunden) — rotiert um aktuelle Stunde
-  # Bild: 26×26px, Zentrum bei (141,22); x=128, y=9
+  # Bild: 26×26px, Zentrum bei (141,22)
   - type: image
     file: clock-hour.png
-    x: 128
-    y: 9
+    x: 141
+    y: 22
     rotate: "{{now.hour | mul(30)}}"
-    pivot_x: 13
-    pivot_y: 13
 
   # Uhrzeiger (Minuten) — rotiert um aktuelle Minute
   - type: image
     file: clock-minutes.png
-    x: 128
-    y: 9
+    x: 141
+    y: 22
     rotate: "{{now.minute | mul(6)}}"
-    pivot_x: 13
-    pivot_y: 13
 
   # Untere Hälfte: vertauschte Segmente für gespiegelten Look
   # PHP: imagecopy($bg,$bg, dst_x, dst_y, src_x, src_y, w, h)

@@ -26,23 +26,19 @@ layers:
     x: 106
     y: 93
 
-  # Uhrzeiger (Stunden) — Bild: 54×54px, Pivot bei (133,120)
+  # Uhrzeiger (Stunden) — Bild: 54×54px, Zentrum bei (133,120)
   - type: image
     file: clock-hour.png
-    x: 106
-    y: 93
+    x: 133
+    y: 120
     rotate: "{{now.hour | mul(30)}}"
-    pivot_x: 27
-    pivot_y: 27
 
   # Uhrzeiger (Minuten)
   - type: image
     file: clock-minutes.png
-    x: 106
-    y: 93
+    x: 133
+    y: 120
     rotate: "{{now.minute | mul(6)}}"
-    pivot_x: 27
-    pivot_y: 27
 
   # Richtungstext (zug1.hinweis = Richtung xyz)
   - type: text

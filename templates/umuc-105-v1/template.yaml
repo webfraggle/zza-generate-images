@@ -20,23 +20,19 @@ layers:
     x: 0
     y: 0
 
-  # Uhrzeiger (Stunden) — Bild: 54×54px, Pivot bei (38,56)
+  # Uhrzeiger (Stunden) — Bild: 54×54px, Zentrum bei (38,56)
   - type: image
     file: clock-hour.png
-    x: 11
-    y: 29
+    x: 38
+    y: 56
     rotate: "{{now.hour | mul(30)}}"
-    pivot_x: 27
-    pivot_y: 27
 
   # Uhrzeiger (Minuten)
   - type: image
     file: clock-minutes.png
-    x: 11
-    y: 29
+    x: 38
+    y: 56
     rotate: "{{now.minute | mul(6)}}"
-    pivot_x: 27
-    pivot_y: 27
 
   # Richtungstext
   - type: text

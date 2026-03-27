@@ -85,8 +85,37 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
 	eval := NewEvaluator(data)
 
+	chainSatisfied := false
+	inChain := false
 	for i, layer := range tmpl.Layers {
-		if layer.If != "" && !eval.EvalCondition(layer.If) {
+		// Evaluate if/elif/else chain to decide whether to render this layer.
+		render := false
+		switch {
+		case layer.Elif != "" || layer.Else:
+			if !inChain {
+				return nil, fmt.Errorf("renderer: Render: layer %d: elif/else without preceding if", i)
+			}
+			if !chainSatisfied {
+				if layer.Else {
+					render = true
+				} else if eval.EvalCondition(layer.Elif) {
+					chainSatisfied = true
+					render = true
+				}
+			}
+		case layer.If != "":
+			inChain = true
+			chainSatisfied = false
+			if eval.EvalCondition(layer.If) {
+				chainSatisfied = true
+				render = true
+			}
+		default:
+			inChain = false
+			chainSatisfied = false
+			render = true
+		}
+		if !render {
 			continue
 		}
 		var err error
@@ -171,17 +200,21 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 	x := layer.X.Resolve(eval)
 	y := layer.Y.Resolve(eval)
 
-	// Apply rotation if the rotate field is non-empty and non-zero.
+	// When rotate is set, x and y are the CENTER of the image on the canvas.
+	// rotateImageCW handles 0° correctly (identity), so we always apply center placement.
 	rotStr := strings.TrimSpace(eval.Interpolate(layer.Rotate.Resolve(eval)))
-	if rotStr != "" && rotStr != "0" {
+	if rotStr != "" {
 		deg, err := strconv.ParseFloat(rotStr, 64)
 		if err != nil {
 			return fmt.Errorf("renderImage: invalid rotate value %q: %w", rotStr, err)
 		}
-		if deg != 0 {
-			applyImageRotation(dst, src, x, y, layer.PivotX, layer.PivotY, deg)
-			return nil
-		}
+		rotated := rotateImageCW(src, deg)
+		cx := x - rotated.Bounds().Dx()/2
+		cy := y - rotated.Bounds().Dy()/2
+		pt := image.Pt(cx, cy)
+		r2 := rotated.Bounds().Add(pt)
+		draw.Draw(dst, r2, rotated, rotated.Bounds().Min, draw.Over)
+		return nil
 	}
 
 	pt := image.Pt(x, y)
@@ -190,39 +223,39 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 	return nil
 }
 
-// applyImageRotation draws src into dst rotated by deg degrees around the pivot point.
-// The pivot is relative to the source image; defaults to image center when both are zero.
-// Uses a destination-to-source affine transform for correct bilinear sampling.
-// src must have Bounds().Min == (0,0); sub-images should be converted to full images first.
-func applyImageRotation(dst *image.NRGBA, src image.Image, layerX, layerY, pivotX, pivotY int, deg float64) {
-	theta := deg * math.Pi / 180.0
-	cosA := math.Cos(theta)
-	sinA := math.Sin(theta)
-
+// rotateImageCW rotates src clockwise by deg degrees around its own center
+// and returns a new image sized to exactly contain the rotated result.
+func rotateImageCW(src image.Image, deg float64) *image.NRGBA {
 	bounds := src.Bounds()
-	// Offset source origin so the math below assumes (0,0) origin.
-	originX := float64(bounds.Min.X)
-	originY := float64(bounds.Min.Y)
+	srcW := float64(bounds.Dx())
+	srcH := float64(bounds.Dy())
 
-	// Default pivot: image center when both are zero.
-	px, py := float64(pivotX), float64(pivotY)
-	if pivotX == 0 && pivotY == 0 {
-		px = float64(bounds.Dx()) / 2
-		py = float64(bounds.Dy()) / 2
-	}
+	T := deg * math.Pi / 180.0
+	cosT := math.Cos(T)
+	sinT := math.Sin(T)
 
-	// Canvas pivot position.
-	cpx := float64(layerX) + px
-	cpy := float64(layerY) + py
+	// Bounding box of the rotated image.
+	newW := int(math.Ceil(srcW*math.Abs(cosT) + srcH*math.Abs(sinT)))
+	newH := int(math.Ceil(srcW*math.Abs(sinT) + srcH*math.Abs(cosT)))
 
-	// dst→src affine transform: for each canvas pixel, find the corresponding source pixel.
-	// Derived by inverting: src→canvas = translate(layerX,layerY) then rotate around (cpx,cpy).
-	// originX/Y adjusts for sub-images whose Bounds().Min != (0,0).
+	dst := image.NewNRGBA(image.Rect(0, 0, newW, newH))
+
+	// Source and destination centers (in image coordinates, accounting for sub-image offset).
+	srcCX := float64(bounds.Min.X) + srcW/2
+	srcCY := float64(bounds.Min.Y) + srcH/2
+	dstCX := float64(newW) / 2
+	dstCY := float64(newH) / 2
+
+	// xdraw.BiLinear.Transform treats s2d as a src→dst forward transform and
+	// internally inverts it for backward (dst→src) pixel sampling.
+	// CW rotation src→dst: x'= cosT*x - sinT*y, y'= sinT*x + cosT*y
+	// Translated so that the source center maps to the destination center.
 	s2d := f64.Aff3{
-		cosA, sinA, -cosA*cpx - sinA*cpy + px + originX,
-		-sinA, cosA, sinA*cpx - cosA*cpy + py + originY,
+		cosT, -sinT, dstCX - srcCX*cosT + srcCY*sinT,
+		sinT, cosT, dstCY - srcCX*sinT - srcCY*cosT,
 	}
 	xdraw.BiLinear.Transform(dst, s2d, src, src.Bounds(), xdraw.Over, nil)
+	return dst
 }
 
 // renderCopy copies a rectangular region of the canvas to another position.
@@ -484,8 +517,36 @@ func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			"loop.index": displayIdx,
 		})
 
+		subChainSatisfied := false
+		subInChain := false
 		for j, sub := range layer.Layers {
-			if sub.If != "" && !childEval.EvalCondition(sub.If) {
+			render := false
+			switch {
+			case sub.Elif != "" || sub.Else:
+				if !subInChain {
+					return fmt.Errorf("renderLoop: sub-layer %d: elif/else without preceding if", j)
+				}
+				if !subChainSatisfied {
+					if sub.Else {
+						render = true
+					} else if childEval.EvalCondition(sub.Elif) {
+						subChainSatisfied = true
+						render = true
+					}
+				}
+			case sub.If != "":
+				subInChain = true
+				subChainSatisfied = false
+				if childEval.EvalCondition(sub.If) {
+					subChainSatisfied = true
+					render = true
+				}
+			default:
+				subInChain = false
+				subChainSatisfied = false
+				render = true
+			}
+			if !render {
 				continue
 			}
 			var err error

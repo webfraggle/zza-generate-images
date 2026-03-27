@@ -24,12 +24,12 @@ layers:
 
   # Abfahrtszeit (nur wenn nicht infoOnly)
   - type: text
-    if: "not(isEmpty(zug1.vonnach))"
+    if: "not(isEmpty(zug1.zeit))"
     value: "{{zug1.zeit}}"
     x: 3
     y: 15
     font: bold
-    size: 16
+    size: 20.6
     color: "#ffffff"
     align: left
 
@@ -70,12 +70,14 @@ layers:
     if: "not(isEmpty(zug1.vonnach))"
     value: "{{zug1.vonnach}}"
     x: 5
-    y: 74
+    y: 30
     font: regular
-    size: 16
+    size: 20.6
     color: "#ffffff"
     align: left
-    max_width: 111
+    width: 111
+    valign: bottom
+    height: 70
 
   # Via-Linie (gepunktete Linie)
   - type: image
@@ -101,46 +103,47 @@ layers:
         x: 141
         y: "{{i * 16 + 21}}"
         font: regular
-        size: 10
+        size: 13
+        color: "#ffffff"
+        align: left
+      - type: text
+        value: "{{via | trim}}"
+        x: 141
+        y: "{{i * 16 + 21}}"
+        font: regular
+        size: 13
         color: "#ffffff"
         align: left
 
-  # Zugnummer — IC-Familie mit Icon.
-  # IC rendert zuerst, dann überschreibt ICN-Icon das IC-Icon.
-  - type: image
-    if: "startsWith(zug1.nr, 'IC')"
-    file: ic.png
-    x: 71
-    y: 17
 
-  # ICN überschreibt IC (Layer-Reihenfolge: später = oben)
+  # Zugnummer — IC-Familie mit Icon (elif-Kette: spezifischstes zuerst)
   - type: image
     if: "startsWith(zug1.nr, 'ICN')"
     file: icn.png
     x: 71
     y: 17
-
   - type: image
-    if: "startsWith(zug1.nr, 'EC')"
+    elif: "startsWith(zug1.nr, 'IC')"
+    file: ic.png
+    x: 71
+    y: 17
+  - type: image
+    elif: "startsWith(zug1.nr, 'EC')"
     file: ec.png
     x: 65
     y: 17
-
   - type: image
-    if: "startsWith(zug1.nr, 'IR')"
+    elif: "startsWith(zug1.nr, 'IR')"
     file: ir.png
     x: 71
     y: 17
-
   - type: image
-    if: "startsWith(zug1.nr, 'VAE')"
+    elif: "startsWith(zug1.nr, 'VAE')"
     file: vae.png
     x: 71
     y: 17
-
-  # Zugnummer als Text-Fallback (nur wenn kein IC-Icon passt)
   - type: text
-    if: "not(startsWith(zug1.nr, 'IC'))"
+    else: true
     value: "{{zug1.nr}}"
     x: 74
     y: 17

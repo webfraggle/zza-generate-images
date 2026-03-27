@@ -41,6 +41,8 @@ type FontDef struct {
 type Layer struct {
 	Type     string       `yaml:"type"`
 	If       string       `yaml:"if"`
+	Elif     string       `yaml:"elif"` // continues an if-chain at layer level
+	Else     bool         `yaml:"else"` // else: true — renders when preceding if/elif chain was not satisfied
 	X        IntOrExpr    `yaml:"x"`
 	Y        IntOrExpr    `yaml:"y"`
 	Width    IntOrExpr    `yaml:"width"`
@@ -54,9 +56,8 @@ type Layer struct {
 	Valign   string       `yaml:"valign"`   // top (default) | middle | bottom — needs height
 	MaxWidth IntOrExpr    `yaml:"max_width"`
 	// type: image — optional rotation
-	Rotate StringOrCond `yaml:"rotate"`  // degrees; supports expressions: "{{now.minute | mul(6)}}"
-	PivotX int          `yaml:"pivot_x"` // rotation pivot X relative to image; 0+0 defaults to center
-	PivotY int          `yaml:"pivot_y"` // rotation pivot Y relative to image; 0+0 defaults to center
+	// When rotate is set, x and y are the CENTER coordinates of the image on the canvas.
+	Rotate StringOrCond `yaml:"rotate"` // degrees clockwise; supports expressions: "{{now.minute | mul(6)}}"
 	// type: copy — source region to copy from
 	SrcX      int `yaml:"src_x"`
 	SrcY      int `yaml:"src_y"`
