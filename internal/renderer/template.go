@@ -42,7 +42,7 @@ type Layer struct {
 	Type     string       `yaml:"type"`
 	If       string       `yaml:"if"`
 	Elif     string       `yaml:"elif"` // continues an if-chain at layer level
-	Else     bool         `yaml:"else"` // else: true — renders when preceding if/elif chain was not satisfied
+	Else     ElseMarker   `yaml:"else"` // else: true — renders when preceding if/elif chain was not satisfied
 	X        IntOrExpr    `yaml:"x"`
 	Y        IntOrExpr    `yaml:"y"`
 	Width    IntOrExpr    `yaml:"width"`
@@ -68,6 +68,36 @@ type Layer struct {
 	Var      string  `yaml:"var"`       // name of the loop item variable
 	MaxItems int     `yaml:"max_items"` // safety cap; 0 = default (20)
 	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration
+}
+
+// UnmarshalYAML implements yaml.Unmarshaler for Layer.
+// It handles the `else:` key specially: yaml.v3 does not call custom unmarshalers
+// for null nodes, so we scan the raw mapping node to detect a bare `else:` (null)
+// and treat it as true.
+func (l *Layer) UnmarshalYAML(value *yaml.Node) error {
+	// layerAlias breaks the recursion that would occur if Layer implemented
+	// UnmarshalYAML and we decoded into a Layer directly.
+	type layerAlias Layer
+	var alias layerAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	*l = Layer(alias)
+
+	// Scan the raw mapping for the "else" key and set ElseMarker correctly
+	// when the value is a null node (bare `else:` with no value).
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(value.Content); i += 2 {
+			if value.Content[i].Value == "else" {
+				v := value.Content[i+1]
+				if v.Tag == "!!null" {
+					l.Else = true
+				}
+				break
+			}
+		}
+	}
+	return nil
 }
 
 // IntOrExpr holds either a plain integer or an arithmetic expression in {{...}} syntax.
@@ -118,6 +148,25 @@ func (ie *IntOrExpr) UnmarshalYAML(value *yaml.Node) error {
 
 // maxCondBranches limits the number of if/elif branches in a single StringOrCond to prevent DoS.
 const maxCondBranches = 50
+
+// ElseMarker is a bool field that also accepts YAML null as true.
+// This allows template authors to write either `else:` or `else: true`.
+type ElseMarker bool
+
+// UnmarshalYAML implements yaml.Unmarshaler.
+// Null (from bare `else:` with no value) is treated as true.
+func (e *ElseMarker) UnmarshalYAML(value *yaml.Node) error {
+	if value.Tag == "!!null" {
+		*e = true
+		return nil
+	}
+	var b bool
+	if err := value.Decode(&b); err != nil {
+		return fmt.Errorf("renderer: ElseMarker: expected bool or null, got %q", value.Value)
+	}
+	*e = ElseMarker(b)
+	return nil
+}
 
 // StringOrCond can be either a plain string value or a conditional map (if/elif/then/else).
 type StringOrCond struct {
