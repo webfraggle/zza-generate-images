@@ -552,7 +552,29 @@ Vorgehen pro Theme:
 - **security-reviewer** prüft ob neue Template-Features Risiken einführen
 
 ### Manueller Test (Phase 8)
-> Visueller Vergleich: jedes neue YAML-Template gegen das alte PHP-Rendering.
+
+> Alle 14 Templates mit `./zza render -t <name> -i templates/<name>/default.json -o /tmp/<name>.png` rendern und visuell prüfen.
+
+**Testfälle:**
+
+| # | Template | Was prüfen |
+|---|---|---|
+| T1 | `streamdeck-v1` | Gleis groß links, Zugnummer + Zeit rechts, Ziel unten |
+| T2 | `oebb-096-v1` | Zeit + Vonnach, S-Bahn Icon für "S1", Duplizierung |
+| T3 | `oebb-105-v1` | Wie T2 aber 240×240, Delay "+10'" in Gelb |
+| T4 | `rhb-096-v1` | Pixel-Font, gelbe Schrift, Via-Stationen oben |
+| T5 | `rhb-105-v1` | Wie T4 aber 240×240 |
+| T6 | `sbb-096-v1` | IC-Icon statt Text, ICN überschreibt IC-Icon, Via-Dots |
+| T7 | `sbb-105-v1` | Wie T6 aber 240×240 |
+| T8 | `nederland-096-v1` | Analoge Uhr mit rotierenden Zeigern, Gleisanzeige |
+| T9 | `nederland-105-v1` | Wie T8 + Sekundenzeiger |
+| T10 | `faltblatt` | 240×270, Gleis groß, Zugtyp-Icon, Ziel in Großbuchstaben |
+| T11 | `faltblatt-105-v1` | Wie T10 aber 240×240 |
+| T12 | `umuc-096-v1` | U-Bahn Icons U1-U8, analoge Uhr unten rechts, 3 Züge |
+| T13 | `umuc-105-v1` | Wie T12 aber 240×240 |
+| T14 | `instafollower` | Follower-Anzahl groß, Username klein |
+
+**Status:** ✅ Abgeschlossen — User-OK erteilt 2026-03-27.
 
 ---
 
