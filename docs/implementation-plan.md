@@ -451,33 +451,17 @@ color:
 **Security Review:** APPROVED WITH MINOR CHANGES REQUIRED → alle Findings behoben
 **Code Review:** APPROVED WITH MINOR COMMENTS → Logic-Bug (max_items-Clamp) und Off-by-one behoben
 
-### Status: ✅ Implementiert — User-OK ausstehend
+**User-OK:** 2026-03-27 ✅
+
+### Status: ✅ Abgeschlossen — User-OK 2026-03-27
 
 ### Manueller Test (loop-Erweiterung)
 
-Ein `type: loop`-Layer in `template.yaml` einfügen und testen:
+3 manuelle Testfälle bestanden (2026-03-27):
 
-```yaml
-- type: loop
-  value: "{{zug1.via}}"
-  split_by: "|"
-  var: "via_item"
-  y: 30
-  step_y: 12
-  max_items: 4
-  layers:
-    - type: text
-      value: "{{via_item}}"
-      x: 5
-      y: 0
-      font: regular
-      size: 9
-      color: "#AAAAAA"
-```
-
-1. JSON mit `zug1.via: "Wien Hütteldorf|Westbahnhof|Meidling"` → drei Zeilen ab Y=30
-2. JSON mit leerem `zug1.via` → keine Via-Zeilen (kein Fehler)
-3. Koordinaten-Ausdruck: `x: "{{i * 20 + 10}}"` → Abstand 20, Start bei 10
+1. JSON mit `zug1.via: "Wien Hütteldorf|Westbahnhof|Meidling"` → drei Zeilen, korrekt positioniert
+2. JSON mit leerem `zug1.via` → keine Via-Zeilen, kein Fehler
+3. Koordinaten-Ausdruck `y: "{{i * 12 + 30}}"` → Abstand 12, Start bei Y=30
 
 ---
 
