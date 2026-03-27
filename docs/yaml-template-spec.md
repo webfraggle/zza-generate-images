@@ -390,12 +390,13 @@ Eine Eigenschaft kann je nach Bedingung unterschiedliche Werte haben:
 ### Block-Level if/elif/else
 
 Mehrere Layer können unter einer gemeinsamen Bedingung gruppiert werden.
-Ein Block-Eintrag hat **kein `type:`**, aber `if:`/`elif:`/`else:` und `layers:`.
+Ein Block-Eintrag hat **kein `type:`**, dafür eine eigene `layers:`-Liste.
+Er steht wie ein normaler Layer innerhalb der äußeren `layers:`-Liste des Templates.
 
 ```yaml
-layers:
+layers:                          # äußere layers-Liste des Templates
   - if: "startsWith(zug1.nr, 'ICN')"
-    layers:
+    layers:                      # Sub-Layer dieses Blocks
       - type: image
         file: icn.png
       - type: text
@@ -408,7 +409,7 @@ layers:
       - type: image
         file: ic.png
 
-  - else:
+  - else:                        # auch: else: true — beides ist gleichwertig
     layers:
       - type: text
         value: "{{zug1.nr}}"
