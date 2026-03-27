@@ -2,6 +2,8 @@ package renderer
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -39,18 +41,18 @@ type FontDef struct {
 type Layer struct {
 	Type     string       `yaml:"type"`
 	If       string       `yaml:"if"`
-	X        int          `yaml:"x"`
-	Y        int          `yaml:"y"`
-	Width    int          `yaml:"width"`
-	Height   int          `yaml:"height"`
+	X        IntOrExpr    `yaml:"x"`
+	Y        IntOrExpr    `yaml:"y"`
+	Width    IntOrExpr    `yaml:"width"`
+	Height   IntOrExpr    `yaml:"height"`
 	File     string       `yaml:"file"`
 	Color    StringOrCond `yaml:"color"`
 	Value    StringOrCond `yaml:"value"`
 	Font     string       `yaml:"font"`
 	Size     float64      `yaml:"size"`
-	Align    string       `yaml:"align"`   // left (default) | center | right
-	Valign   string       `yaml:"valign"`  // top (default) | middle | bottom — needs height
-	MaxWidth int          `yaml:"max_width"`
+	Align    string       `yaml:"align"`    // left (default) | center | right
+	Valign   string       `yaml:"valign"`   // top (default) | middle | bottom — needs height
+	MaxWidth IntOrExpr    `yaml:"max_width"`
 	// type: image — optional rotation
 	Rotate StringOrCond `yaml:"rotate"`  // degrees; supports expressions: "{{now.minute | mul(6)}}"
 	PivotX int          `yaml:"pivot_x"` // rotation pivot X relative to image; 0+0 defaults to center
@@ -60,6 +62,58 @@ type Layer struct {
 	SrcY      int `yaml:"src_y"`
 	SrcWidth  int `yaml:"src_width"`
 	SrcHeight int `yaml:"src_height"`
+	// type: loop
+	SplitBy  string  `yaml:"split_by"`  // delimiter for splitting Value
+	Var      string  `yaml:"var"`       // name of the loop item variable
+	StepY    int     `yaml:"step_y"`    // y offset per iteration
+	MaxItems int     `yaml:"max_items"` // safety cap; 0 = default (20)
+	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration
+}
+
+// IntOrExpr holds either a plain integer or an arithmetic expression in {{...}} syntax.
+// Supported in x, y, width, height, max_width fields.
+type IntOrExpr struct {
+	val    int
+	expr   string // content between {{ }} when isExpr is true
+	isExpr bool
+}
+
+// Resolve returns the integer value, evaluating the expression if needed.
+// Returns 0 when eval is nil and the field is an expression.
+func (ie IntOrExpr) Resolve(eval *Evaluator) int {
+	if !ie.isExpr {
+		return ie.val
+	}
+	if eval == nil {
+		return 0
+	}
+	v, err := evalIntExpr(ie.expr, eval.intVars)
+	if err != nil {
+		return 0 // expression errors are silent; template authors see wrong layout, not a crash
+	}
+	return v
+}
+
+// UnmarshalYAML implements yaml.Unmarshaler for IntOrExpr.
+// Accepts either a plain integer (e.g. x: 45) or an expression string (e.g. x: "{{i * 20 + 10}}").
+func (ie *IntOrExpr) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.ScalarNode {
+		return fmt.Errorf("renderer: IntOrExpr: expected scalar, got kind %v", value.Kind)
+	}
+	// Try plain integer first.
+	if n, err := strconv.Atoi(value.Value); err == nil {
+		ie.val = n
+		ie.isExpr = false
+		return nil
+	}
+	// Expression: must be "{{...}}" form.
+	s := strings.TrimSpace(value.Value)
+	if strings.HasPrefix(s, "{{") && strings.HasSuffix(s, "}}") {
+		ie.expr = strings.TrimSpace(s[2 : len(s)-2])
+		ie.isExpr = true
+		return nil
+	}
+	return fmt.Errorf("renderer: IntOrExpr: expected integer or {{expr}}, got %q", value.Value)
 }
 
 // maxCondBranches limits the number of if/elif branches in a single StringOrCond to prevent DoS.

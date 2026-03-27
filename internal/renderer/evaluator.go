@@ -16,13 +16,36 @@ var interpolateRe = regexp.MustCompile(`\{\{((?:'[^']*'|"[^"]*"|[^}])+)\}\}`)
 // Evaluator resolves template variables, applies filter pipelines,
 // and evaluates boolean conditions.
 type Evaluator struct {
-	data map[string]interface{}
-	now  time.Time // captured once at creation for consistent {{now.*}} values
+	data    map[string]interface{}
+	intVars map[string]int // integer variables for coordinate expressions (i, loop.index, …)
+	now     time.Time      // captured once at creation for consistent {{now.*}} values
 }
 
 // NewEvaluator creates a new Evaluator with the given data map.
 func NewEvaluator(data map[string]interface{}) *Evaluator {
 	return &Evaluator{data: data, now: time.Now()}
+}
+
+// withLoopVars returns a new Evaluator with additional loop-scope variables.
+// strVars are merged into the data map (accessible via {{varName}} in text expressions).
+// loopIntVars are set as integer expression variables (accessible in {{...}} coord expressions).
+// The parent evaluator is not modified.
+func (e *Evaluator) withLoopVars(strVars map[string]string, loopIntVars map[string]int) *Evaluator {
+	newData := make(map[string]interface{}, len(e.data)+len(strVars))
+	for k, v := range e.data {
+		newData[k] = v
+	}
+	for k, v := range strVars {
+		newData[k] = v
+	}
+	newIntVars := make(map[string]int, len(e.intVars)+len(loopIntVars))
+	for k, v := range e.intVars {
+		newIntVars[k] = v
+	}
+	for k, v := range loopIntVars {
+		newIntVars[k] = v
+	}
+	return &Evaluator{data: newData, intVars: newIntVars, now: e.now}
 }
 
 // Interpolate replaces all {{expr}} placeholders in s.

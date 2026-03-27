@@ -98,7 +98,9 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 		case "text":
 			err = r.renderText(dst, tmpl, layer, eval)
 		case "copy":
-			err = renderCopy(dst, layer)
+			err = renderCopy(dst, layer, eval)
+		case "loop":
+			err = r.renderLoop(dst, tmpl, layer, eval)
 		default:
 			return nil, fmt.Errorf("renderer: Render: layer %d: unknown type %q", i, layer.Type)
 		}
@@ -142,9 +144,9 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 	}
 
 	// Scale if Width or Height is specified.
-	if layer.Width > 0 || layer.Height > 0 {
-		w := layer.Width
-		h := layer.Height
+	w := layer.Width.Resolve(eval)
+	h := layer.Height.Resolve(eval)
+	if w > 0 || h > 0 {
 		if w > maxCanvasDimension || h > maxCanvasDimension {
 			return fmt.Errorf("renderImage: scaled dimensions %dx%d exceed maximum %d", w, h, maxCanvasDimension)
 		}
@@ -166,6 +168,9 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 		src = scaled
 	}
 
+	x := layer.X.Resolve(eval)
+	y := layer.Y.Resolve(eval)
+
 	// Apply rotation if the rotate field is non-empty and non-zero.
 	rotStr := strings.TrimSpace(eval.Interpolate(layer.Rotate.Resolve(eval)))
 	if rotStr != "" && rotStr != "0" {
@@ -174,12 +179,12 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 			return fmt.Errorf("renderImage: invalid rotate value %q: %w", rotStr, err)
 		}
 		if deg != 0 {
-			applyImageRotation(dst, src, layer.X, layer.Y, layer.PivotX, layer.PivotY, deg)
+			applyImageRotation(dst, src, x, y, layer.PivotX, layer.PivotY, deg)
 			return nil
 		}
 	}
 
-	pt := image.Pt(layer.X, layer.Y)
+	pt := image.Pt(x, y)
 	r2 := src.Bounds().Add(pt)
 	draw.Draw(dst, r2, src, src.Bounds().Min, draw.Over)
 	return nil
@@ -223,12 +228,14 @@ func applyImageRotation(dst *image.NRGBA, src image.Image, layerX, layerY, pivot
 // renderCopy copies a rectangular region of the canvas to another position.
 // Used for displays where the top half is mirrored to the bottom half.
 // The copy is performed before any overlap — source and dest should not overlap.
-func renderCopy(dst *image.NRGBA, layer Layer) error {
+func renderCopy(dst *image.NRGBA, layer Layer, eval *Evaluator) error {
 	if layer.SrcWidth <= 0 || layer.SrcHeight <= 0 {
 		return fmt.Errorf("renderCopy: src_width and src_height must be positive (got %dx%d)", layer.SrcWidth, layer.SrcHeight)
 	}
 	src := dst.SubImage(image.Rect(layer.SrcX, layer.SrcY, layer.SrcX+layer.SrcWidth, layer.SrcY+layer.SrcHeight))
-	dstRect := image.Rect(layer.X, layer.Y, layer.X+layer.SrcWidth, layer.Y+layer.SrcHeight)
+	x := layer.X.Resolve(eval)
+	y := layer.Y.Resolve(eval)
+	dstRect := image.Rect(x, y, x+layer.SrcWidth, y+layer.SrcHeight)
 	draw.Draw(dst, dstRect, src, image.Pt(layer.SrcX, layer.SrcY), draw.Src)
 	return nil
 }
@@ -241,7 +248,11 @@ func (r *Renderer) renderRect(dst *image.NRGBA, layer Layer, eval *Evaluator) er
 		return fmt.Errorf("renderRect: %w", err)
 	}
 
-	rect := image.Rect(layer.X, layer.Y, layer.X+layer.Width, layer.Y+layer.Height)
+	x := layer.X.Resolve(eval)
+	y := layer.Y.Resolve(eval)
+	w := layer.Width.Resolve(eval)
+	h := layer.Height.Resolve(eval)
+	rect := image.Rect(x, y, x+w, y+h)
 	draw.Draw(dst, rect, &image.Uniform{C: c}, image.Point{}, draw.Over)
 	return nil
 }
@@ -266,10 +277,16 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 	ascent := metrics.Ascent.Round()
 	lineHeight := metrics.Height.Round()
 
+	layerX := layer.X.Resolve(eval)
+	layerY := layer.Y.Resolve(eval)
+	layerW := layer.Width.Resolve(eval)
+	layerH := layer.Height.Resolve(eval)
+	maxW := layer.MaxWidth.Resolve(eval)
+
 	// Use width as wrap boundary if set, otherwise wrap at max_width.
-	wrapWidth := layer.MaxWidth
-	if layer.Width > 0 && wrapWidth == 0 {
-		wrapWidth = layer.Width
+	wrapWidth := maxW
+	if layerW > 0 && wrapWidth == 0 {
+		wrapWidth = layerW
 	}
 
 	var lines []string
@@ -283,18 +300,18 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 	}
 
 	// Vertical alignment — requires height to be set.
-	startY := layer.Y
-	if layer.Height > 0 {
+	startY := layerY
+	if layerH > 0 {
 		totalHeight := len(lines) * lineHeight
 		switch layer.Valign {
 		case "middle":
-			startY = layer.Y + (layer.Height-totalHeight)/2
+			startY = layerY + (layerH-totalHeight)/2
 		case "bottom":
-			startY = layer.Y + layer.Height - totalHeight
+			startY = layerY + layerH - totalHeight
 		}
 		// Clamp: never render above the box top (can happen if more lines than height).
-		if startY < layer.Y {
-			startY = layer.Y
+		if startY < layerY {
+			startY = layerY
 		}
 	}
 
@@ -310,20 +327,20 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		switch layer.Align {
 		case "center":
 			lineW := measureText(face, line)
-			if layer.Width > 0 {
-				x = layer.X + (layer.Width-lineW)/2
+			if layerW > 0 {
+				x = layerX + (layerW-lineW)/2
 			} else {
-				x = layer.X - lineW/2
+				x = layerX - lineW/2
 			}
 		case "right":
 			lineW := measureText(face, line)
-			if layer.Width > 0 {
-				x = layer.X + layer.Width - lineW
+			if layerW > 0 {
+				x = layerX + layerW - lineW
 			} else {
-				x = layer.X - lineW
+				x = layerX - lineW
 			}
 		default: // left
-			x = layer.X
+			x = layerX
 		}
 
 		d := &font.Drawer{
@@ -416,6 +433,96 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 	r.fontCache[absPath] = otf
 	r.fontMu.Unlock()
 	return otf, nil
+}
+
+const (
+	defaultMaxLoopItems  = 20
+	maxLoopItemsHardCap  = 200 // upper bound regardless of max_items in YAML — prevents CPU/memory exhaustion
+)
+
+// renderLoop iterates over a split string and renders sub-layers for each item.
+// Sub-layer Y coordinates are relative to the current loop Y (baseY + i*stepY).
+// Sub-layer X coordinates are absolute.
+// Loop variables available in sub-layers: i, loop.index (int); layer.Var (string item).
+func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator) error {
+	if len(layer.Layers) == 0 {
+		return nil
+	}
+
+	value := eval.Interpolate(layer.Value.Resolve(eval))
+	if value == "" {
+		return nil
+	}
+
+	sep := layer.SplitBy
+	if sep == "" {
+		sep = "|"
+	}
+
+	maxItems := layer.MaxItems
+	if maxItems <= 0 {
+		maxItems = defaultMaxLoopItems
+	} else if maxItems > maxLoopItemsHardCap {
+		maxItems = maxLoopItemsHardCap
+	}
+
+	baseY := layer.Y.Resolve(eval)
+	stepY := layer.StepY
+
+	displayIdx := 0
+	for _, item := range strings.Split(value, sep) {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if displayIdx >= maxItems {
+			break
+		}
+
+		loopY := baseY + displayIdx*stepY
+		if loopY < 0 || loopY >= maxCanvasDimension {
+			break // Y is out of canvas bounds; stop rendering further items
+		}
+
+		strVars := map[string]string{}
+		if layer.Var != "" {
+			strVars[layer.Var] = item
+		}
+		childEval := eval.withLoopVars(strVars, map[string]int{
+			"i":          displayIdx,
+			"loop.index": displayIdx,
+		})
+
+		for j, sub := range layer.Layers {
+			if sub.If != "" && !childEval.EvalCondition(sub.If) {
+				continue
+			}
+			// Sub-layer Y is relative to loopY; resolve with childEval then offset.
+			adjusted := sub
+			adjusted.Y = IntOrExpr{val: sub.Y.Resolve(childEval) + loopY}
+
+			var err error
+			switch sub.Type {
+			case "image":
+				err = r.renderImage(dst, tmpl, adjusted, childEval)
+			case "rect":
+				err = r.renderRect(dst, adjusted, childEval)
+			case "text":
+				err = r.renderText(dst, tmpl, adjusted, childEval)
+			case "copy":
+				err = renderCopy(dst, adjusted, childEval)
+			case "loop":
+				return fmt.Errorf("renderLoop: sub-layer %d: nested loops are not supported", j)
+			default:
+				return fmt.Errorf("renderLoop: sub-layer %d: unsupported type %q", j, sub.Type)
+			}
+			if err != nil {
+				return fmt.Errorf("renderLoop: item %d, sub-layer %d (%s): %w", displayIdx, j, sub.Type, err)
+			}
+		}
+		displayIdx++
+	}
+	return nil
 }
 
 // measureText returns the advance width of a string in pixels.
