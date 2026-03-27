@@ -442,7 +442,7 @@ value: "{{now | format('EEEE')}}"        # → "Dienstag"
 
 ### Layer-Bedingung (`if`)
 
-Ein Layer wird nur gezeichnet wenn die Bedingung erfüllt ist:
+Ein Layer wird nur gezeichnet wenn die Bedingung erfüllt ist. Mit `elif` und `else: true` können mehrere Layer zu einer exklusiven Kette verbunden werden (siehe [Layer-Ketten](#layer-ketten-elif--else)).
 
 ```yaml
 layers:
@@ -502,20 +502,18 @@ Bilder (Typ `image`) können gedreht werden — nützlich für analoge Uhren ode
 ```yaml
 - type: image
   file: minutenzeiger.png
-  x: 20
-  y: 20
-  width: 80
-  height: 80
+  x: 120   # Mittelpunkt X auf dem Canvas
+  y: 120   # Mittelpunkt Y auf dem Canvas
   rotate: "{{now.minute | mul(6)}}"   # 0–59 min × 6° = 0–354°
-  pivot_x: 40   # Drehpunkt relativ zum Bild (X)
-  pivot_y: 40   # Drehpunkt relativ zum Bild (Y)
 ```
 
-**`rotate`** — Drehwinkel in Grad (Uhrzeigersinn). Unterstützt Ausdrücke und Filter.
+**`rotate`** — Drehwinkel in Grad im **Uhrzeigersinn**. Unterstützt Ausdrücke und Filter.
 
-**`pivot_x` / `pivot_y`** — Drehpunkt relativ zur oberen linken Ecke des **Bildes** (nicht der Canvas). Wenn beide `0` sind (Standardwert), wird der Bildmittelpunkt verwendet.
+> **Wichtig:** Wenn `rotate` gesetzt ist, sind `x` und `y` der **Mittelpunkt** des Bildes auf dem Canvas (nicht die obere linke Ecke). Das Bild wird um seine eigene Mitte gedreht und so platziert, dass sein Mittelpunkt auf `(x, y)` liegt.
 
 ### Beispiel: Analoge Uhr
+
+Das Zifferblatt ist 200×200px groß, Mittelpunkt bei (100, 100):
 
 ```yaml
 layers:
@@ -523,23 +521,60 @@ layers:
     file: zifferblatt.png
     x: 0
     y: 0
-    width: 200
-    height: 200
 
   - type: image
     file: stundenzeiger.png
-    x: 50
-    y: 10
-    width: 100
-    height: 180
+    x: 100   # Mittelpunkt des Zifferblatts
+    y: 100
     rotate: "{{now.hour12 | mul(30)}}"  # 12 Stunden × 30° = 360°
-    # pivot_x/pivot_y nicht gesetzt → Bildmitte
 
   - type: image
     file: minutenzeiger.png
-    x: 50
-    y: 10
-    width: 100
-    height: 180
+    x: 100
+    y: 100
     rotate: "{{now.minute | mul(6)}}"   # 60 Minuten × 6° = 360°
+
+  - type: image
+    file: sekundenzeiger.png
+    x: 100
+    y: 100
+    rotate: "{{now.second | mul(6)}}"
 ```
+
+---
+
+## Layer-Ketten: elif / else
+
+Mehrere Layer können zu einer exklusiven Kette verbunden werden — sobald eine Bedingung zutrifft, werden alle nachfolgenden übersprungen. Das ist nützlich wenn mehrere Icons für denselben Platz in Frage kommen:
+
+```yaml
+# Genau eines dieser Icons wird gerendert (spezifischstes zuerst):
+- type: image
+  if: "startsWith(zug1.nr, 'ICN')"
+  file: icn.png
+  x: 48
+  y: 11
+- type: image
+  elif: "startsWith(zug1.nr, 'IC')"
+  file: ic.png
+  x: 48
+  y: 11
+- type: image
+  elif: "startsWith(zug1.nr, 'EC')"
+  file: ec.png
+  x: 48
+  y: 11
+- type: text
+  else: true
+  value: "{{zug1.nr}}"
+  x: 49
+  y: 11
+  font: regular
+  size: 9
+  color: "#ffffff"
+  align: left
+```
+
+- **`elif: "bedingung"`** — wird nur geprüft wenn kein vorheriges `if`/`elif` in der Kette wahr war
+- **`else: true`** — Fallback; wird gerendert wenn kein `if`/`elif` zutraf
+- Die Kette endet automatisch beim nächsten Layer ohne `if`/`elif`/`else`

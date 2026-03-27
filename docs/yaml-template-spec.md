@@ -1,6 +1,4 @@
-# YAML Template Specification (Draft v0.1)
-
-> **Status:** Zur Review — noch nicht implementiert
+# YAML Template Specification
 
 ---
 
@@ -110,31 +108,28 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   y: 0
   width: 160    # optional — Standard: Originalgröße
   height: 80    # optional — Standard: Originalgröße
-  rotate: 0     # optional — Drehwinkel in Grad (kann Variable/Ausdruck sein)
-  pivot_x: 80   # optional — Drehmittelpunkt X (Standard: Bildmitte)
-  pivot_y: 40   # optional — Drehmittelpunkt Y (Standard: Bildmitte)
+  rotate: 0     # optional — Drehwinkel in Grad (Uhrzeigersinn)
 ```
 
-**Rotation** wird verwendet für analoge Uhren. Der Winkel kann über einen Ausdruck berechnet werden:
+**Rotation** wird verwendet für analoge Uhren. Der Winkel kann über einen Ausdruck berechnet werden.
+
+> **Hinweis:** Wenn `rotate` gesetzt ist, sind `x` und `y` die **Mittelpunkt-Koordinaten** des Bildes auf dem Canvas (nicht die obere linke Ecke). Das Bild wird um seine eigene Mitte gedreht und dann so platziert, dass sein Mittelpunkt auf `(x, y)` liegt.
 
 ```yaml
 # Minutenzeiger: 360° / 60 Minuten = 6° pro Minute
+# x/y = Mittelpunkt des Zeigers auf dem Canvas
 - type: image
   file: clock-minutes.png
-  x: 0
-  y: 0
+  x: 120   # Mittelpunkt X auf dem Canvas
+  y: 120   # Mittelpunkt Y auf dem Canvas
   rotate: "{{now.minute | mul(6)}}"
-  pivot_x: 80
-  pivot_y: 80
 
 # Stundenzeiger: 360° / 12 Stunden = 30° pro Stunde
 - type: image
   file: clock-hour.png
-  x: 0
-  y: 0
+  x: 120
+  y: 120
   rotate: "{{now.hour12 | mul(30)}}"
-  pivot_x: 80
-  pivot_y: 80
 ```
 
 ---
@@ -327,6 +322,43 @@ Ein Layer wird nur gerendert wenn die Bedingung wahr ist:
   color: "#FFFF00"
 ```
 
+### Layer-Kette: if / elif / else
+
+Mehrere Layer können zu einer exklusiven Kette zusammengefasst werden. Sobald eine Bedingung zutrifft, werden alle nachfolgenden `elif`/`else`-Layer übersprungen.
+
+```yaml
+# Nur eines der folgenden Icons wird gerendert:
+- type: image
+  if: "startsWith(zug1.nr, 'ICN')"
+  file: icn.png
+  x: 48
+  y: 11
+- type: image
+  elif: "startsWith(zug1.nr, 'IC')"
+  file: ic.png
+  x: 48
+  y: 11
+- type: image
+  elif: "startsWith(zug1.nr, 'EC')"
+  file: ec.png
+  x: 48
+  y: 11
+- type: text
+  else: true
+  value: "{{zug1.nr}}"
+  x: 49
+  y: 11
+  font: regular
+  size: 7
+  color: "#ffffff"
+  align: left
+```
+
+- **`elif: "bedingung"`** — setzt die Kette fort; wird nur ausgewertet wenn kein vorheriges `if`/`elif` wahr war
+- **`else: true`** — Fallback; wird gerendert wenn kein `if`/`elif` in der Kette zutraf
+- Ein `elif`/`else` ohne vorausgehendes `if` ist ein Fehler
+- Jeder Layer ohne `if`/`elif`/`else` beendet die aktuelle Kette
+
 ### Eigenschaften bedingt setzen
 
 Eine Eigenschaft kann je nach Bedingung unterschiedliche Werte haben:
@@ -344,7 +376,7 @@ Eine Eigenschaft kann je nach Bedingung unterschiedliche Werte haben:
     else: "#FFFFFF"
 ```
 
-### if / elif / else
+### Eigenschaften: if / elif / else
 
 ```yaml
   color:
@@ -471,7 +503,10 @@ layers:
 
 | Thema | Entscheidung |
 |---|---|
-| `elif`-Syntax | Wiederholtes Schlüsselwort (wie oben gezeigt) |
+| `elif`-Syntax (Eigenschaften) | Wiederholtes Schlüsselwort (wie oben gezeigt) |
+| `elif`/`else` auf Layer-Ebene | `elif: "bedingung"` / `else: true` als Layer-Felder; bilden exklusive Kette |
+| Rotation: Koordinaten | `x`/`y` bei gesetztem `rotate` = Mittelpunkt des Bildes auf dem Canvas; kein `pivot_x`/`pivot_y` |
+| Rotation: Richtung | Uhrzeigersinn (positiver Winkel = CW) |
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |
 | Repeat/Loop | `type: loop` mit `split_by` — kein `step_y`, kein relatives Y; Positionierung via `{{i * step + base}}`-Ausdrücke |
