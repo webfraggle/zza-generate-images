@@ -180,18 +180,16 @@ Iteriert über einen gesplitteten String und rendert Sub-Layer für jedes Elemen
   value: "{{zug1.via}}"   # String der gesplittet wird
   split_by: "|"            # Trennzeichen
   var: "item"              # Name der Loop-Variable (in Sub-Layern als {{item}} verfügbar)
-  y: 30                    # Start-Y (absolut)
-  step_y: 12               # Y-Versatz pro Iteration
-  max_items: 6             # Sicherheits-Limit (DoS-Schutz)
-  layers:                  # Sub-Layer — y-Positionen relativ zum aktuellen Loop-Y
+  max_items: 6             # Sicherheits-Limit (DoS-Schutz); Standard: 20, Max: 200
+  layers:                  # Sub-Layer — alle Koordinaten absolut, {{i}} für Berechnungen
     - type: image
       file: via-dot.png
       x: 45
-      y: 0                 # relativ: tatsächliches Y = loop.y + 0
+      y: "{{i * 12 + 30}}" # i=0 → y=30, i=1 → y=42, i=2 → y=54, …
     - type: text
       value: "{{item}}"
-      x: "{{i * 20 + 10}}" # Ausdrucks-Syntax: Abstand 20, Start bei 10
-      y: 0
+      x: 55
+      y: "{{i * 12 + 30}}"
       font: regular
       size: 9
       color: "#888888"
@@ -200,11 +198,14 @@ Iteriert über einen gesplitteten String und rendert Sub-Layer für jedes Elemen
 
 **Automatische Loop-Variablen** (in Sub-Layern verfügbar):
 
-| Variable       | Beschreibung                              |
-|----------------|-------------------------------------------|
-| `{{item}}`     | Aktuelles Element (Name via `var`)        |
-| `{{loop.index}}`| Aktueller Index, 0-basiert               |
-| `{{loop.y}}`   | Absolutes Y des aktuellen Elements        |
+| Variable        | Beschreibung                              |
+|-----------------|-------------------------------------------|
+| `{{item}}`      | Aktuelles Element (Name via `var`)        |
+| `{{i}}`         | Aktueller Index, 0-basiert (Kurzform)     |
+| `{{loop.index}}`| Aktueller Index, 0-basiert (Langform)     |
+
+Alle Koordinaten in Sub-Layern sind **absolut** — kein implizites Y-Offset.
+Positionierung über Ausdrücke: `y: "{{i * 12 + 30}}"`.
 
 **Leere Elemente** nach dem Split werden übersprungen.
 **Wenn `value` leer ist**, wird der Loop nicht ausgeführt (kein Fehler).
@@ -432,18 +433,16 @@ layers:
     value: "{{zug1.via}}"
     split_by: "|"
     var: "via_item"
-    y: 30
-    step_y: 12
     max_items: 4
     layers:
       - type: image
         file: via-dot.png
         x: 45
-        y: 2
+        y: "{{i * 12 + 30}}"
       - type: text
         value: "{{via_item}}"
         x: 55
-        y: 0
+        y: "{{i * 12 + 30}}"
         font: regular
         size: 9
         color: "#AAAAAA"
@@ -475,6 +474,6 @@ layers:
 | `elif`-Syntax | Wiederholtes Schlüsselwort (wie oben gezeigt) |
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |
-| Repeat/Loop | `type: loop` mit `split_by` — kein eigenständiger split-Filter (würde Evaluator auf Listen-Rückgabe erweitern) |
+| Repeat/Loop | `type: loop` mit `split_by` — kein `step_y`, kein relatives Y; Positionierung via `{{i * step + base}}`-Ausdrücke |
 | Koordinaten-Ausdrücke | `x`, `y`, `width`, `height`, `size` unterstützen `{{...}}`-Arithmetik; `i` als Kurzform für `loop.index` |
 | Leere Felder | Werden leer dargestellt — kein Fehler. Sonderbehandlung via `if isEmpty(...)` |

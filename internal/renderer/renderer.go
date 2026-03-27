@@ -441,8 +441,7 @@ const (
 )
 
 // renderLoop iterates over a split string and renders sub-layers for each item.
-// Sub-layer Y coordinates are relative to the current loop Y (baseY + i*stepY).
-// Sub-layer X coordinates are absolute.
+// All sub-layer coordinates are absolute; use {{i * step + base}} expressions for positioning.
 // Loop variables available in sub-layers: i, loop.index (int); layer.Var (string item).
 func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator) error {
 	if len(layer.Layers) == 0 {
@@ -466,9 +465,6 @@ func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		maxItems = maxLoopItemsHardCap
 	}
 
-	baseY := layer.Y.Resolve(eval)
-	stepY := layer.StepY
-
 	displayIdx := 0
 	for _, item := range strings.Split(value, sep) {
 		item = strings.TrimSpace(item)
@@ -477,11 +473,6 @@ func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		}
 		if displayIdx >= maxItems {
 			break
-		}
-
-		loopY := baseY + displayIdx*stepY
-		if loopY < 0 || loopY >= maxCanvasDimension {
-			break // Y is out of canvas bounds; stop rendering further items
 		}
 
 		strVars := map[string]string{}
@@ -497,20 +488,16 @@ func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			if sub.If != "" && !childEval.EvalCondition(sub.If) {
 				continue
 			}
-			// Sub-layer Y is relative to loopY; resolve with childEval then offset.
-			adjusted := sub
-			adjusted.Y = IntOrExpr{val: sub.Y.Resolve(childEval) + loopY}
-
 			var err error
 			switch sub.Type {
 			case "image":
-				err = r.renderImage(dst, tmpl, adjusted, childEval)
+				err = r.renderImage(dst, tmpl, sub, childEval)
 			case "rect":
-				err = r.renderRect(dst, adjusted, childEval)
+				err = r.renderRect(dst, sub, childEval)
 			case "text":
-				err = r.renderText(dst, tmpl, adjusted, childEval)
+				err = r.renderText(dst, tmpl, sub, childEval)
 			case "copy":
-				err = renderCopy(dst, adjusted, childEval)
+				err = renderCopy(dst, sub, childEval)
 			case "loop":
 				return fmt.Errorf("renderLoop: sub-layer %d: nested loops are not supported", j)
 			default:

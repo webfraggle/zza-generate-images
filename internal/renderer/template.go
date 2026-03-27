@@ -65,7 +65,6 @@ type Layer struct {
 	// type: loop
 	SplitBy  string  `yaml:"split_by"`  // delimiter for splitting Value
 	Var      string  `yaml:"var"`       // name of the loop item variable
-	StepY    int     `yaml:"step_y"`    // y offset per iteration
 	MaxItems int     `yaml:"max_items"` // safety cap; 0 = default (20)
 	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration
 }
