@@ -387,6 +387,47 @@ Eine Eigenschaft kann je nach Bedingung unterschiedliche Werte haben:
     else: "#FFFFFF"
 ```
 
+### Block-Level if/elif/else
+
+Mehrere Layer können unter einer gemeinsamen Bedingung gruppiert werden.
+Ein Block-Eintrag hat **kein `type:`**, aber `if:`/`elif:`/`else:` und `layers:`.
+
+```yaml
+layers:
+  - if: "startsWith(zug1.nr, 'ICN')"
+    layers:
+      - type: image
+        file: icn.png
+      - type: text
+        value: "ICN Express"
+        x: 5
+        y: 20
+
+  - elif: "startsWith(zug1.nr, 'IC')"
+    layers:
+      - type: image
+        file: ic.png
+
+  - else:
+    layers:
+      - type: text
+        value: "{{zug1.nr}}"
+```
+
+**Unterschied zum Layer-Level `if`:**
+
+| Merkmal | Layer-Level | Block-Level |
+|---|---|---|
+| Hat `type:` | ja | nein |
+| Steuert | einen einzelnen Layer | beliebig viele Layer |
+| Verschachtelbar | nein | ja (beliebig tief) |
+
+**Regeln:**
+- `else:` (ohne Wert) und `else: true` sind gleichwertig.
+- Block-Nodes können beliebig tief verschachtelt werden.
+- `type: loop` darf nicht innerhalb eines anderen `loop` vorkommen, auch nicht via Block-Node.
+- `elif`/`else` ohne vorangehendes `if` ist ein Fehler.
+
 ---
 
 ## Verfügbare Bedingungsfunktionen

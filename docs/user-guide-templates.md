@@ -578,3 +578,65 @@ Mehrere Layer können zu einer exklusiven Kette verbunden werden — sobald eine
 - **`elif: "bedingung"`** — wird nur geprüft wenn kein vorheriges `if`/`elif` in der Kette wahr war
 - **`else: true`** — Fallback; wird gerendert wenn kein `if`/`elif` zutraf
 - Die Kette endet automatisch beim nächsten Layer ohne `if`/`elif`/`else`
+
+### Block-Bedingungen
+
+Wenn mehrere Layer nur bei einer bestimmten Bedingung gerendert werden sollen,
+können sie in einem Block-Node gruppiert werden:
+
+```yaml
+# Zeige unterschiedliche Bilder und Texte je nach Zugnummer
+- if: "startsWith(zug1.nr, 'ICN')"
+  layers:
+    - type: image
+      file: icn-logo.png
+      x: 5
+      y: 5
+    - type: text
+      value: "Neigezug"
+      x: 5
+      y: 30
+      font: regular
+      size: 10
+      color: "#ffffff"
+
+- elif: "startsWith(zug1.nr, 'IC')"
+  layers:
+    - type: image
+      file: ic-logo.png
+      x: 5
+      y: 5
+
+- else:
+  layers:
+    - type: text
+      value: "{{zug1.nr}}"
+      x: 5
+      y: 5
+      font: regular
+      size: 12
+      color: "#ffffff"
+```
+
+Block-Nodes können beliebig tief verschachtelt werden:
+
+```yaml
+- if: "not(isEmpty(zug1.hinweis))"
+  layers:
+    - type: rect
+      x: 0
+      y: 50
+      width: 160
+      height: 20
+      color:
+        if: "startsWith(zug1.hinweis, '*')"
+        then: "#ff0000"
+        else: "#ffcc00"
+    - type: text
+      value: "{{zug1.hinweis | strip('*')}}"
+      x: 3
+      y: 52
+      font: regular
+      size: 9
+      color: "#000000"
+```
