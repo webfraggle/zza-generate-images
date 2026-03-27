@@ -92,6 +92,7 @@ Gesammelte Ideen und Anforderungen — noch nicht priorisiert oder umgesetzt.
   - **ausgewertet** werden (triggern Logik)
   - oder **ignoriert/entfernt** werden (vor der Darstellung strippen)
 - Logik muss im Template definierbar sein, nicht im Code
+- **Block-Level if/elif/else** ✅ — mehrere Layer unter einer gemeinsamen Bedingung gruppieren (ein Block-Eintrag ohne `type:`, mit `layers:`); `else:` ohne Wert ist gleichwertig mit `else: true`; beliebig tief verschachtelbar
 
 ### Format
 - **YAML** — entschieden

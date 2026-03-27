@@ -465,6 +465,68 @@ color:
 
 ---
 
+## block-if-Erweiterung — Block-Level if/elif/else
+
+**Ziel:** Mehrere Layer unter einer gemeinsamen Bedingung gruppieren, ohne das bestehende Layer-Level if/elif/else zu verändern.
+
+### Hintergrund
+
+Das bestehende `if`/`elif`/`else` auf Layer-Ebene blendet einzelne Layer ein oder aus. Für komplexere Templates (z. B. verschiedene Icons **und** Texte je nach Zugtyp) wird ein Mechanismus benötigt, der eine ganze Gruppe von Sub-Layern bedingt rendert.
+
+### Syntax
+
+```yaml
+layers:
+  - if: "startsWith(zug1.nr, 'ICN')"
+    layers:
+      - type: image
+        file: icn.png
+      - type: text
+        value: "ICN Express"
+  - elif: "startsWith(zug1.nr, 'IC')"
+    layers:
+      - type: image
+        file: ic.png
+  - else:
+    layers:
+      - type: text
+        value: "{{zug1.nr}}"
+```
+
+Ein Block-Eintrag hat **kein `type:`**, dafür eine eigene `layers:`-Liste. `else:` (ohne Wert) und `else: true` sind gleichwertig.
+
+### Aufgaben
+
+1. **`internal/renderer/template.go`** — `ElseMarker`-Typ (`type ElseMarker bool`) mit `UnmarshalYAML` für null-safe `else:` Parsing; `Layer.UnmarshalYAML` für den YAML-v3 null-Bypass; `Layer.Else` von `bool` → `ElseMarker`
+2. **`internal/renderer/renderer.go`** — `renderLayers`-Hilfsfunktion extrahieren (gemeinsame Chain-Logik für `Render` und `renderLoop`); Block-Node-Dispatch via `layer.Type == ""`; rekursive Sub-Layer-Rendering; `inLoop bool` zur Vermeidung verschachtelter Loops
+3. **`internal/renderer/evaluator.go`** — `eq` als Alias für `equals` ergänzt
+4. **Tests** — `template_test.go`: 3 `ElseMarker`-Tests; `renderer_test.go`: 7 Block-Level-Tests (true/false, elif/else-Kette, mehrere Sub-Layer, Verschachtelung, Error-Case, gemischte Layer)
+5. **Docs** — `yaml-template-spec.md` + `user-guide-templates.md` aktualisiert
+
+### Agenten
+- **implementer**
+- **security-reviewer** (integriert in Subagent-Driven-Review)
+- **code-reviewer**
+
+### Status: ✅ Abgeschlossen — User-OK 2026-03-27
+
+**Implementiert:**
+- `ElseMarker` + `Layer.UnmarshalYAML` in `template.go` — null-safe `else:` Syntax
+- `renderLayers(dst, tmpl, layers, eval, inLoop bool)` in `renderer.go` — ersetzt duplizierte Chain-Logik in `Render` und `renderLoop`
+- Block-Node erkannt via `layer.Type == ""` nach `render=true` — kein Breaking Change
+- `chainSatisfied = true` im `else`-Zweig (Bugfix: verhindert Doppel-Rendering bei malformed Templates)
+- `eq` als Alias für `equals` im Evaluator
+- 10 neue Tests
+
+**Security Review:** APPROVED
+**Code Review:** APPROVED (inkl. Bugfix: `chainSatisfied` im `else`-Zweig)
+
+### Manueller Test (block-if-Erweiterung)
+
+> Noch nicht manuell getestet — Unit-Tests decken alle Szenarien ab.
+
+---
+
 ## Phase 7 — Superuser-Bereich
 
 **Ziel:** Admin-Zugang mit Token + TOTP.
