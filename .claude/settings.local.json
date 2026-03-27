@@ -10,7 +10,8 @@
       "Bash(go run:*)",
       "Read(//tmp/**)",
       "Bash(./zza render:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(wc:*)"
     ]
   }
 }
