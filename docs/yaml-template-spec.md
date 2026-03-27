@@ -73,6 +73,31 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
 | `rect`   | Gefülltes Rechteck   |
 | `text`   | Text ausgeben        |
 | `copy`   | Bereich kopieren (z.B. obere Hälfte auf untere Hälfte spiegeln) |
+| `loop`   | Sub-Layer über gesplitteten String iterieren |
+
+---
+
+### Koordinaten-Ausdrücke
+
+Die Felder `x`, `y`, `width`, `height` und `size` akzeptieren neben ganzzahligen Werten auch **arithmetische Ausdrücke** in `{{...}}`-Syntax:
+
+```yaml
+x: "{{i * 20 + 10}}"      # Abstand 20, Start bei 10
+y: "{{loop.index * 12}}"  # 12px pro Element
+size: "{{14}}"            # auch konstante Ausdrücke erlaubt
+```
+
+**Unterstützte Operatoren:** `+`, `-`, `*`, `/` (Ganzzahldivision), Klammern
+
+**Verfügbare Variablen in Ausdrücken:**
+
+| Variable       | Beschreibung                              | Nur in        |
+|----------------|-------------------------------------------|---------------|
+| `i`            | Loop-Index, 0-basiert (Kurzform)          | `type: loop`  |
+| `loop.index`   | Loop-Index, 0-basiert (Langform)          | `type: loop`  |
+| `loop.y`       | Absolutes Y des aktuellen Elements        | `type: loop`  |
+
+Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Rendern.
 
 ---
 
@@ -165,7 +190,7 @@ Iteriert über einen gesplitteten String und rendert Sub-Layer für jedes Elemen
       y: 0                 # relativ: tatsächliches Y = loop.y + 0
     - type: text
       value: "{{item}}"
-      x: 55
+      x: "{{i * 20 + 10}}" # Ausdrucks-Syntax: Abstand 20, Start bei 10
       y: 0
       font: regular
       size: 9
@@ -451,4 +476,5 @@ layers:
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |
 | Repeat/Loop | `type: loop` mit `split_by` — kein eigenständiger split-Filter (würde Evaluator auf Listen-Rückgabe erweitern) |
+| Koordinaten-Ausdrücke | `x`, `y`, `width`, `height`, `size` unterstützen `{{...}}`-Arithmetik; `i` als Kurzform für `loop.index` |
 | Leere Felder | Werden leer dargestellt — kein Fehler. Sonderbehandlung via `if isEmpty(...)` |

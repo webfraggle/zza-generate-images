@@ -427,16 +427,21 @@ color:
 
 ---
 
-## loop-Erweiterung — `type: loop` + `split_by` im Renderer
+## loop-Erweiterung — `type: loop` + `split_by` + Koordinaten-Ausdrücke
 
-**Ziel:** Via-Stationen (und ähnliche Listen) als gesplitteten String iterieren und pro Element Sub-Layer rendern.
+**Ziel:** Via-Stationen (und ähnliche Listen) als gesplitteten String iterieren und pro Element Sub-Layer rendern. Koordinaten können per Arithmetik berechnet werden.
 
 ### Aufgaben
-1. `Layer`-Struct: neues Feld `Layers []Layer` (Sub-Layer), `SplitBy string`, `StepY int`, `MaxItems int`, `Var string`
-2. Renderer (`render.go`): `type: loop` auswerten — String splitten, pro Element Sub-Layer mit angepasstem Y-Offset und Loop-Variable im Scope rendern
-3. Evaluator: Loop-Variablen (`item`, `loop.index`, `loop.y`) in den Scope aufnehmen
-4. Spec: `type: loop` ist bereits dokumentiert (`yaml-template-spec.md`)
-5. Tests: leerer String, ein Element, N Elemente, `max_items`-Limit
+1. `Layer`-Struct:
+   - `Layers []Layer` (Sub-Layer), `SplitBy string`, `StepY int`, `MaxItems int`, `Var string`
+   - `X`, `Y`, `Width`, `Height` von `int` zu `IntOrExpr` (analog zu `StringOrCond`)
+   - `Size` von `float64` zu `FloatOrExpr`
+2. `IntOrExpr`-Typ: plain int oder `{{...}}`-Ausdruck mit `+`, `-`, `*`, `/`, Klammern
+3. Arithmetik-Evaluator: einfacher Integer-Ausdrucks-Parser (kein externer Parser nötig)
+4. Renderer (`render.go`): `type: loop` auswerten — String splitten, pro Element Sub-Layer mit angepasstem Y-Offset und Loop-Variable im Scope rendern
+5. Evaluator: Loop-Variablen (`i`, `loop.index`, `loop.y`) in den Scope aufnehmen
+6. Spec: bereits dokumentiert (`yaml-template-spec.md`)
+7. Tests: leerer String, ein Element, N Elemente, `max_items`-Limit, Ausdrucks-Auswertung
 
 ### Agenten
 - **implementer**
