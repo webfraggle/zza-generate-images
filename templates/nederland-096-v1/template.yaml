@@ -1,0 +1,132 @@
+meta:
+  name: "Nederland 0.96\""
+  description: "Nederlandse Spoorwegen, 0.96 Zoll Display"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 160
+    height: 160
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Gleis (zentriert links, blau)
+  - type: text
+    value: "{{gleis}}"
+    x: 10
+    y: 13
+    font: bold
+    size: 14
+    color: "#024ddc"
+    align: center
+
+  # Zeit + Zugnummer (erste Zeile)
+  - type: text
+    value: "{{zug1.zeit}} {{zug1.nr}}"
+    x: 32
+    y: 10
+    font: regular
+    size: 10
+    color: "#0415a1"
+    align: left
+
+  # Ziel (vonnach)
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 32
+    y: 24
+    font: regular
+    size: 13
+    color: "#0415a1"
+    align: left
+    max_width: 84
+
+  # Via-Stationen
+  - type: text
+    if: "not(isEmpty(zug1.via))"
+    value: "{{zug1.via}}"
+    x: 32
+    y: 37
+    font: regular
+    size: 10
+    color: "#0415a1"
+    align: left
+    max_width: 84
+
+  # Zweiter Zug (blauer Hintergrund)
+  - type: rect
+    if: "not(isEmpty(zug2.vonnach))"
+    x: 30
+    y: 63
+    width: 86
+    height: 11
+    color: "#0415a1"
+
+  - type: text
+    if: "not(isEmpty(zug2.vonnach))"
+    value: "{{zug2.zeit}} {{zug2.nr}} {{zug2.vonnach}}"
+    x: 32
+    y: 65
+    font: regular
+    size: 8
+    color: "#ffffff"
+    align: left
+    max_width: 82
+
+  # Uhrzeiger (Stunden) — rotiert um aktuelle Stunde
+  # Bild: 26×26px, Zentrum bei (141,22); x=128, y=9
+  - type: image
+    file: clock-hour.png
+    x: 128
+    y: 9
+    rotate: "{{now.hour | mul(30)}}"
+    pivot_x: 13
+    pivot_y: 13
+
+  # Uhrzeiger (Minuten) — rotiert um aktuelle Minute
+  - type: image
+    file: clock-minutes.png
+    x: 128
+    y: 9
+    rotate: "{{now.minute | mul(6)}}"
+    pivot_x: 13
+    pivot_y: 13
+
+  # Untere Hälfte: vertauschte Segmente für gespiegelten Look
+  # PHP: imagecopy($bg,$bg, dst_x, dst_y, src_x, src_y, w, h)
+  # PHP: imagecopy($bg,$bg,0,80,122,0,38,80)
+  - type: copy
+    src_x: 122
+    src_y: 0
+    src_width: 38
+    src_height: 80
+    x: 0
+    y: 80
+
+  # PHP: imagecopy($bg,$bg,137,80,0,0,23,80)
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 23
+    src_height: 80
+    x: 137
+    y: 80
+
+  # PHP: imagecopy($bg,$bg,38,80,23,0,99,80)
+  - type: copy
+    src_x: 23
+    src_y: 0
+    src_width: 99
+    src_height: 80
+    x: 38
+    y: 80

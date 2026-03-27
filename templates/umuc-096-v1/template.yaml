@@ -1,0 +1,281 @@
+meta:
+  name: "U-Muc 0.96\""
+  description: "U-Bahn München, 0.96 Zoll Display"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 160
+    height: 160
+
+fonts:
+  - id: bold
+    file: Roboto-Bold.ttf
+  - id: regular
+    file: RobotoCondensed-Regular.ttf
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Uhr-Hintergrund
+  - type: image
+    file: clock-bg.png
+    x: 106
+    y: 93
+
+  # Uhrzeiger (Stunden) — Bild: 54×54px, Pivot bei (133,120)
+  - type: image
+    file: clock-hour.png
+    x: 106
+    y: 93
+    rotate: "{{now.hour | mul(30)}}"
+    pivot_x: 27
+    pivot_y: 27
+
+  # Uhrzeiger (Minuten)
+  - type: image
+    file: clock-minutes.png
+    x: 106
+    y: 93
+    rotate: "{{now.minute | mul(6)}}"
+    pivot_x: 27
+    pivot_y: 27
+
+  # Richtungstext (zug1.hinweis = Richtung xyz)
+  - type: text
+    value: "{{zug1.hinweis}}"
+    x: 2
+    y: 89
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: left
+
+  # Minuten-Label
+  - type: text
+    value: "Min."
+    x: 81
+    y: 89
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: left
+
+  # Gleis (rechts unten)
+  - type: text
+    value: "Gleis {{gleis}}"
+    x: 125
+    y: 148
+    font: bold
+    size: 9
+    color: "#ffffff"
+    align: center
+
+  # --- Zug 1 ---
+  - type: image
+    if: "equals(zug1.nr, 'U1')"
+    file: U1.png
+    x: 1
+    y: 105
+  - type: image
+    if: "equals(zug1.nr, 'U2')"
+    file: U2.png
+    x: 1
+    y: 105
+  - type: image
+    if: "equals(zug1.nr, 'U3')"
+    file: U3.png
+    x: 1
+    y: 105
+  - type: image
+    if: "equals(zug1.nr, 'U4')"
+    file: U4.png
+    x: 1
+    y: 105
+  - type: image
+    if: "equals(zug1.nr, 'U5')"
+    file: U5.png
+    x: 1
+    y: 105
+  - type: image
+    if: "equals(zug1.nr, 'U6')"
+    file: U6.png
+    x: 1
+    y: 105
+  - type: image
+    if: "equals(zug1.nr, 'U7')"
+    file: U7.png
+    x: 1
+    y: 105
+  - type: image
+    if: "equals(zug1.nr, 'U8')"
+    file: U8.png
+    x: 1
+    y: 105
+  - type: text
+    if: "not(startsWith(zug1.nr, 'U'))"
+    value: "{{zug1.nr}}"
+    x: 1
+    y: 107
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: left
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 19
+    y: 107
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: left
+  - type: text
+    value: "{{zug1.zeit}}"
+    x: 97
+    y: 115
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: right
+
+  # --- Zug 2 ---
+  - type: image
+    if: "equals(zug2.nr, 'U1')"
+    file: U1.png
+    x: 1
+    y: 122
+  - type: image
+    if: "equals(zug2.nr, 'U2')"
+    file: U2.png
+    x: 1
+    y: 122
+  - type: image
+    if: "equals(zug2.nr, 'U3')"
+    file: U3.png
+    x: 1
+    y: 122
+  - type: image
+    if: "equals(zug2.nr, 'U4')"
+    file: U4.png
+    x: 1
+    y: 122
+  - type: image
+    if: "equals(zug2.nr, 'U5')"
+    file: U5.png
+    x: 1
+    y: 122
+  - type: image
+    if: "equals(zug2.nr, 'U6')"
+    file: U6.png
+    x: 1
+    y: 122
+  - type: image
+    if: "equals(zug2.nr, 'U7')"
+    file: U7.png
+    x: 1
+    y: 122
+  - type: image
+    if: "equals(zug2.nr, 'U8')"
+    file: U8.png
+    x: 1
+    y: 122
+  - type: text
+    if: "not(isEmpty(zug2.vonnach))"
+    value: "{{zug2.vonnach}}"
+    x: 19
+    y: 124
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: left
+  - type: text
+    if: "not(isEmpty(zug2.zeit))"
+    value: "{{zug2.zeit}}"
+    x: 97
+    y: 132
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: right
+
+  # --- Zug 3 ---
+  - type: image
+    if: "equals(zug3.nr, 'U1')"
+    file: U1.png
+    x: 1
+    y: 139
+  - type: image
+    if: "equals(zug3.nr, 'U2')"
+    file: U2.png
+    x: 1
+    y: 139
+  - type: image
+    if: "equals(zug3.nr, 'U3')"
+    file: U3.png
+    x: 1
+    y: 139
+  - type: image
+    if: "equals(zug3.nr, 'U4')"
+    file: U4.png
+    x: 1
+    y: 139
+  - type: image
+    if: "equals(zug3.nr, 'U5')"
+    file: U5.png
+    x: 1
+    y: 139
+  - type: image
+    if: "equals(zug3.nr, 'U6')"
+    file: U6.png
+    x: 1
+    y: 139
+  - type: image
+    if: "equals(zug3.nr, 'U7')"
+    file: U7.png
+    x: 1
+    y: 139
+  - type: image
+    if: "equals(zug3.nr, 'U8')"
+    file: U8.png
+    x: 1
+    y: 139
+  - type: text
+    if: "not(isEmpty(zug3.vonnach))"
+    value: "{{zug3.vonnach}}"
+    x: 19
+    y: 141
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: left
+  - type: text
+    if: "not(isEmpty(zug3.zeit))"
+    value: "{{zug3.zeit}}"
+    x: 97
+    y: 149
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: right
+
+  # Duplizieren (komplexe Spiegelung)
+  # PHP: imagecopy($bg,$bg,62,15,0,95,98,62) = src(0,95,98,62) → dst(62,15)
+  - type: copy
+    src_x: 0
+    src_y: 95
+    src_width: 98
+    src_height: 62
+    x: 62
+    y: 15
+
+  # PHP: imagecopy($bg,$bg,0,13,106,93,54,67) = src(106,93,54,67) → dst(0,13)
+  - type: copy
+    src_x: 106
+    src_y: 93
+    src_width: 54
+    src_height: 67
+    x: 0
+    y: 13

@@ -1,0 +1,140 @@
+meta:
+  name: "Nederland 1.05\""
+  description: "Nederlandse Spoorwegen, 1.05 Zoll Display"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 240
+    height: 240
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Gleis (zentriert links, blau)
+  - type: text
+    value: "{{gleis}}"
+    x: 15
+    y: 20
+    font: bold
+    size: 21
+    color: "#024ddc"
+    align: center
+
+  # Zeit + Zugnummer (erste Zeile)
+  - type: text
+    value: "{{zug1.zeit}} {{zug1.nr}}"
+    x: 47
+    y: 15
+    font: regular
+    size: 15
+    color: "#0415a1"
+    align: left
+
+  # Ziel (vonnach)
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 47
+    y: 34
+    font: regular
+    size: 20
+    color: "#0415a1"
+    align: left
+    max_width: 126
+
+  # Via-Stationen
+  - type: text
+    if: "not(isEmpty(zug1.via))"
+    value: "{{zug1.via}}"
+    x: 48
+    y: 56
+    font: regular
+    size: 15
+    color: "#0415a1"
+    align: left
+    max_width: 126
+
+  # Zweiter Zug (blauer Hintergrund)
+  - type: rect
+    if: "not(isEmpty(zug2.vonnach))"
+    x: 45
+    y: 95
+    width: 129
+    height: 15
+    color: "#0415a1"
+
+  - type: text
+    if: "not(isEmpty(zug2.vonnach))"
+    value: "{{zug2.zeit}} {{zug2.nr}} {{zug2.vonnach}}"
+    x: 48
+    y: 97
+    font: regular
+    size: 12
+    color: "#ffffff"
+    align: left
+    max_width: 124
+
+  # Uhrzeiger (Stunden) — rotiert um aktuelle Stunde
+  # Bild: 46×46px, Zentrum bei (211,56); x=188, y=33
+  - type: image
+    file: clock-hour.png
+    x: 188
+    y: 33
+    rotate: "{{now.hour | mul(30)}}"
+    pivot_x: 23
+    pivot_y: 23
+
+  # Uhrzeiger (Minuten)
+  - type: image
+    file: clock-minutes.png
+    x: 188
+    y: 33
+    rotate: "{{now.minute | mul(6)}}"
+    pivot_x: 23
+    pivot_y: 23
+
+  # Sekunden-Zeiger
+  - type: image
+    file: clock-sec.png
+    x: 188
+    y: 33
+    rotate: "{{now.second | mul(6)}}"
+    pivot_x: 23
+    pivot_y: 23
+
+  # Untere Hälfte: vertauschte Segmente für gespiegelten Look
+  # PHP: imagecopy($bg,$bg,205,120,0,0,35,120)
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 35
+    src_height: 120
+    x: 205
+    y: 120
+
+  # PHP: imagecopy($bg,$bg,0,120,183,0,57,120)
+  - type: copy
+    src_x: 183
+    src_y: 0
+    src_width: 57
+    src_height: 120
+    x: 0
+    y: 120
+
+  # PHP: imagecopy($bg,$bg,59,120,37,0,144,120)
+  - type: copy
+    src_x: 37
+    src_y: 0
+    src_width: 144
+    src_height: 120
+    x: 59
+    y: 120

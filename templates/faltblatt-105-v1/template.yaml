@@ -1,0 +1,133 @@
+meta:
+  name: "Faltblatt 1.05\""
+  description: "Faltblatt-Abfahrtstafel, 240×240px, 1.05 Zoll"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 240
+    height: 240
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Overlay (Rahmen/Vordergrund)
+  - type: image
+    file: fg.png
+    x: 0
+    y: 0
+
+  # Gleis — groß links
+  - type: text
+    value: "Gleis"
+    x: 27
+    y: 34
+    font: bold
+    size: 16
+    color: "#000000"
+    align: center
+
+  - type: text
+    value: "{{gleis}}"
+    x: 27
+    y: 90
+    font: bold
+    size: 44
+    color: "#000000"
+    align: center
+
+  # Zugtyp-Icon (wenn bekannt)
+  - type: image
+    if: "startsWith(zug1.nr, 'RB')"
+    file: rb.png
+    x: 55
+    y: 53
+
+  - type: image
+    if: "startsWith(zug1.nr, 'IC')"
+    file: ic.png
+    x: 55
+    y: 53
+
+  - type: image
+    if: "startsWith(zug1.nr, 'RE')"
+    file: re.png
+    x: 55
+    y: 53
+
+  # Abfahrtszeit
+  - type: text
+    value: "{{zug1.zeit}}"
+    x: 119
+    y: 37
+    font: bold
+    size: 17
+    color: "#3a3c3b"
+    align: right
+
+  - type: text
+    value: "Abfahrt"
+    x: 57
+    y: 35
+    font: bold
+    size: 14
+    color: "#3a3c3b"
+    align: left
+
+  # Ziel (GROSSBUCHSTABEN)
+  - type: text
+    value: "{{zug1.vonnach | upper}}"
+    x: 54
+    y: 88
+    font: bold
+    size: 8
+    color: "#3a3c3b"
+    align: left
+    max_width: 182
+
+  # Via-Stationen
+  - type: text
+    if: "not(isEmpty(zug1.via))"
+    value: "{{zug1.via}}"
+    x: 147
+    y: 68
+    font: bold
+    size: 7
+    color: "#3a3c3b"
+    align: left
+    max_width: 87
+
+  # Obere Hälfte auf untere Hälfte spiegeln
+  # PHP: imagecopy($bg,$bg,0,120,0,0,240,120)
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120
+
+  # PHP: imagecopy($bg,$bg,240-49-5,120+10,3,10,49,120)
+  - type: copy
+    src_x: 3
+    src_y: 10
+    src_width: 49
+    src_height: 120
+    x: 186
+    y: 130
+
+  # PHP: imagecopy($bg,$bg,3,120+10,52,10,183,106)
+  - type: copy
+    src_x: 52
+    src_y: 10
+    src_width: 183
+    src_height: 106
+    x: 3
+    y: 130
