@@ -86,6 +86,7 @@ func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer
 			}
 			if !chainSatisfied {
 				if bool(layer.Else) {
+					chainSatisfied = true
 					render = true
 				} else if eval.EvalCondition(layer.Elif) {
 					chainSatisfied = true
