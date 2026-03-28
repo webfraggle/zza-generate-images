@@ -717,9 +717,43 @@ Werte: `0` oder `1` = Standard, `< 1` = enger, `> 1` = weiter.
 
 ## Phase 10 — Frontend-Design & UX-Optimierungen
 
-**Ziel:** _(noch zu planen — nach MVP-Launch)_
+**Ziel:** Konsistentes CI-Design basierend auf SmallbusinessZentrale-Ästhetik. Aptly als Marken-Schrift, teal als Primärfarbe, orange als Akzentfarbe.
 
-### Status: Planung ausstehend
+### Aufgaben
+
+1. **Design-System** (`web/static/app.css`) — vollständiges Rewrite:
+   - CSS-Variablen: `--brand: #FD7014`, `--teal: #037F8C`, `--ink: #111111`
+   - Display-Font: **Aptly** (Adobe Typekit CDN: `use.typekit.net/ldx6jxj.css`)
+   - Body-Font: IBM Plex Sans, Mono: IBM Plex Mono
+   - `--bg: #037F8C` — teal Seitenhintergrund
+   - Kein `border-radius` auf Karten (kantige CI-Ästhetik)
+2. **Alle HTML-Templates** — Typekit-Link in `<head>` aller 9 Templates
+3. **Header** — Brand links (italic bold Aptly), Nav rechts (Aptly 12px, uppercase, active=orange)
+   - Nav-Links: `Galerie`, `Admin`, `Abmelden` je nach Seite
+4. **Galerie-Karten** — weißer Hintergrund, `box-shadow: rgba(0,0,0,0.4) 0px 6px 7px -1px`, keine Border
+5. **Detail-Seite (Ausprobiermodus)**:
+   - Zwei Panes nebeneinander (`display: grid; grid-template-columns: 1fr 1fr`) auf teal Hintergrund
+   - Trennlinie: `hsla(0,0%,100%,.2)`
+   - Beide Panes: CSS-Grid-Layout (`grid-template-rows: auto 1fr`) für exakt gleiche Karten-Höhe
+   - **Split-Preview**: Vorschaubild wird in obere Hälfte (links) und untere Hälfte (rechts) aufgeteilt — 2× `<canvas>` via JS, 1:1 ohne Skalierung
+
+### Status: ✅ Abgeschlossen — 2026-03-28
+
+**Implementiert:**
+- `web/static/app.css` — vollständig neu geschrieben
+- Alle 9 HTML-Templates mit Typekit-Link und neuem Header-Markup
+- `detail.html` — Canvas-basierte Split-Preview (`drawSplit()` via `new Image()` + 2× `drawImage()`)
+- `gallery.html`, `admin-overview.html`, `admin-cache.html` — neue `.header-nav`-Struktur
+- `.nav-link`, `.nav-link.active`, `.nav-link-btn` — Aptly Nav-Klassen
+- `.preview-halves canvas` — `image-rendering: pixelated`, `align-items: flex-start`
+
+### Manueller Test (Phase 10)
+
+1. Galerie öffnen → weiße Karten auf teal Hintergrund, Aptly-Brand links, Nav rechts
+2. Active-Link orange, inactive-Links dunkel
+3. Detail-Seite → zwei gleich hohe weiße Karten, teal Hintergrund, weißer Trennstrich
+4. JSON ändern → Split-Preview aktualisiert sich (obere Hälfte links, untere rechts, 1:1)
+5. Admin-Header: Galerie / Admin / Cache / Abmelden korrekt hervorgehoben
 
 ---
 
@@ -735,7 +769,7 @@ Phase 1 (Renderer-Kern)
               └── Phase 7 (Superuser)
 Phase 8 (Template-Portierung) — parallel ab Phase 3 möglich
 Phase 9 (Binaries + Docker) — MVP-Launch
-Phase 10 (Frontend-Design & UX) — nach MVP-Launch, Planung ausstehend
+Phase 10 (Frontend-Design & UX) — ✅ Abgeschlossen 2026-03-28
 ```
 
 ---

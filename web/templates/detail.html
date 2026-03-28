@@ -24,22 +24,44 @@
     <div class="preview-pane">
       <span class="pane-label">Vorschau</span>
       <div class="preview-card">
-        {{if .HasDefault}}
-        <img id="preview-img" src="/{{.Name}}/preview" alt="Vorschau">
-        {{else}}
-        <img id="preview-img" alt="Vorschau" style="display:none">
-        {{end}}
         <div id="spinner" class="spinner" style="display:none"></div>
+        <div class="preview-halves" id="preview-halves" style="display:none">
+          <canvas id="canvas-top"></canvas>
+          <canvas id="canvas-bottom"></canvas>
+        </div>
       </div>
     </div>
   </main>
   <script>
     const templateName = "{{.Name}}";
-    const textarea  = document.getElementById("json-input");
-    const img       = document.getElementById("preview-img");
-    const errorMsg  = document.getElementById("error-msg");
-    const spinner   = document.getElementById("spinner");
+    const textarea    = document.getElementById("json-input");
+    const errorMsg    = document.getElementById("error-msg");
+    const spinner     = document.getElementById("spinner");
+    const halves      = document.getElementById("preview-halves");
+    const canvasTop   = document.getElementById("canvas-top");
+    const canvasBot   = document.getElementById("canvas-bottom");
+    let currentURL    = null;
     let debounce;
+
+    function drawSplit(src) {
+      const img = new Image();
+      img.onload = () => {
+        const w  = img.naturalWidth;
+        const h  = img.naturalHeight;
+        const h1 = Math.floor(h / 2);
+        const h2 = h - h1;
+
+        canvasTop.width  = w;  canvasTop.height  = h1;
+        canvasBot.width  = w;  canvasBot.height  = h2;
+
+        canvasTop.getContext("2d").drawImage(img, 0,  0, w, h1, 0, 0, w, h1);
+        canvasBot.getContext("2d").drawImage(img, 0, h1, w, h2, 0, 0, w, h2);
+
+        halves.style.display = "flex";
+        spinner.style.display = "none";
+      };
+      img.src = src;
+    }
 
     textarea.addEventListener("input", () => {
       clearTimeout(debounce);
@@ -57,7 +79,7 @@
       }
 
       spinner.style.display = "block";
-      img.style.opacity = "0.4";
+      halves.style.display  = "none";
 
       try {
         const resp = await fetch("/" + templateName + "/render", {
@@ -68,22 +90,24 @@
         if (!resp.ok) {
           const text = await resp.text();
           errorMsg.textContent = "Fehler " + resp.status + ": " + text.trim();
+          spinner.style.display = "none";
           return;
         }
-        const blob = await resp.blob();
-        const oldSrc = img.src;
-        img.onload = () => {
-          if (oldSrc && oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-          img.style.display = "block";
-        };
-        img.src = URL.createObjectURL(blob);
+        const blob   = await resp.blob();
+        const oldURL = currentURL;
+        currentURL   = URL.createObjectURL(blob);
+        drawSplit(currentURL);
+        if (oldURL) URL.revokeObjectURL(oldURL);
       } catch (e) {
-        errorMsg.textContent = "Netzwerkfehler: " + e.message;
-      } finally {
+        errorMsg.textContent  = "Netzwerkfehler: " + e.message;
         spinner.style.display = "none";
-        img.style.opacity = "1";
       }
     }
+
+    {{if .HasDefault}}
+    drawSplit("/{{.Name}}/preview");
+    spinner.style.display = "block";
+    {{end}}
   </script>
 </body>
 </html>
