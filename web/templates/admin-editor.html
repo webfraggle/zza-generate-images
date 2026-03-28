@@ -62,6 +62,7 @@
 import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
 import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?deps=codemirror@6.0.1';
 import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
+import { indentationMarkers } from 'https://esm.sh/@replit/codemirror-indentation-markers@1.5.0?deps=codemirror@6.0.1';
 
 const TEMPLATE = '{{.TemplateName}}';
 const API_BASE = `/admin/${TEMPLATE}`;
@@ -126,7 +127,7 @@ async function openFile(name) {
   if (cmView) cmView.destroy();
   cmView = new EditorView({
     doc: content,
-    extensions: [basicSetup, lang],
+    extensions: [basicSetup, lang, indentationMarkers()],
     parent: cmHost,
   });
 }
