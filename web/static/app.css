@@ -1,5 +1,6 @@
 /* ── FONTS ──────────────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap');
+/* Aptly is loaded via Typekit <link> in each HTML template */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 /* ── RESET ──────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -10,16 +11,18 @@
   --brand-dark:    #D45A00;
   --teal:          #037F8C;
   --ink:           #111111;
-  --mid:           #5C5751;
+  --text-color:           rgb(18, 18, 18);
+  --text-mid:           rgb(163, 163, 163);
   --light-text:    #9A938C;
-  --bg:            #F5F3F0;
+  --text-on-teal: #FFFFFF;
+  --bg:            #037F8C;
   --surface:       #FFFFFF;
   --surface-2:     #F0EDE8;
   --border:        #DDD8D2;
   --border-strong: #B8B0A8;
   --red:           #C83232;
   --green:         #1A7A3A;
-  --font-display:  'Syne', sans-serif;
+  --font-display:  aptly, sans-serif;
   --font-body:     'IBM Plex Sans', sans-serif;
   --font-mono:     'IBM Plex Mono', monospace;
   --radius:        3px;
@@ -50,8 +53,9 @@ header {
 .brand {
   font-family: var(--font-display);
   font-size: 1.3rem;
-  font-weight: 800;
-  letter-spacing: -.02em;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: -.01em;
   color: var(--ink);
   line-height: 1;
   flex-shrink: 0;
@@ -61,13 +65,14 @@ header h1 {
   font-family: var(--font-display);
   font-size: 1.2rem;
   font-weight: 700;
+  font-style: italic;
   letter-spacing: -.01em;
 }
 
-header p { color: var(--mid); font-size: .875rem; }
+header p { color: var(--text-color); font-size: .875rem; }
 
 header a {
-  color: var(--mid);
+  color: var(--text-color);
   font-size: .825rem;
   font-weight: 500;
   margin-right: auto;
@@ -85,7 +90,7 @@ header a:hover { color: var(--brand); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .09em;
-  color: var(--mid);
+  color: var(--text-color);
 }
 
 /* ── GALLERY ────────────────────────────────────────────────────────────────── */
@@ -105,39 +110,34 @@ header a:hover { color: var(--brand); }
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid transparent;
-  border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 1px 3px rgba(0,0,0,.05);
-  transition: border-color .18s, box-shadow .18s, transform .15s;
+  box-shadow: rgba(0,0,0,0.4) 0px 6px 7px -1px;
+  transition: transform .15s, box-shadow .15s;
   animation: card-in .3s ease both;
 }
 
 .card:hover {
-  border-left-color: var(--brand);
-  border-color: var(--border-strong);
-  box-shadow: 0 5px 20px rgba(0,0,0,.11);
   transform: translateY(-2px);
+  box-shadow: rgba(0,0,0,0.5) 0px 10px 12px -2px;
 }
 
 .card-preview {
-  background: var(--surface-2);
+  /* background: var(--surface-2); */
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 88px;
+  min-height: calc(240px + 28px);
   border-bottom: 1px solid var(--border);
   padding: 14px;
   transition: background .18s;
 }
-.card:hover .card-preview { background: #EAE6DF; }
+.card:hover .card-preview { background: var(--surface-2); }
 
 .card-preview img {
-  max-width: 100%;
-  max-height: 96px;
+  /* max-width: 100%;
+  max-height: 96px; */
   object-fit: contain;
   display: block;
 }
@@ -159,22 +159,22 @@ header a:hover { color: var(--brand); }
 
 .card-name {
   font-family: var(--font-display);
-  font-size: .95rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--ink);
   line-height: 1.25;
 }
 
 .card-desc {
-  font-size: .82rem;
-  color: var(--mid);
+  font-size: 0.9rem;
+  color: var(--text-color);
   line-height: 1.45;
 }
 
 .card-id {
   font-family: var(--font-mono);
   font-size: .7rem;
-  color: var(--light-text);
+  color: var(--text-mid);
   margin-top: 5px;
   letter-spacing: .02em;
 }
@@ -207,7 +207,7 @@ header a:hover { color: var(--brand); }
 
 .btn-secondary {
   background: transparent;
-  color: var(--mid);
+  color: var(--text-color);
   border-color: var(--border);
 }
 .btn-secondary:hover { color: var(--ink); border-color: var(--border-strong); }
@@ -217,11 +217,11 @@ header a:hover { color: var(--brand); }
 
 .pane-label {
   font-family: var(--font-display);
-  font-size: .67rem;
+  font-size: .8rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .09em;
-  color: var(--mid);
+  color: var(--text-on-teal);
   flex-shrink: 0;
 }
 
@@ -266,7 +266,7 @@ label {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .07em;
-  color: var(--mid);
+  color: var(--text-color);
   margin-bottom: 6px;
 }
 
@@ -295,8 +295,9 @@ body.form-page {
 .form-card h1 {
   font-family: var(--font-display);
   font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: -.02em;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: -.01em;
   color: var(--ink);
   margin-bottom: 20px;
 }
@@ -305,7 +306,7 @@ body.form-page {
 .form-card-centered h1 { text-align: center; }
 
 .form-desc {
-  color: var(--mid);
+  color: var(--text-color);
   font-size: .875rem;
   line-height: 1.6;
   margin-bottom: 20px;
@@ -349,43 +350,48 @@ body.form-page {
 }
 
 .editor-pane, .preview-pane {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
   padding: 16px;
   overflow: hidden;
 }
-.editor-pane  { border-right: 1px solid var(--border); background: var(--surface-2); }
-.preview-pane { background: var(--surface); align-items: center; justify-content: center; gap: 12px; }
-
-.editor-pane  > .pane-label,
-.preview-pane > .pane-label { margin-bottom: 10px; }
-
+.editor-pane {
+  grid-template-rows: auto 1fr auto;
+  border-right: 1px solid hsla(0,0%,100%,.2);
+}
+.preview-pane {
+  padding-bottom: 32px;
+}
 #json-input {
-  flex: 1;
   font-family: var(--font-mono);
   font-size: .82rem;
   line-height: 1.65;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: none;
   padding: 10px 12px;
   resize: none;
   background: var(--surface);
+  box-shadow: rgba(0,0,0,0.4) 0px 6px 7px -1px;
   outline: none;
   color: var(--ink);
-  transition: border-color .15s, box-shadow .15s;
 }
-#json-input:focus {
-  border-color: var(--brand);
-  box-shadow: 0 0 0 3px rgba(253,112,20,.09);
+
+.preview-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  box-shadow: rgba(0,0,0,0.4) 0px 6px 7px -1px;
+  overflow: hidden;
 }
 
 #preview-img {
   max-width: 100%;
-  max-height: calc(100% - 40px);
+  max-height: 100%;
   object-fit: contain;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  border-radius: var(--radius);
+  display: block;
 }
 
 /* ── FULL EDITOR (3-column) ─────────────────────────────────────────────────── */
@@ -409,10 +415,11 @@ body.editor-page {
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 700;
+  font-style: italic;
   letter-spacing: -.01em;
 }
 .editor-header a {
-  color: var(--mid);
+  color: var(--text-color);
   font-size: .825rem;
   font-weight: 500;
   transition: color .15s;
@@ -422,7 +429,7 @@ body.editor-page {
 .editor-template-name {
   font-family: var(--font-mono);
   font-size: .78rem;
-  color: var(--mid);
+  color: var(--text-color);
   margin-right: auto;
   background: var(--surface-2);
   padding: 3px 8px;
@@ -501,7 +508,7 @@ body.editor-page {
   white-space: nowrap;
   font-family: var(--font-mono);
   font-size: .77rem;
-  color: var(--mid);
+  color: var(--text-color);
 }
 .file-name.clickable { cursor: pointer; color: var(--ink); }
 .file-name.clickable:hover { color: var(--brand); }
@@ -629,6 +636,7 @@ body.admin-page { background: var(--bg); }
   font-family: var(--font-display);
   font-size: 1.1rem;
   font-weight: 700;
+  font-style: italic;
   letter-spacing: -.01em;
 }
 
@@ -650,7 +658,7 @@ body.admin-page { background: var(--bg); }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .09em;
-  color: var(--mid);
+  color: var(--text-color);
 }
 .admin-table td {
   padding: 10px 14px;
@@ -687,6 +695,6 @@ body.admin-page { background: var(--bg); }
   background: var(--surface-2);
   font-size: .7rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .08em;
-  color: var(--mid); white-space: nowrap; width: 35%;
+  color: var(--text-color); white-space: nowrap; width: 35%;
 }
 .stats-card code { font-family: var(--font-mono); font-size: .8rem; color: var(--teal); }

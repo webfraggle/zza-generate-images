@@ -12,7 +12,8 @@
       "Bash(./zza render:*)",
       "Bash(go test:*)",
       "Bash(wc:*)",
-      "Bash(go version:*)"
+      "Bash(go version:*)",
+      "Bash(grep -E \"\\\\.\\(html|css|js|go\\)$\")"
     ]
   }
 }

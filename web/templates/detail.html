@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}} — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -20,12 +21,14 @@
     </div>
     <div class="preview-pane">
       <span class="pane-label">Vorschau</span>
-      {{if .HasDefault}}
-      <img id="preview-img" src="/{{.Name}}/preview" alt="Vorschau">
-      {{else}}
-      <img id="preview-img" alt="Vorschau" style="display:none">
-      {{end}}
-      <div id="spinner" class="spinner" style="display:none"></div>
+      <div class="preview-card">
+        {{if .HasDefault}}
+        <img id="preview-img" src="/{{.Name}}/preview" alt="Vorschau">
+        {{else}}
+        <img id="preview-img" alt="Vorschau" style="display:none">
+        {{end}}
+        <div id="spinner" class="spinner" style="display:none"></div>
+      </div>
     </div>
   </main>
   <script>
