@@ -22,6 +22,7 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 ## Server / API
 
 <!-- Ideen für neue Endpunkte, Caching, Performance etc. -->
+- Automatisches Backup
 
 ---
 
@@ -29,6 +30,8 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 
 <!-- Ideen für die öffentliche Galerie und den Ausprobiermodus -->
 - Skalierung der Bilder sauber 1x oder 2x
+- Preview YAML
+- Download des gesamten Themes
 
 ---
 
@@ -41,3 +44,5 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 ## Sonstiges
 
 <!-- Alles was nicht passt -->
+
+- UI in Exe mit Webview
