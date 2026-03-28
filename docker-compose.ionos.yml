@@ -9,7 +9,7 @@ services:
       CACHE_DIR: /data/cache
       DB_PATH: /data/db/zza.db
     volumes:
-      - ./templates:/data/templates:ro
+      - ./templates:/data/templates
       - cache_data:/data/cache
       - db_data:/data/db
     labels:
