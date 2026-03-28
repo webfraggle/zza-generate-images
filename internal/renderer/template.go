@@ -52,9 +52,10 @@ type Layer struct {
 	Value    StringOrCond `yaml:"value"`
 	Font     string       `yaml:"font"`
 	Size     float64      `yaml:"size"`
-	Align    string       `yaml:"align"`    // left (default) | center | right
-	Valign   string       `yaml:"valign"`   // top (default) | middle | bottom — needs height
-	MaxWidth IntOrExpr    `yaml:"max_width"`
+	Align      string    `yaml:"align"`       // left (default) | center | right
+	Valign     string    `yaml:"valign"`      // top (default) | middle | bottom — needs height
+	MaxWidth   IntOrExpr `yaml:"max_width"`
+	LineHeight float64   `yaml:"line_height"` // multiplier relative to font height; 0/1 = default
 	// type: image — optional rotation
 	// When rotate is set, x and y are the CENTER coordinates of the image on the canvas.
 	Rotate StringOrCond `yaml:"rotate"` // degrees clockwise; supports expressions: "{{now.minute | mul(6)}}"
