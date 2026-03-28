@@ -162,6 +162,7 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   width: 80           # optional — Boxbreite für Ausrichtung + Zeilenumbruch
   height: 20          # optional — Boxhöhe für vertikale Ausrichtung
   max_width: 80       # optional — nur Zeilenumbruch (alternativ zu width)
+  line_height: 1.5    # optional — Zeilenabstand als Multiplikator (Standard: 1.0)
 ```
 
 ---
@@ -554,3 +555,4 @@ layers:
 | Repeat/Loop | `type: loop` mit `split_by` — kein `step_y`, kein relatives Y; Positionierung via `{{i * step + base}}`-Ausdrücke |
 | Koordinaten-Ausdrücke | `x`, `y`, `width`, `height`, `size` unterstützen `{{...}}`-Arithmetik; `i` als Kurzform für `loop.index` |
 | Leere Felder | Werden leer dargestellt — kein Fehler. Sonderbehandlung via `if isEmpty(...)` |
+| `line_height` | Float-Multiplikator relativ zur natürlichen Schrifthöhe; `0` und `1` = unverändert |

@@ -23,9 +23,13 @@ Folgende spezialisierte Agenten werden beim Implementieren eingesetzt:
 ```
 zza-generate-images/
 ├── cmd/
-│   └── zza/
-│       └── main.go              # Einstiegspunkt (Server + CLI)
+│   ├── zza/
+│   │   └── main.go              # Einstiegspunkt (Server + CLI)
+│   └── zza-desktop/
+│       └── main.go              # Desktop-CLI (nur render, kein Server/SQLite)
 ├── internal/
+│   ├── cli/                     # Geteilte CLI-Commands (render)
+│   │   └── render.go
 │   ├── renderer/                # YAML-Template laden + PNG rendern
 │   │   ├── renderer.go
 │   │   ├── template.go          # YAML-Struktur (meta, fonts, layers)
@@ -52,8 +56,11 @@ zza-generate-images/
 │   ├── sbb-096-v1/
 │   ├── oebb-096-v1/
 │   └── ...
-├── docker-compose.yml
+├── docker-compose.yml           # Lokale Entwicklung
+├── docker-compose.ionos.yml     # Produktion (gen.yuv.de, Traefik SSL)
 ├── Dockerfile
+├── build.sh                     # Cross-Compile + Docker Multi-Arch
+├── .env.example
 ├── go.mod
 └── go.sum
 ```
@@ -651,22 +658,60 @@ Vorgehen pro Theme:
 **Ziel:** Release-Build für alle Plattformen, Docker Compose produktionsreif.
 
 ### Aufgaben
-1. Build-Script / Makefile:
-   - `make build-linux` → Docker-Image
-   - `make build-windows` → `zza.exe`
-   - `make build-macos` → `zza` (arm64 + amd64)
-2. Docker Compose finalisieren:
-   - Volume-Mounts für `templates/`, Cache, SQLite
-   - `.env`-Datei für alle Konfigurationsvariablen
-   - Ressourcen-Limits (CPU, RAM)
-3. GitHub Actions CI: Build + Security-Scan bei jedem Push auf `develop`
+
+1. `cmd/zza-desktop/` — schlankes Desktop-CLI (nur `render`, kein Server/SQLite/Web)
+2. `internal/cli/render.go` — gemeinsame `RenderCmd()`-Funktion für Server und Desktop
+3. `build.sh`:
+   - Desktop-Binaries: `darwin/arm64`, `darwin/amd64`, `windows/amd64` (pure Go, kein CGO)
+   - Lokal: `docker build` (single-arch, `--load`)
+   - Release: `DOCKER_PUSH=1` → `docker buildx` Multi-Arch (`linux/arm64` + `linux/amd64`) + Push nach `ghcr.io`
+4. `Dockerfile` — Multi-Arch via `$BUILDPLATFORM`/`$TARGETARCH`, `golang:1.26-alpine`, Non-root User, `/data`-Verzeichnisse mit `chown`
+5. `docker-compose.yml` — `db_data`/`cache_data` Named Volumes, `env_file`, `no-new-privileges`, `read_only`
+6. `docker-compose.ionos.yml` — Traefik SSL auf `gen.yuv.de`, HTTP→HTTPS-Redirect, externes `web`-Netzwerk
+7. `.env.example` — alle Konfigurationsvariablen dokumentiert
+8. `go.mod` — auf Go 1.26.1 aktualisiert
+
+### Abweichungen vom ursprünglichen Plan
+- Kein `Makefile` — `build.sh` analog zu TrainController-Projekt
+- Kein GitHub Actions CI — nach MVP-Launch
+- Desktop-Binary: kein SQLite (war nie nötig für reine Render-Funktion)
+- Zusätzlich: `docker-compose.ionos.yml` für IONOS-Produktion mit Traefik
 
 ### Agenten
-- **implementer**
-- **security-reviewer** — Docker-Config, exposed Ports, Volume-Permissions
+- **security-reviewer** — Docker-Config, exposed Ports, Volume-Permissions, Traefik-Labels
+- **code-reviewer**
+
+### Status: ✅ Abgeschlossen — User-OK 2026-03-28
 
 ### Manueller Test (Phase 9)
-> Beschreibung folgt am Ende der Phase.
+
+| # | Was testen | Befehl |
+|---|---|---|
+| T1 | Desktop-CLI baut + rendert | `./build.sh` → `dist/zza-desktop-macos-arm64 render -t streamdeck-v1 -i templates/streamdeck-v1/default.json -o /tmp/test.png` |
+| T2 | Windows-Binary läuft | `zza-desktop.exe render ...` auf Windows |
+| T3 | Lokaler Docker-Build | `./build.sh` → `docker run -p 8080:8080 ghcr.io/webfraggle/zza-generate-images:latest` |
+| T4 | Multi-Arch Push nach ghcr.io | `DOCKER_PUSH=1 IMAGE_TAG=v0.0.1 ./build.sh` |
+| T5 | IONOS-Deployment | `docker compose -f docker-compose.ionos.yml up -d` → https://gen.yuv.de |
+
+---
+
+## line_height-Erweiterung — Zeilenabstand für Text-Layer
+
+**Ziel:** `line_height`-Multiplikator für `type: text` Layer.
+
+### Aufgaben
+1. `Layer.LineHeight float64` in `template.go` — `yaml:"line_height"`
+2. `renderer.go` — `lineHeight` mit Multiplikator skalieren wenn `> 0 && != 1`
+
+### Status: ✅ Abgeschlossen — 2026-03-28
+
+```yaml
+- type: text
+  value: "Zeile 1\nZeile 2"
+  line_height: 1.5   # 1.5× die natürliche Schrifthöhe
+```
+
+Werte: `0` oder `1` = Standard, `< 1` = enger, `> 1` = weiter.
 
 ---
 
