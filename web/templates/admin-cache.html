@@ -9,12 +9,16 @@
 </head>
 <body class="admin-page">
 
-<header class="editor-header">
-  <a href="/admin">← Übersicht</a>
-  <h1>Cache</h1>
-  <form method="POST" action="/admin/logout" style="margin:0;margin-left:auto">
-    <button type="submit" class="btn btn-sm btn-secondary">Abmelden</button>
-  </form>
+<header>
+  <span class="brand">Zugzielanzeiger</span>
+  <nav class="header-nav">
+    <a href="/" class="nav-link">Galerie</a>
+    <a href="/admin" class="nav-link">Admin</a>
+    <a href="/admin/cache" class="nav-link active">Cache</a>
+    <form method="POST" action="/admin/logout" style="margin:0">
+      <button type="submit" class="nav-link nav-link-btn">Abmelden</button>
+    </form>
+  </nav>
 </header>
 
 <main class="admin-main">

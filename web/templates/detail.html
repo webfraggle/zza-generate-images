@@ -9,9 +9,11 @@
 </head>
 <body>
   <header>
-    <a href="/">← Galerie</a>
-    <h1>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</h1>
-    {{if .Meta.Description}}<p>{{.Meta.Description}}</p>{{end}}
+    <span class="brand">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</span>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">Galerie</a>
+      <a href="/{{.Name}}/edit" class="nav-link active">Vorschau</a>
+    </nav>
   </header>
   <main class="editor">
     <div class="editor-pane">

@@ -3,15 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Zugzielanzeiger — Templates</title>
+  <title>Anzeigen-Generator — Galerie</title>
   <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
   <header>
-    <span class="brand">Zugzielanzeiger</span>
-    <span class="header-divider">|</span>
-    <span class="header-section">Templates</span>
+    <span class="brand">Anzeigen-Generator</span>
+    <nav class="header-nav">
+      <a href="/" class="nav-link active">Galerie</a>
+      <a href="/admin" class="nav-link muted">Admin</a>
+    </nav>
   </header>
   <main class="gallery">
     {{range .}}
