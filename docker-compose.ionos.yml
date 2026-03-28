@@ -8,23 +8,21 @@ services:
       TEMPLATES_DIR: /data/templates
       CACHE_DIR: /data/cache
       DB_PATH: /data/db/zza.db
+      TZ: Europe/Berlin
     volumes:
       - ./templates:/data/templates
       - cache_data:/data/cache
       - db_data:/data/db
     labels:
       - "traefik.enable=true"
-      # HTTP → HTTPS redirect
+      # HTTP — Microcontroller-kompatibel, kein Redirect
       - "traefik.http.routers.zza-http.rule=Host(`gen.yuv.de`)"
       - "traefik.http.routers.zza-http.entrypoints=web"
-      - "traefik.http.routers.zza-http.middlewares=redirect-to-https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
-      # HTTPS
+      - "traefik.http.services.zza.loadbalancer.server.port=8080"
+      # HTTPS — optional, kein Zwang
       - "traefik.http.routers.zza-https.rule=Host(`gen.yuv.de`)"
       - "traefik.http.routers.zza-https.entrypoints=websecure"
       - "traefik.http.routers.zza-https.tls.certresolver=letsencrypt"
-      - "traefik.http.services.zza.loadbalancer.server.port=8080"
     security_opt:
       - no-new-privileges:true
     read_only: true

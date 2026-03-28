@@ -82,12 +82,19 @@ elif [[ "$DOCKER_PUSH" == "1" ]]; then
         docker buildx use zza-builder
     fi
 
+    BUILD_TAGS="--tag $IMAGE:$IMAGE_TAG"
+    if [[ "$IMAGE_TAG" != "latest" ]]; then
+        BUILD_TAGS="$BUILD_TAGS --tag $IMAGE:latest"
+        echo "  Tags:      $IMAGE_TAG + latest"
+    fi
+
     if docker buildx build \
         --platform linux/arm64,linux/amd64 \
-        --tag "$IMAGE:$IMAGE_TAG" \
+        $BUILD_TAGS \
         --push \
         .; then
         echo "  → pushed $IMAGE:$IMAGE_TAG"
+        [[ "$IMAGE_TAG" != "latest" ]] && echo "  → pushed $IMAGE:latest"
         ((ok++))
     else
         echo "  FAILED"
