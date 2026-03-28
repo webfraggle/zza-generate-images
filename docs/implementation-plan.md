@@ -500,8 +500,10 @@ Ein Block-Eintrag hat **kein `type:`**, dafür eine eigene `layers:`-Liste. `els
 1. **`internal/renderer/template.go`** — `ElseMarker`-Typ (`type ElseMarker bool`) mit `UnmarshalYAML` für null-safe `else:` Parsing; `Layer.UnmarshalYAML` für den YAML-v3 null-Bypass; `Layer.Else` von `bool` → `ElseMarker`
 2. **`internal/renderer/renderer.go`** — `renderLayers`-Hilfsfunktion extrahieren (gemeinsame Chain-Logik für `Render` und `renderLoop`); Block-Node-Dispatch via `layer.Type == ""`; rekursive Sub-Layer-Rendering; `inLoop bool` zur Vermeidung verschachtelter Loops
 3. **`internal/renderer/evaluator.go`** — `eq` als Alias für `equals` ergänzt
-4. **Tests** — `template_test.go`: 3 `ElseMarker`-Tests; `renderer_test.go`: 7 Block-Level-Tests (true/false, elif/else-Kette, mehrere Sub-Layer, Verschachtelung, Error-Case, gemischte Layer)
+4. **Tests** — `template_test.go`: 3 `ElseMarker`-Tests; `renderer_test.go`: 8 Block-Level-Tests (true/false, elif/else-Kette, mehrere Sub-Layer, Verschachtelung, Error-Cases, gemischte Layer)
 5. **Docs** — `yaml-template-spec.md` + `user-guide-templates.md` aktualisiert
+6. **Editor** — Einrückungs-Guides (`@replit/codemirror-indentation-markers`) + Tab/Shift-Tab Multi-Line-Einrückung in `edit-editor.html` und `admin-editor.html`
+7. **Backlog** — `docs/backlog.md` angelegt
 
 ### Agenten
 - **implementer**
@@ -512,18 +514,22 @@ Ein Block-Eintrag hat **kein `type:`**, dafür eine eigene `layers:`-Liste. `els
 
 **Implementiert:**
 - `ElseMarker` + `Layer.UnmarshalYAML` in `template.go` — null-safe `else:` Syntax
-- `renderLayers(dst, tmpl, layers, eval, inLoop bool)` in `renderer.go` — ersetzt duplizierte Chain-Logik in `Render` und `renderLoop`
+- `renderLayers(dst, tmpl, layers, eval, inLoop bool, layerCount *int, depth int)` in `renderer.go` — ersetzt duplizierte Chain-Logik in `Render` und `renderLoop`; Thread-sichere Layer-Budget-Verfolgung über Block-Nesting hinweg
 - Block-Node erkannt via `layer.Type == ""` nach `render=true` — kein Breaking Change
 - `chainSatisfied = true` im `else`-Zweig (Bugfix: verhindert Doppel-Rendering bei malformed Templates)
 - `eq` als Alias für `equals` im Evaluator
-- 10 neue Tests
+- 8 neue Block-Level-Tests + 3 `ElseMarker`-Tests
 
-**Security Review:** APPROVED
-**Code Review:** APPROVED (inkl. Bugfix: `chainSatisfied` im `else`-Zweig)
+**Security Review:** BEDINGT OK — Findings umgesetzt:
+- `maxBlockDepth = 16` gegen Stack-Overflow bei tiefer Verschachtelung
+- `layerCount`-Zeiger durch alle rekursiven Aufrufe — Budget gilt für alle Ebenen
+- Zuvor: Pre-Check `len(tmpl.Layers) > maxLayers` reichte nicht (nur Top-Level)
+
+**Code Review:** APPROVED (inkl. Bugfix: `chainSatisfied` im `else`-Zweig; Kommentar Chain-State; Test `BlockElse_NoChain`)
 
 ### Manueller Test (block-if-Erweiterung)
 
-> Noch nicht manuell getestet — Unit-Tests decken alle Szenarien ab.
+> Unit-Tests decken alle Szenarien ab (8 Tests). Manuelle Smoke-Tests mit echtem Template empfohlen aber nicht blockierend.
 
 ---
 
