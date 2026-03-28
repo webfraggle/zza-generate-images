@@ -78,6 +78,7 @@ layers:
     width: 111
     valign: bottom
     height: 80
+    line_height: 0.8
 
   # Via-Linie (gepunktete Linie)
   - type: image

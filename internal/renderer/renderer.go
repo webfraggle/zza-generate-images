@@ -342,6 +342,9 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 	metrics := face.Metrics()
 	ascent := metrics.Ascent.Round()
 	lineHeight := metrics.Height.Round()
+	if layer.LineHeight > 0 && layer.LineHeight != 1 {
+		lineHeight = int(math.Round(float64(lineHeight) * layer.LineHeight))
+	}
 
 	layerX := layer.X.Resolve(eval)
 	layerY := layer.Y.Resolve(eval)
