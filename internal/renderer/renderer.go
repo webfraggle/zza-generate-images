@@ -65,7 +65,8 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 
 const (
 	maxCanvasDimension = 16384 // pixels — prevents OOM via malicious templates
-	maxLayers          = 256   // layer count limit — prevents CPU exhaustion
+	maxLayers          = 256   // total rendered layer limit (across all block nesting) — prevents CPU exhaustion
+	maxBlockDepth      = 16    // maximum block-node nesting depth — prevents stack overflow
 	maxFontFileBytes   = 50 * 1024 * 1024 // 50 MB
 )
 
@@ -73,11 +74,20 @@ const (
 //   - Layer-level if/elif/else chains on typed layers
 //   - Block-level if/elif/else nodes (Type == "", has Layers)
 //
+// layerCount tracks the total number of layers rendered across all recursive calls.
+// depth tracks the block-node nesting depth.
 // Set inLoop=true when called from renderLoop to prevent nested loops.
-func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer, eval *Evaluator, inLoop bool) error {
+func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer, eval *Evaluator, inLoop bool, layerCount *int, depth int) error {
+	if depth > maxBlockDepth {
+		return fmt.Errorf("block nesting depth exceeds maximum %d", maxBlockDepth)
+	}
 	chainSatisfied := false
 	inChain := false
 	for i, layer := range layers {
+		*layerCount++
+		if *layerCount > maxLayers {
+			return fmt.Errorf("total layer count exceeds maximum %d", maxLayers)
+		}
 		render := false
 		switch {
 		case layer.Elif != "" || bool(layer.Else):
@@ -110,8 +120,10 @@ func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer
 		}
 
 		// Block-level node: no type, has sub-layers.
+		// Note: inChain/chainSatisfied are NOT reset here — a block node participates
+		// in the same if/elif/else chain as its siblings in the parent layer list.
 		if layer.Type == "" {
-			if err := r.renderLayers(dst, tmpl, layer.Layers, eval, inLoop); err != nil {
+			if err := r.renderLayers(dst, tmpl, layer.Layers, eval, inLoop, layerCount, depth+1); err != nil {
 				return fmt.Errorf("block layer %d: %w", i, err)
 			}
 			continue
@@ -132,7 +144,7 @@ func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer
 			if inLoop {
 				return fmt.Errorf("layer %d: nested loops are not supported", i)
 			}
-			err = r.renderLoop(dst, tmpl, layer, eval)
+			err = r.renderLoop(dst, tmpl, layer, eval, layerCount, depth)
 		default:
 			return fmt.Errorf("layer %d: unknown type %q", i, layer.Type)
 		}
@@ -152,14 +164,11 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 	if w > maxCanvasDimension || h > maxCanvasDimension {
 		return nil, fmt.Errorf("renderer: Render: canvas dimensions %dx%d exceed maximum %d", w, h, maxCanvasDimension)
 	}
-	if len(tmpl.Layers) > maxLayers {
-		return nil, fmt.Errorf("renderer: Render: template has %d layers, maximum is %d", len(tmpl.Layers), maxLayers)
-	}
-
 	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
 	eval := NewEvaluator(data)
 
-	if err := r.renderLayers(dst, tmpl, tmpl.Layers, eval, false); err != nil {
+	layerCount := 0
+	if err := r.renderLayers(dst, tmpl, tmpl.Layers, eval, false, &layerCount, 0); err != nil {
 		return nil, fmt.Errorf("renderer: Render: %w", err)
 	}
 	return dst, nil
@@ -500,7 +509,7 @@ const (
 // renderLoop iterates over a split string and renders sub-layers for each item.
 // All sub-layer coordinates are absolute; use {{i * step + base}} expressions for positioning.
 // Loop variables available in sub-layers: i, loop.index (int); layer.Var (string item).
-func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator) error {
+func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator, layerCount *int, depth int) error {
 	if len(layer.Layers) == 0 {
 		return nil
 	}
@@ -541,7 +550,7 @@ func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			"loop.index": displayIdx,
 		})
 
-		if err := r.renderLayers(dst, tmpl, layer.Layers, childEval, true); err != nil {
+		if err := r.renderLayers(dst, tmpl, layer.Layers, childEval, true, layerCount, depth); err != nil {
 			return fmt.Errorf("renderLoop: item %d: %w", displayIdx, err)
 		}
 		displayIdx++

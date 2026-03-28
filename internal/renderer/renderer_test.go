@@ -201,6 +201,21 @@ func TestRender_BlockElif_NoChain(t *testing.T) {
 	}
 }
 
+// TestRender_BlockElse_NoChain: else without preceding if must return an error.
+func TestRender_BlockElse_NoChain(t *testing.T) {
+	r := New("/tmp")
+	tmpl := makeTemplate(10, 10, []Layer{
+		blockElse([]Layer{
+			rectLayer(0, 0, 4, 4, "#ff0000"),
+		}),
+	})
+
+	_, err := r.Render(tmpl, map[string]interface{}{})
+	if err == nil {
+		t.Error("expected error for else without preceding if, got nil")
+	}
+}
+
 // TestRender_BlockIf_MixedWithRegular: block nodes and regular layers coexist.
 func TestRender_BlockIf_MixedWithRegular(t *testing.T) {
 	r := New("/tmp")
