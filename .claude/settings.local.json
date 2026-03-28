@@ -11,7 +11,8 @@
       "Read(//tmp/**)",
       "Bash(./zza render:*)",
       "Bash(go test:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(go version:*)"
     ]
   }
 }

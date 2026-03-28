@@ -70,14 +70,14 @@ layers:
     if: "not(isEmpty(zug1.vonnach))"
     value: "{{zug1.vonnach}}"
     x: 5
-    y: 30
+    y: 0
     font: regular
     size: 20.6
     color: "#ffffff"
     align: left
     width: 111
     valign: bottom
-    height: 70
+    height: 80
 
   # Via-Linie (gepunktete Linie)
   - type: image
@@ -117,40 +117,42 @@ layers:
 
 
   # Zugnummer — IC-Familie mit Icon (elif-Kette: spezifischstes zuerst)
-  - type: image
-    if: "startsWith(zug1.nr, 'ICN')"
-    file: icn.png
-    x: 71
-    y: 17
-  - type: image
-    elif: "startsWith(zug1.nr, 'IC')"
-    file: ic.png
-    x: 71
-    y: 17
-  - type: image
-    elif: "startsWith(zug1.nr, 'EC')"
-    file: ec.png
-    x: 65
-    y: 17
-  - type: image
-    elif: "startsWith(zug1.nr, 'IR')"
-    file: ir.png
-    x: 71
-    y: 17
-  - type: image
-    elif: "startsWith(zug1.nr, 'VAE')"
-    file: vae.png
-    x: 71
-    y: 17
-  - type: text
-    else: true
-    value: "{{zug1.nr}}"
-    x: 74
-    y: 17
-    font: regular
-    size: 11
-    color: "#ffffff"
-    align: left
+  - if: "not(greaterThan(zug1.abw, 0))"
+    layers:
+    - type: image
+      if: "startsWith(zug1.nr, 'ICN')"
+      file: icn.png
+      x: 71
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'IC')"
+      file: ic.png
+      x: 71
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'EC')"
+      file: ec.png
+      x: 65
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'IR')"
+      file: ir.png
+      x: 71
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'VAE')"
+      file: vae.png
+      x: 71
+      y: 17
+    - type: text
+      else: true
+      value: "{{zug1.nr}}"
+      x: 74
+      y: 17
+      font: regular
+      size: 11
+      color: "#ffffff"
+      align: left
 
   # Obere Hälfte auf untere Hälfte spiegeln
   - type: copy
