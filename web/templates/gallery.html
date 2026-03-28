@@ -8,24 +8,28 @@
 </head>
 <body>
   <header>
-    <h1>Zugzielanzeiger</h1>
-    <p>Template-Galerie</p>
+    <span class="brand">Zugzielanzeiger</span>
+    <span class="header-divider">|</span>
+    <span class="header-section">Templates</span>
   </header>
   <main class="gallery">
     {{range .}}
     <a class="card" href="/{{.Name}}">
-      {{if .HasDefault}}
-      <img src="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
-      {{else}}
-      <div style="height:80px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:.8rem">Keine Vorschau</div>
-      {{end}}
+      <div class="card-preview">
+        {{if .HasDefault}}
+        <img src="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
+        {{else}}
+        <span class="card-no-preview">Keine Vorschau</span>
+        {{end}}
+      </div>
       <div class="card-info">
-        <strong>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</strong>
-        <span>{{.Meta.Description}}</span>
+        <strong class="card-name">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</strong>
+        {{if .Meta.Description}}<span class="card-desc">{{.Meta.Description}}</span>{{end}}
+        <span class="card-id">{{.Name}}</span>
       </div>
     </a>
     {{else}}
-    <p style="padding:24px;color:#888">Keine Templates gefunden.</p>
+    <p style="padding:24px;color:var(--mid)">Keine Templates gefunden.</p>
     {{end}}
   </main>
 </body>

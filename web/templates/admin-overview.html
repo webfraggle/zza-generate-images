@@ -11,22 +11,22 @@
 <header class="editor-header">
   <a href="/">← Galerie</a>
   <h1>Admin</h1>
-  <form method="POST" action="/admin/logout" style="margin:0">
-    <button type="submit" class="btn btn-sm">Abmelden</button>
+  <form method="POST" action="/admin/logout" style="margin:0;margin-left:auto">
+    <button type="submit" class="btn btn-sm btn-secondary">Abmelden</button>
   </form>
 </header>
 
 <main class="admin-main">
   <div class="admin-toolbar">
     <h2>Templates</h2>
-    <a href="/admin/cache" class="btn btn-sm">Cache-Status</a>
+    <a href="/admin/cache" class="btn btn-sm btn-secondary">Cache-Status</a>
   </div>
 
   {{if .Templates}}
   <table class="admin-table">
     <thead>
       <tr>
-        <th>Name</th>
+        <th>ID</th>
         <th>Anzeigename</th>
         <th>Besitzer</th>
         <th>Aktionen</th>
@@ -39,7 +39,7 @@
         <td>{{if .MetaName}}{{.MetaName}}{{else}}<span class="muted">—</span>{{end}}</td>
         <td>{{if .Owner}}{{.Owner}}{{else}}<span class="muted">—</span>{{end}}</td>
         <td class="admin-actions">
-          <a href="/admin/{{.Name}}" class="btn btn-sm">Bearbeiten</a>
+          <a href="/admin/{{.Name}}" class="btn btn-sm btn-primary">Bearbeiten</a>
           <button class="btn btn-sm btn-danger"
                   onclick="deleteTemplate('{{.Name}}')">Löschen</button>
         </td>

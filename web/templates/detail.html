@@ -10,16 +10,16 @@
   <header>
     <a href="/">← Galerie</a>
     <h1>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</h1>
-    <p>{{.Meta.Description}}</p>
+    {{if .Meta.Description}}<p>{{.Meta.Description}}</p>{{end}}
   </header>
   <main class="editor">
     <div class="editor-pane">
-      <label>JSON-Daten</label>
+      <span class="pane-label">JSON-Daten</span>
       <textarea id="json-input" spellcheck="false">{{.DefaultJSON}}</textarea>
       <div id="error-msg" class="error"></div>
     </div>
     <div class="preview-pane">
-      <label>Vorschau</label>
+      <span class="pane-label">Vorschau</span>
       {{if .HasDefault}}
       <img id="preview-img" src="/{{.Name}}/preview" alt="Vorschau">
       {{else}}
