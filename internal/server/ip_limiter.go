@@ -51,9 +51,14 @@ func (l *IPLimiter) RecordFailure(ip string) {
 		e = &ipEntry{}
 		l.entries[ip] = e
 	}
-	// Don't count additional failures while blocked.
-	if !e.blockedUntil.IsZero() && time.Now().Before(e.blockedUntil) {
-		return
+	if !e.blockedUntil.IsZero() {
+		if time.Now().Before(e.blockedUntil) {
+			// Still blocked — don't count additional failures.
+			return
+		}
+		// Block has expired — reset counter and start fresh.
+		e.failures = 0
+		e.blockedUntil = time.Time{}
 	}
 	e.failures++
 	if e.failures >= maxIPFailures {

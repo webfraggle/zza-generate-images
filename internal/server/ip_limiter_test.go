@@ -49,3 +49,20 @@ func TestIPLimiter_RecordSuccessResets(t *testing.T) {
 		t.Error("expected Allow=true after RecordSuccess")
 	}
 }
+
+func TestIPLimiter_CounterResetsAfterExpiry(t *testing.T) {
+	l := NewIPLimiter()
+	// Get blocked.
+	for i := 0; i < maxIPFailures; i++ {
+		l.RecordFailure("1.2.3.4")
+	}
+	// Expire the block.
+	l.mu.Lock()
+	l.entries["1.2.3.4"].blockedUntil = time.Now().Add(-time.Minute)
+	l.mu.Unlock()
+	// One failure after expiry should NOT re-block immediately.
+	l.RecordFailure("1.2.3.4")
+	if !l.Allow("1.2.3.4") {
+		t.Error("expected Allow=true: single failure after expiry should not re-block")
+	}
+}
