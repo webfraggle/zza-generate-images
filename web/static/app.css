@@ -222,6 +222,13 @@ header {
 }
 .btn-secondary:hover { color: var(--ink); border-color: var(--border-strong); }
 
+.btn-level2 {
+  background: #ffffff;
+  color: #444444;
+  border-color: var(--border);
+}
+.btn-level2:hover { border-color: var(--border-strong); color: var(--ink); }
+
 .btn-sm  { padding: 5px 10px; font-size: .7rem; }
 .btn-full { width: 100%; padding: 11px; }
 
@@ -512,8 +519,10 @@ body.form-page {
 }
 .info-right {
   display: flex;
+  flex-direction: column;
   align-items: flex-end;
   justify-content: flex-end;
+  gap: 8px;
 }
 .template-info .info-name {
   font-family: var(--font-display);
@@ -906,3 +915,70 @@ body.admin-page { background: var(--bg); }
   color: var(--text-color); white-space: nowrap; width: 35%;
 }
 .stats-card code { font-family: var(--font-mono); font-size: .8rem; color: var(--teal); }
+
+/* ── MODAL ──────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.is-open { display: flex; }
+
+.modal-panel {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 28px 32px;
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: var(--light-text);
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.modal-close:hover { color: var(--ink); }
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.modal-desc {
+  font-size: .875rem;
+  color: var(--light-text);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.modal-error {
+  font-size: .8rem;
+  color: var(--red);
+  margin-top: 8px;
+  min-height: 1.2em;
+}
+
+.modal-success {
+  font-size: .9rem;
+  color: var(--green);
+  line-height: 1.5;
+  padding: 8px 0;
+}
+
+.modal-form-group { margin-bottom: 12px; }
