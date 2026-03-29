@@ -43,6 +43,12 @@ type createFormData struct {
 	Display     string // "1.05" or "0.96"
 }
 
+// createSentData is the view model for the create-sent confirmation page.
+type createSentData struct {
+	Email        string
+	TemplateName string
+}
+
 // handleCreateNew shows the new-template form.
 func (ch *createHandler) handleCreateNew(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -170,6 +176,9 @@ func (ch *createHandler) handleCreateSubmit(w http.ResponseWriter, r *http.Reque
 	tok, err := editor.RequestToken(ch.db, id, email, ch.cfg.TokenTTL)
 	if err != nil {
 		log.Printf("create-new: RequestToken %q: %v", id, err)
+		if rmErr := os.RemoveAll(filepath.Join(ch.tdir, id)); rmErr != nil {
+			log.Printf("create-new: cleanup after RequestToken failure %q: %v", id, rmErr)
+		}
 		http.Error(w, "Interner Fehler.", http.StatusInternalServerError)
 		return
 	}
@@ -183,10 +192,6 @@ func (ch *createHandler) handleCreateSubmit(w http.ResponseWriter, r *http.Reque
 		log.Printf("[DEV] edit link for new template %q: %s/edit/%s", id, ch.cfg.Mail.BaseURL, tok) //nolint:gosec
 	}
 
-	type createSentData struct {
-		Email        string
-		TemplateName string
-	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = ch.tmpl.ExecuteTemplate(w, "create-sent.html", createSentData{Email: email, TemplateName: id})
 }
