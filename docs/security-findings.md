@@ -156,70 +156,6 @@ Oder: im Edit-Handler nach dem ersten API-Request das Token revoken. Abhängig v
 
 ---
 
-## Niedrig / Info
-
-### F8 [LOW] `templateName` in JavaScript via HTML-Escaping interpoliert
-
-**Datei:** `web/templates/detail.html`, Zeile ~80
-
-**Problem:**
-`const templateName = "{{.Name}}";` — Go's `html/template` escaped im `<script>`-Block als HTML, nicht als JavaScript. Kein akutes Risiko da `[a-z0-9-]+` keine Escape-Zeichen enthält.
-
-**Fix:** `template.JS()`-Typ verwenden um korrekten JS-Kontext zu signalisieren:
-
-```go
-// Im Handler:
-type detailData struct {
-    ...
-    NameJS template.JS
-}
-d.NameJS = template.JS(templateName)
-```
-
-```html
-const templateName = "{{.NameJS}}";
-```
-
----
-
-### F9 [LOW] Kein Cleanup abgelaufener Edit-Tokens in der DB
-
-**Datei:** `internal/db/db.go`
-
-**Problem:**
-Kein Background-Job löscht abgelaufene `edit_tokens`. Bei hohem Traffic wächst die Tabelle unbegrenzt.
-
-**Fix:**
-Periodischen Cleanup in `cmd/zza/main.go` starten:
-
-```go
-go func() {
-    t := time.NewTicker(24 * time.Hour)
-    defer t.Stop()
-    for range t.C {
-        db.Exec(`DELETE FROM edit_tokens WHERE expires_at < datetime('now')`)
-    }
-}()
-```
-
----
-
-### F10 [INFO] Kein Content-Security-Policy-Header
-
-**Datei:** `internal/server/server.go`
-
-**Problem:**
-Kein CSP-Header auf HTML-Responses. Externe Ressourcen werden geladen (`use.typekit.net`). Go's `html/template` escaped korrekt — kein akutes XSS-Risiko.
-
-**Fix (Defence in Depth):**
-Middleware, die auf HTML-Responses einen minimalen CSP-Header setzt:
-
-```
-Content-Security-Policy: default-src 'self'; style-src 'self' https://use.typekit.net https://p.typekit.net; font-src https://use.typekit.net; img-src 'self' data:; script-src 'self' https://esm.sh; connect-src 'self'
-```
-
----
-
 ## Zusammenfassung
 
 | ID | Schwere | Titel | Status |
@@ -230,9 +166,5 @@ Content-Security-Policy: default-src 'self'; style-src 'self' https://use.typeki
 | F4 | HOCH | E-Mail-Header-Injection (Mailer) | Offen |
 | F5 | MITTEL | E-Mail-Enumeration via Fehlermeldungen | Offen |
 | F6 | HOCH | Template-ID-Enumeration via /check | Offen |
-| F7 | MITTEL | Token used-Flag wird nicht gesetzt | Offen |
-| F8 | LOW | templateName JS-Escaping | Offen |
-| F9 | LOW | Kein DB-Cleanup für abgelaufene Tokens | Offen |
-| F10 | INFO | Kein CSP-Header | Offen |
 
 **Klar bestanden:** Path Traversal, SQL Injection, Token-Entropie (crypto/rand 256 Bit), Upload-Whitelist, YAML-Injection, IP-Spoofing via Header.
