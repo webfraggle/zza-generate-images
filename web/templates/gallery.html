@@ -28,12 +28,13 @@
       <div class="card-info">
         <strong class="card-name">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</strong>
         {{if .Meta.Description}}<span class="card-desc">{{.Meta.Description}}</span>{{end}}
-        <span class="card-id">{{.Name}}</span>
+        <span class="card-id">{{if .Meta.Display}}{{.Meta.Display}}{{else}}{{.Name}}{{end}}</span>
       </div>
     </a>
     {{else}}
     <p style="padding:24px;color:var(--mid)">Keine Templates gefunden.</p>
     {{end}}
   </main>
+  <span class="app-version">{{appVersion}}</span>
 </body>
 </html>

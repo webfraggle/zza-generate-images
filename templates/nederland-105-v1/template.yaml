@@ -1,6 +1,8 @@
 meta:
   name: "Nederland 1.05\""
   description: "Nederlandse Spoorwegen, 1.05 Zoll Display"
+  instructions: "Nur die Anleitung"
+  display: "1.05\" Zugzielanzeiger"
   author: "christoph"
   version: "1.0"
   canvas:
@@ -89,7 +91,7 @@ layers:
     file: clock-hour.png
     x: 211
     y: 33
-    rotate: "{{now.hour | mul(30)}}"
+    rotate: "{{now.hour12 | mul(30)}}"
 
   # Uhrzeiger (Minuten)
   - type: image

@@ -18,6 +18,8 @@ Alle relevanten Dokumente liegen unter `docs/`:
 | `docs/implementation-plan.md` | 9-Phasen-Implementierungsplan mit Agenten-Zuordnung |
 | `docs/phase-workflow.md` | Pflicht-Ablauf bei jeder Phase (7 Schritte) |
 | `docs/yaml-template-spec.md` | Spezifikation des YAML-Template-Formats |
+| `docs/user-guide-templates.md` | User-Guide für Template-Erstellung |
+| `docs/backlog.md` | Ideen und Wünsche für spätere Features |
 
 ## Architektur (Ziel)
 
@@ -32,23 +34,31 @@ Go-Server der YAML-Templates zu PNG-Bildern rendert. Modellbahn-Zugzielanzeiger 
 - Frontend: Vanilla JS + CodeMirror (kein Framework)
 
 **URL-Struktur:**
-- `POST /{template}/render` — JSON → PNG
+- `POST /{template}/render` — JSON → PNG (einzige Route ohne HTTPS-Redirect, für Microcontroller)
+- `GET /{template}` — Vorschau-Seite mit Meta-Info, Render-URL, PNG-Download
 - `GET /{template}/edit` — Template-Editor (E-Mail-Auth)
 - `GET /` — Template-Galerie mit Ausprobiermodus
 - `GET /admin` — Superuser-Bereich (Token + TOTP)
+- `GET /health` — Health-Check
 
-**Projektstruktur (Ziel):**
+**Projektstruktur:**
 ```
-cmd/zza/main.go          # Einstiegspunkt
-internal/renderer/       # YAML laden, PNG rendern, Cache
+cmd/zza/main.go          # Einstiegspunkt (Server + CLI)
+cmd/zza-desktop/main.go  # Desktop-CLI (nur render, kein Server/SQLite)
+internal/renderer/       # YAML laden, PNG rendern
 internal/editor/         # Auth, Token, E-Mail, Datei-Upload
 internal/admin/          # Superuser, TOTP
 internal/gallery/        # Template-Galerie
 internal/db/             # SQLite
-internal/server/         # HTTP-Router, Middleware
-web/                     # Frontend-Assets
+internal/server/         # HTTP-Router, Middleware, Cache
+internal/config/         # Konfiguration (Umgebungsvariablen)
+internal/cli/            # Geteilte CLI-Commands (render)
+internal/version/        # Build-Version (per ldflags gesetzt)
+web/                     # Frontend-Assets (HTML-Templates, CSS, JS)
 templates/               # YAML-Templates (portiert aus legacy/)
 legacy/                  # Alte PHP-Implementierung (nur Referenz)
+VERSION                  # Versionsdatei (vX.Y.Z) — Patch auto-increment bei Build
+build.sh                 # Cross-Compile + Docker Multi-Arch + Version-Management
 ```
 
 ## Agenten
@@ -63,9 +73,21 @@ legacy/                  # Alte PHP-Implementierung (nur Referenz)
 
 Bei **jeder Phase** gilt: Implementierung → Security Review → Code Review → Commit → Manuelle Testbeschreibung → User-OK → Abschluss. Details: `docs/phase-workflow.md`.
 
+## Versionierung
+
+- `VERSION`-Datei im Root enthält die aktuelle Version (`vX.Y.Z`)
+- Major.Minor wird manuell gepflegt, Patch wird bei jedem `./build.sh` automatisch erhöht
+- Version wird per `-ldflags -X` in `internal/version.Version` kompiliert
+- Docker-Image-Tag ist automatisch an die Version gekoppelt (plus `latest`)
+- Alle HTML-Seiten zeigen die Version unten links
+
+## HTTPS-Redirect
+
+Alle Routen außer `POST /{template}/render` werden per 301 auf HTTPS umgeleitet (via `X-Forwarded-Proto` Header). Die Render-Route bleibt auf HTTP verfügbar, da sie von Microcontrollern ohne TLS-Support aufgerufen wird.
+
 ## Konfiguration (Umgebungsvariablen)
 
-`PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`, `DB_PATH`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EDIT_TOKEN_TTL_HOURS`, `ADMIN_TOKEN`, `TOTP_SECRET`, `BASE_URL`
+`PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`, `DB_PATH`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EDIT_TOKEN_TTL_HOURS`, `ADMIN_TOKEN`, `TOTP_SECRET`, `BASE_URL`, `SECURE_COOKIES`
 
 ## Legacy-Referenz
 

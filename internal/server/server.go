@@ -20,6 +20,7 @@ import (
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/internal/gallery"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
+	"github.com/webfraggle/zza-generate-images/internal/version"
 )
 
 const maxRequestBodyBytes = 1 << 20 // 1 MiB
@@ -49,6 +50,7 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 	}
 
 	funcMap := template.FuncMap{
+		"appVersion": func() string { return version.Version },
 		"formatBytes": func(b int64) string {
 			switch {
 			case b >= 1<<20:
@@ -85,7 +87,18 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 // ServeHTTP implements http.Handler.
 // /static/... and /edit/... are dispatched before the mux to avoid routing
 // conflicts with wildcard patterns like "GET /{template}/preview".
+func isRenderRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/render")
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Redirect HTTP → HTTPS for all routes except /render (called by microcontrollers).
+	if r.Header.Get("X-Forwarded-Proto") == "http" && !isRenderRoute(r) {
+		target := "https://" + r.Host + r.RequestURI
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+		return
+	}
+
 	if strings.HasPrefix(r.URL.Path, "/static/") {
 		s.staticHandler.ServeHTTP(w, r)
 		return

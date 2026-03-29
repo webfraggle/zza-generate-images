@@ -40,6 +40,16 @@ html {
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
 
+.app-version {
+  position: fixed;
+  bottom: 8px;
+  left: 10px;
+  font-size: .75rem;
+  color: rgba(255,255,255,.45);
+  pointer-events: none;
+  z-index: 9999;
+}
+
 /* ── HEADER ─────────────────────────────────────────────────────────────────── */
 header {
   background: var(--surface);
@@ -342,7 +352,7 @@ body.form-page {
 /* ── DETAIL PAGE (try-it) ───────────────────────────────────────────────────── */
 .editor {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 40fr 60fr;
   height: calc(100vh - 62px);
 }
 @media (max-width: 700px) {
@@ -390,15 +400,132 @@ body.form-page {
 .preview-halves {
   display: flex;
   flex-direction: row;
-  gap: 24px;
+  gap: 16px;
   padding: 20px;
   align-items: flex-start;
 }
 
-.preview-halves canvas {
+.canvas-frame {
+  border: 6px solid #000;
+  outline: 12px solid #10289c;
+}
+
+.canvas-frame canvas {
   display: block;
   flex-shrink: 0;
   image-rendering: pixelated;
+}
+
+.canvas-divider {
+  width: 16px;
+  align-self: stretch;
+  background: #707070;
+  margin-bottom: -32px;
+  flex-shrink: 0;
+}
+
+.preview-pane {
+  grid-template-rows: auto 1fr auto;
+}
+
+.template-info {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  box-shadow: rgba(0,0,0,0.4) 0px 6px 7px -1px;
+  font-size: .85rem;
+  color: var(--text-color);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+}
+.info-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.info-right {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+.template-info .info-name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.template-info .info-label {
+  display: block;
+  font-weight: 600;
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-mid);
+  margin-bottom: 4px;
+}
+.template-info .info-kv {
+  font-size: .8rem;
+}
+.template-info .info-key {
+  color: var(--text-mid);
+}
+.template-info .info-key::after {
+  content: ":";
+}
+.template-info .info-val {
+  color: var(--text-color);
+}
+.template-info .info-section {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.template-info .info-section p {
+  white-space: pre-line;
+  line-height: 1.5;
+}
+.info-render-url {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.render-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.render-url-row code {
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  background: var(--surface-2);
+  padding: 6px 10px;
+  flex: 1;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.btn-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  color: var(--text-mid);
+  flex-shrink: 0;
+  transition: color .15s, border-color .15s;
+}
+.btn-copy:hover {
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+.btn-copy.copied {
+  color: var(--green);
+  border-color: var(--green);
 }
 
 /* ── FULL EDITOR (3-column) ─────────────────────────────────────────────────── */

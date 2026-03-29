@@ -36,10 +36,17 @@ meta:
   description: "Schweizer Bundesbahnen, 0.96 Zoll Display"
   author: "dein-name"
   version: "1.0"
+  display: "0.96 Zoll OLED"
+  instructions: |
+    Dieses Template erwartet zug1 und zug2 mit zeit, vonnach, nr und via.
+    Optional: gleis für die Gleisanzeige.
   canvas:
     width: 160    # Breite in Pixeln
     height: 80    # Höhe in Pixeln
 ```
+
+- `display` (optional) — Bezeichnung des Ziel-Displays, z.B. `"0.96 Zoll OLED"`. Wird auf der Vorschau-Seite angezeigt.
+- `instructions` (optional) — Freitext-Anleitung für Nutzer des Templates. Wird auf der Vorschau-Seite angezeigt. Mehrzeilig möglich mit YAML Block-Scalar (`|`).
 
 ---
 
@@ -453,6 +460,10 @@ meta:
   description: "SBB-Design für 0.96 Zoll Display"
   author: "christoph"
   version: "1.0"
+  display: "0.96 Zoll OLED"
+  instructions: |
+    Erwartet zug1 und zug2 mit zeit, vonnach, nr und via.
+    Optional: gleis für die Gleisanzeige.
   canvas:
     width: 160
     height: 80

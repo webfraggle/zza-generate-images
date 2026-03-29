@@ -31,7 +31,7 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 <!-- Ideen für die öffentliche Galerie und den Ausprobiermodus -->
 - Skalierung der Bilder sauber 1x oder 2x (Detail-Seite zeigt aktuell 1:1 ohne Zoom)
 - Preview YAML
-- Download des gesamten Themes
+- Download des gesamten Themes (als ZIP)
 
 ---
 

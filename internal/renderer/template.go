@@ -18,11 +18,13 @@ type Template struct {
 
 // Meta holds the template metadata.
 type Meta struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Author      string `yaml:"author"`
-	Version     string `yaml:"version"`
-	Canvas      Canvas `yaml:"canvas"`
+	Name         string `yaml:"name"`
+	Description  string `yaml:"description"`
+	Author       string `yaml:"author"`
+	Version      string `yaml:"version"`
+	Display      string `yaml:"display"`
+	Instructions string `yaml:"instructions"`
+	Canvas       Canvas `yaml:"canvas"`
 }
 
 // Canvas defines the output image dimensions.

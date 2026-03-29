@@ -51,12 +51,26 @@ meta:
   description: "Kurze Beschreibung für die Galerie"
   author: "dein-name"
   version: "1.0"
+  display: "0.96 Zoll OLED"
+  instructions: |
+    Dieses Template erwartet zug1 und zug2 mit zeit, vonnach, nr und via.
+    Optional: gleis für die Gleisanzeige.
   canvas:
     width: 160    # Bildbreite in Pixeln
     height: 160   # Bildhöhe in Pixeln
 ```
 
-Alle Felder außer `canvas` sind optional, aber empfohlen — sie erscheinen in der Template-Galerie.
+| Feld | Beschreibung |
+|---|---|
+| `name` | Anzeigename in der Galerie und Vorschau-Seite |
+| `description` | Kurze Beschreibung des Templates |
+| `author` | Name des Erstellers |
+| `version` | Versionsnummer des Templates |
+| `display` | Bezeichnung des Ziel-Displays (z.B. `"0.96 Zoll OLED"`) — erscheint auf der Galerie-Karte und Vorschau-Seite |
+| `instructions` | Freitext-Anleitung für Nutzer (mehrzeilig mit YAML `\|`) — erscheint auf der Vorschau-Seite |
+| `canvas` | Bildabmessungen (`width` × `height` in Pixeln) — Pflichtfeld |
+
+Alle Felder außer `canvas` sind optional, aber empfohlen — sie erscheinen in der Galerie und auf der Vorschau-Seite.
 
 ---
 

@@ -690,7 +690,7 @@ Vorgehen pro Theme:
 | T1 | Desktop-CLI baut + rendert | `./build.sh` → `dist/zza-desktop-macos-arm64 render -t streamdeck-v1 -i templates/streamdeck-v1/default.json -o /tmp/test.png` |
 | T2 | Windows-Binary läuft | `zza-desktop.exe render ...` auf Windows |
 | T3 | Lokaler Docker-Build | `./build.sh` → `docker run -p 8080:8080 ghcr.io/webfraggle/zza-generate-images:latest` |
-| T4 | Multi-Arch Push nach ghcr.io | `DOCKER_PUSH=1 IMAGE_TAG=v0.0.1 ./build.sh` |
+| T4 | Multi-Arch Push nach ghcr.io | `DOCKER_PUSH=1 ./build.sh` (Version + latest automatisch) |
 | T5 | IONOS-Deployment | `docker compose -f docker-compose.ionos.yml up -d` → https://gen.yuv.de |
 
 ---
@@ -757,19 +757,48 @@ Werte: `0` oder `1` = Standard, `< 1` = enger, `> 1` = weiter.
 
 ---
 
+## Post-Phase-10 — Erweiterungen (2026-03-29)
+
+Kleinere Features und Verbesserungen nach dem MVP-Launch.
+
+### Versionierung & Build
+- `VERSION`-Datei im Root (`vX.Y.Z`) — Major.Minor manuell, Patch auto-increment bei `./build.sh`
+- `internal/version/version.go` — Build-Version per `-ldflags -X` injiziert, Fallback `"dev"`
+- Docker-Image-Tag automatisch an VERSION gekoppelt (plus `latest`), kein manuelles `IMAGE_TAG` mehr
+- Alle 9 HTML-Seiten zeigen Version unten links (fixed, halbtransparent)
+
+### YAML-Meta: `display` + `instructions`
+- Neue optionale Felder in `meta:`: `display` (Ziel-Display-Bezeichnung), `instructions` (Freitext-Anleitung)
+- `internal/renderer/template.go` — `Display string`, `Instructions string` im `Meta`-Struct
+- Galerie-Karten zeigen `display` statt Verzeichnisname
+- Vorschau-Seite: Meta-Info-Box mit Name (Aptly), Beschreibung, Autor, Display, Canvas, Anleitung, Render-URL + Copy-Button
+
+### Vorschau-Seite Redesign
+- Layout 40:60 (JSON / Vorschau)
+- Template-Info zweispaltig: links Meta-Daten, rechts PNG-Download-Button
+- Canvas-Preview mit doppelter Border (schwarz + #10289c blau) und Divider-Strich
+- PNG-Download über Blob-basierte Logik (funktioniert auch bei initialem Preview)
+
+### HTTPS-Redirect
+- Alle Routen außer `POST /{template}/render` werden auf HTTPS umgeleitet (via `X-Forwarded-Proto`)
+- Render-Route bleibt HTTP-fähig für Microcontroller ohne TLS
+
+---
+
 ## Reihenfolge & Abhängigkeiten
 
 ```
-Phase 1 (Renderer-Kern)
-  └── Phase 2 (Filter + Bedingungen)
-        └── Phase 3 (HTTP-Server + Cache)
-              ├── Phase 4 (Galerie + Ausprobiermodus)
-              ├── Phase 5 (Editor-Backend)
-              │     └── Phase 6 (Editor-Frontend)
-              └── Phase 7 (Superuser)
-Phase 8 (Template-Portierung) — parallel ab Phase 3 möglich
-Phase 9 (Binaries + Docker) — MVP-Launch
-Phase 10 (Frontend-Design & UX) — ✅ Abgeschlossen 2026-03-28
+Phase 1 (Renderer-Kern)                     ✅
+  └── Phase 2 (Filter + Bedingungen)        ✅
+        └── Phase 3 (HTTP-Server + Cache)   ✅
+              ├── Phase 4 (Galerie)         ✅
+              ├── Phase 5 (Editor-Backend)  ✅
+              │     └── Phase 6 (Editor-UI) ✅
+              └── Phase 7 (Superuser)       ✅
+Phase 8 (Template-Portierung)               ✅
+Phase 9 (Binaries + Docker) — MVP-Launch    ✅
+Phase 10 (Frontend-Design & UX)             ✅
+Post-Phase-10 (Erweiterungen)               ✅ 2026-03-29
 ```
 
 ---

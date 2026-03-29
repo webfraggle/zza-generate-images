@@ -8,8 +8,9 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+ARG ZZA_VERSION=dev
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o zza ./cmd/zza
+    go build -trimpath -ldflags="-s -w -X github.com/webfraggle/zza-generate-images/internal/version.Version=${ZZA_VERSION}" -o zza ./cmd/zza
 
 FROM alpine:3.21
 

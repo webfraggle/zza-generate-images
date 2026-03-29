@@ -47,6 +47,9 @@ Gesammelte Ideen und Anforderungen — noch nicht priorisiert oder umgesetzt.
 - `default.json` liegt flach im Template-Verzeichnis (wie die anderen Dateien)
 - `default.json` ist vom Template-Besitzer über den Editor editierbar
 - Kein Login nötig zum Ausprobieren
+- **Meta-Informationen** auf der Vorschau-Seite: Name, Beschreibung, Autor, Display, Canvas-Größe, Anleitung
+- **Render-URL** mit Copy-Button zum einfachen Einbinden
+- **PNG-Download** des aktuell gerenderten Bildes
 
 ### Online Template Editor
 - Web-basiertes Editing-Tool für Templates
@@ -168,7 +171,9 @@ Gilt für: Template-Namen, hochgeladene Asset-Dateien
 | Datenbank | SQLite |
 | E-Mail | Eigener SMTP-Server — Konfiguration via Umgebungsvariablen in docker-compose.yml |
 | API-Struktur | Template-Name als erstes URL-Segment: `POST /{template}/render`, `GET /{template}/edit` |
-| Caching | Dateibasiert (SHA1-Hash wie bisher), mit automatischem Cleanup-Mechanismus |
+| Caching | Dateibasiert (SHA-256), mit automatischem Cleanup-Mechanismus |
+| Versionierung | `VERSION`-Datei (vX.Y.Z), Patch auto-increment bei Build, per ldflags in Binary |
+| HTTPS | Redirect für alle Routen außer `/render` (Microcontroller brauchen HTTP) |
 
 ## Hinweise / Kontext
 

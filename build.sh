@@ -12,14 +12,24 @@ set -euo pipefail
 #   Usage:
 #     ./build.sh                  → desktop binaries + local Docker image (current arch)
 #     DOCKER_PUSH=1 ./build.sh    → desktop binaries + multi-arch push to registry
-#     IMAGE_TAG=v1.2.3 ./build.sh → override image tag
 
 export PATH="$HOME/go/bin:$PATH"
 
-LDFLAGS="-s -w"
+# ── Auto-increment patch version ─────────────────────────────────────────────
+VERSION_FILE="VERSION"
+CURRENT_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+MAJOR_MINOR=$(echo "$CURRENT_VERSION" | sed 's/\.[0-9]*$//')
+PATCH=$(echo "$CURRENT_VERSION" | grep -o '[0-9]*$')
+PATCH=$((PATCH + 1))
+NEW_VERSION="${MAJOR_MINOR}.${PATCH}"
+echo "$NEW_VERSION" > "$VERSION_FILE"
+echo "Version: $NEW_VERSION"
+
+VERSION_PKG="github.com/webfraggle/zza-generate-images/internal/version"
+LDFLAGS="-s -w -X ${VERSION_PKG}.Version=${NEW_VERSION}"
 OUTDIR="dist"
 IMAGE="ghcr.io/webfraggle/zza-generate-images"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+IMAGE_TAG="$NEW_VERSION"
 DOCKER_PUSH="${DOCKER_PUSH:-0}"
 
 mkdir -p "$OUTDIR"
@@ -90,6 +100,7 @@ elif [[ "$DOCKER_PUSH" == "1" ]]; then
 
     if docker buildx build \
         --platform linux/arm64,linux/amd64 \
+        --build-arg ZZA_VERSION="$NEW_VERSION" \
         $BUILD_TAGS \
         --push \
         .; then
@@ -115,6 +126,7 @@ else
     if docker build \
         --build-arg TARGETOS=linux \
         --build-arg TARGETARCH="${LOCAL_PLATFORM#linux/}" \
+        --build-arg ZZA_VERSION="$NEW_VERSION" \
         --tag "$IMAGE:$IMAGE_TAG" \
         .; then
         echo "  → $IMAGE:$IMAGE_TAG (loaded into local Docker)"
