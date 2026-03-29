@@ -25,6 +25,13 @@
   <form method="POST" action="/create-new" id="create-form">
 
     <div class="form-group">
+      <label for="email">E-Mail-Adresse</label>
+      <input type="email" id="email" name="email" required autocomplete="email"
+             placeholder="name@example.com"
+             value="{{.Email}}">
+    </div>
+
+    <div class="form-group">
       <label for="template-id">Template-ID</label>
       <input type="text" id="template-id" name="id" required
              pattern="[a-z0-9\-]+" maxlength="64"
@@ -32,19 +39,6 @@
              value="{{.ID}}"
              autocomplete="off">
       <span id="id-status" class="field-hint" aria-live="polite"></span>
-    </div>
-
-    <div class="form-group">
-      <label for="title">Titel</label>
-      <input type="text" id="title" name="title" required maxlength="80"
-             placeholder="Mein Zugzielanzeiger"
-             value="{{.Title}}">
-    </div>
-
-    <div class="form-group">
-      <label for="description">Beschreibung <span class="label-optional">(optional)</span></label>
-      <textarea id="description" name="description" maxlength="300"
-                placeholder="Kurze Beschreibung des Templates">{{.Description}}</textarea>
     </div>
 
     <div class="form-group">
@@ -64,10 +58,16 @@
     </div>
 
     <div class="form-group">
-      <label for="email">E-Mail-Adresse</label>
-      <input type="email" id="email" name="email" required autocomplete="email"
-             placeholder="name@example.com"
-             value="{{.Email}}">
+      <label for="title">Titel</label>
+      <input type="text" id="title" name="title" required maxlength="80"
+             placeholder="Mein Zugzielanzeiger"
+             value="{{.Title}}">
+    </div>
+
+    <div class="form-group">
+      <label for="description">Beschreibung <span class="label-optional">(optional)</span></label>
+      <textarea id="description" name="description" maxlength="300"
+                placeholder="Kurze Beschreibung des Templates">{{.Description}}</textarea>
     </div>
 
     <noscript>
