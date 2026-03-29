@@ -23,10 +23,11 @@ type EditorConfig struct {
 
 // editorState holds DB and config for editor HTTP handlers.
 type editorState struct {
-	db   *sql.DB
-	cfg  EditorConfig
-	tmpl *template.Template
-	tdir string // templates directory path
+	db        *sql.DB
+	cfg       EditorConfig
+	tmpl      *template.Template
+	tdir      string // templates directory path
+	ipLimiter *IPLimiter
 }
 
 var emailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`)
@@ -36,11 +37,12 @@ var emailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`)
 // Routes under /edit/{token} are registered on a separate mux (s.editorHandler)
 // to avoid conflicts with the wildcard pattern GET /{template}/preview on the main mux.
 func (s *Server) RegisterEditorRoutes(db *sql.DB, cfg EditorConfig) {
-	es := &editorState{db: db, cfg: cfg, tmpl: s.htmlTmpl, tdir: s.templatesDir}
+	es := &editorState{db: db, cfg: cfg, tmpl: s.htmlTmpl, tdir: s.templatesDir, ipLimiter: NewIPLimiter()}
 
 	// /{template}/edit stays on the main mux — no conflict.
 	s.mux.HandleFunc("GET /{template}/edit", es.handleEditRequest)
 	s.mux.HandleFunc("POST /{template}/edit", es.handleEditSubmit)
+	s.mux.HandleFunc("POST /{template}/request-token", es.handleRequestToken)
 
 	// /edit/{token} routes go on a dedicated mux dispatched via ServeHTTP pre-check.
 	editMux := http.NewServeMux()
