@@ -58,6 +58,24 @@
       </div>
     </div>
   </main>
+  <div id="edit-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-panel">
+      <button class="modal-close" id="modal-close" aria-label="Schließen">&#x00D7;</button>
+      <h2 class="modal-title" id="modal-title">Edit-Link anfordern</h2>
+      <p class="modal-desc">Gib deine E-Mail-Adresse ein. Wir schicken dir einen neuen Editier-Link.</p>
+      <div id="modal-form">
+        <div class="modal-form-group">
+          <label for="modal-email">E-Mail-Adresse</label>
+          <input type="email" id="modal-email" autocomplete="email" placeholder="name@example.com">
+        </div>
+        <div id="modal-error" class="modal-error"></div>
+        <button type="button" id="modal-submit" class="btn btn-primary btn-full" style="margin-top:12px">Senden</button>
+      </div>
+      <div id="modal-success" class="modal-success" style="display:none">
+        Wir haben dir einen Link an deine E-Mail geschickt.
+      </div>
+    </div>
+  </div>
   <script>
     const templateName = "{{.Name}}";
     const textarea    = document.getElementById("json-input");
@@ -191,6 +209,7 @@
 
       function closeModal() {
         overlay.classList.remove('is-open');
+        openBtn.focus();
       }
 
       openBtn.addEventListener('click', openModal);
@@ -207,6 +226,10 @@
         const email = emailInput.value.trim();
         if (!email) {
           errorEl.textContent = 'Bitte gib deine E-Mail-Adresse ein.';
+          return;
+        }
+        if (!emailInput.validity.valid) {
+          errorEl.textContent = 'Bitte gib eine gültige E-Mail-Adresse ein.';
           return;
         }
         submitBtn.disabled    = true;
@@ -235,24 +258,6 @@
       });
     }());
   </script>
-  <div id="edit-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-panel">
-      <button class="modal-close" id="modal-close" aria-label="Schließen">&#x00D7;</button>
-      <h2 class="modal-title" id="modal-title">Edit-Link anfordern</h2>
-      <p class="modal-desc">Gib deine E-Mail-Adresse ein. Wir schicken dir einen neuen Editier-Link.</p>
-      <div id="modal-form">
-        <div class="modal-form-group">
-          <label for="modal-email">E-Mail-Adresse</label>
-          <input type="email" id="modal-email" autocomplete="email" placeholder="name@example.com">
-        </div>
-        <div id="modal-error" class="modal-error"></div>
-        <button type="button" id="modal-submit" class="btn btn-primary btn-full" style="margin-top:12px">Senden</button>
-      </div>
-      <div id="modal-success" class="modal-success" style="display:none">
-        Wir haben dir einen Link an deine E-Mail geschickt.
-      </div>
-    </div>
-  </div>
   <span class="app-version">{{appVersion}}</span>
 </body>
 </html>
