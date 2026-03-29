@@ -71,9 +71,11 @@ func CreateTemplate(templatesDir, templateName, name, description, display strin
 	}
 	yamlData := generateStarterYAML(name, description, display, canvasW, canvasH)
 	if err := os.WriteFile(filepath.Join(dir, "template.yaml"), yamlData, 0o644); err != nil {
+		_ = os.RemoveAll(dir)
 		return fmt.Errorf("editor: writing template.yaml: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "default.json"), starterDefaultJSON, 0o644); err != nil {
+		_ = os.RemoveAll(dir)
 		return fmt.Errorf("editor: writing default.json: %w", err)
 	}
 	return nil
