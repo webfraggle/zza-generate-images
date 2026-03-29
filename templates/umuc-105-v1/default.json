@@ -1,0 +1,43 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 6,
+    "abschnitt": "A-F",
+    "mirrored": false,
+    "intervalTime": 60,
+    "timeFactor": 10,
+    "stationNr": 8000115,
+    "mode": 1,
+    "zug1": {
+        "vonnach": "Mangfallplatz",
+        "nr": "U1",
+        "zeit": "10:15",
+        "via": "",
+        "abw": "",
+        "hinweis": "Richtung Zentrum",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Messestadt Ost",
+        "nr": "U2",
+        "zeit": "10:18",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Neuperlach",
+        "nr": "U7",
+        "zeit": "10:26",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

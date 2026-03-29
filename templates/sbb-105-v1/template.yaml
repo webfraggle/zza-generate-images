@@ -1,0 +1,165 @@
+meta:
+  name: "SBB 1.05\""
+  description: "Schweizer Bundesbahnen, 1.05 Zoll Display"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 240
+    height: 240
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+  - id: italic
+    file: NimbusSanL-RegIta.otf
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Abfahrtszeit (nur wenn nicht infoOnly)
+  - type: text
+    if: "not(isEmpty(zug1.zeit))"
+    value: "{{zug1.zeit}}"
+    x: 3
+    y: 15
+    font: bold
+    size: 20.6
+    color: "#ffffff"
+    align: left
+
+  # Verspätung (gelb), nur wenn > 0
+  - type: text
+    if: "greaterThan(zug1.abw, 0)"
+    value: "+{{zug1.abw}}'"
+    x: 68
+    y: 36
+    font: bold
+    size: 16
+    color: "#fff048"
+    align: left
+
+  # Hinweis-Hintergrund (rot) mit normalen Infos
+  - type: rect
+    if: "not(isEmpty(zug1.hinweis))"
+    x: 3
+    y: 78
+    width: 117
+    height: 29
+    color: "#ff0000"
+
+  # Hinweis-Text
+  - type: text
+    if: "not(isEmpty(zug1.hinweis))"
+    value: "{{zug1.hinweis}}"
+    x: 5
+    y: 80
+    font: regular
+    size: 11
+    color: "#ffffff"
+    align: left
+    max_width: 111
+
+  # Ziel (vonnach)
+  - type: text
+    if: "not(isEmpty(zug1.vonnach))"
+    value: "{{zug1.vonnach}}"
+    x: 5
+    y: 0
+    font: regular
+    size: 20.6
+    color: "#ffffff"
+    align: left
+    width: 111
+    valign: bottom
+    height: 80
+    line_height: 0.8
+
+  # Via-Linie (gepunktete Linie)
+  - type: image
+    if: "not(isEmpty(zug1.via))"
+    file: dottet-line.png
+    x: 129
+    y: 13
+
+  # Via-Stationen (in Schleife von oben nach unten)
+  - type: loop
+    if: "not(isEmpty(zug1.via))"
+    value: "{{zug1.via}}"
+    split_by: "-"
+    var: via
+    max_items: 5
+    layers:
+      - type: image
+        file: dot.png
+        x: 126
+        y: "{{i * 16 + 21}}"
+      - type: text
+        value: "{{via | trim}}"
+        x: 141
+        y: "{{i * 16 + 21}}"
+        font: regular
+        size: 13
+        color: "#ffffff"
+        align: left
+      - type: text
+        value: "{{via | trim}}"
+        x: 141
+        y: "{{i * 16 + 21}}"
+        font: regular
+        size: 13
+        color: "#ffffff"
+        align: left
+
+
+  # Zugnummer — IC-Familie mit Icon (elif-Kette: spezifischstes zuerst)
+  - if: "not(greaterThan(zug1.abw, 0))"
+    layers:
+    - type: image
+      if: "startsWith(zug1.nr, 'ICN')"
+      file: icn.png
+      x: 71
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'IC')"
+      file: ic.png
+      x: 71
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'EC')"
+      file: ec.png
+      x: 65
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'IR')"
+      file: ir.png
+      x: 71
+      y: 17
+    - type: image
+      elif: "startsWith(zug1.nr, 'VAE')"
+      file: vae.png
+      x: 71
+      y: 17
+    - type: text
+      else: true
+      value: "{{zug1.nr}}"
+      x: 74
+      y: 17
+      font: regular
+      size: 11
+      color: "#ffffff"
+      align: left
+
+  # Obere Hälfte auf untere Hälfte spiegeln
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

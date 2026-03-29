@@ -1,0 +1,68 @@
+meta:
+  name: "RhB 0.96\""
+  description: "Rhätische Bahn, 0.96 Zoll Display, Pixel-Fonts"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 160
+    height: 160
+
+fonts:
+  - id: bold
+    file: LLPIXEL3.ttf
+  - id: small
+    file: 04B_03__.TTF
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Zugnummer (schwarzer Bereich oben links)
+  - type: text
+    value: "{{zug1.nr}}"
+    x: 2
+    y: 11
+    font: bold
+    size: 13
+    color: "#000000"
+    align: left
+
+  # Zeit + Ziel (gelb)
+  - type: text
+    value: "{{zug1.zeit}} {{zug1.vonnach}}"
+    x: 2
+    y: 25
+    font: bold
+    size: 13
+    color: "#ffde00"
+    align: left
+    max_width: 156
+
+  # Via-Stationen (kleine Pixel-Schrift)
+  - type: loop
+    if: "not(isEmpty(zug1.via))"
+    value: "{{zug1.via}}"
+    split_by: "-"
+    var: via
+    max_items: 4
+    layers:
+      - type: text
+        value: "{{via | trim}}"
+        x: "{{i * 30 + 40}}"
+        y: 4
+        font: small
+        size: 7
+        color: "#ffde00"
+        align: left
+
+  # Obere Hälfte auf untere Hälfte spiegeln
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 160
+    src_height: 80
+    x: 0
+    y: 81

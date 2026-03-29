@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editor — {{.TemplateName}} — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="editor-page">
+
+<header class="editor-header">
+  <a href="/{{.TemplateName}}">← Vorschau</a>
+  <h1>Editor</h1>
+  <span class="editor-template-name">{{.TemplateName}}</span>
+</header>
+
+<div class="editor-3col">
+
+  <!-- ── Left: file list ──────────────────────────────── -->
+  <aside class="editor-files">
+    <div class="files-toolbar">
+      <span class="pane-label">Dateien</span>
+      <label class="btn-icon" title="Datei hochladen (.png .jpg .ttf .otf)">
+        +
+        <input type="file" id="file-upload" accept=".png,.jpg,.jpeg,.ttf,.otf" hidden>
+      </label>
+    </div>
+    <ul id="file-list" class="file-list"></ul>
+    <p id="upload-status" class="upload-status" hidden></p>
+  </aside>
+
+  <!-- ── Middle: code editor ──────────────────────────── -->
+  <div class="editor-code-col">
+    <div class="code-toolbar">
+      <span id="active-file" class="pane-label">template.yaml</span>
+      <button id="btn-save" class="btn btn-primary btn-sm">Speichern</button>
+    </div>
+    <div id="cm-host" class="cm-host"></div>
+    <p id="save-status" class="save-status" hidden></p>
+  </div>
+
+  <!-- ── Right: JSON + preview ────────────────────────── -->
+  <div class="editor-right">
+    <div class="right-section json-section">
+      <span class="pane-label">Test-JSON</span>
+      <textarea id="json-input" spellcheck="false"></textarea>
+    </div>
+    <div class="right-section preview-section">
+      <span class="pane-label">Vorschau</span>
+      <div id="preview-wrap" class="preview-wrap">
+        <div id="spinner" class="spinner" hidden></div>
+        <img id="preview-img" alt="" hidden>
+        <span id="no-preview" class="no-preview">—</span>
+        <pre id="render-error" class="render-error-box" hidden></pre>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .editor-3col -->
+
+<script type="module">
+// ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
+// EditorView constructor accepts doc+extensions directly — no EditorState needed.
+// ?deps= pins shared @codemirror/state to the same instance as codemirror.
+import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
+import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?deps=codemirror@6.0.1';
+import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
+import { indentationMarkers } from 'https://esm.sh/@replit/codemirror-indentation-markers@6.5.3?deps=codemirror@6.0.1';
+import { indentMore, indentLess } from 'https://esm.sh/@codemirror/commands@6.10.3?deps=codemirror@6.0.1';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const TOKEN    = '{{.Token}}';
+const TEMPLATE = '{{.TemplateName}}';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentFile  = 'template.yaml';
+let cmView       = null;
+let prevBlobUrl  = null; // for revoking old preview blob URLs
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const fileList    = document.getElementById('file-list');
+const cmHost      = document.getElementById('cm-host');
+const activeLabel = document.getElementById('active-file');
+const btnSave     = document.getElementById('btn-save');
+const saveStatus  = document.getElementById('save-status');
+const jsonInput   = document.getElementById('json-input');
+const spinner     = document.getElementById('spinner');
+const previewImg  = document.getElementById('preview-img');
+const noPreview   = document.getElementById('no-preview');
+const renderErr   = document.getElementById('render-error');
+
+const uploadInput = document.getElementById('file-upload');
+const uploadStatus= document.getElementById('upload-status');
+
+// ── File list ─────────────────────────────────────────────────────────────────
+async function loadFiles() {
+  const res = await fetch(`/edit/${TOKEN}/files`);
+  if (!res.ok) {
+    fileList.innerHTML = '<li class="file-item" style="color:var(--red)">Fehler beim Laden</li>';
+    return;
+  }
+  const { files } = await res.json();
+
+  fileList.innerHTML = '';
+  for (const f of (files || [])) {
+    const li = document.createElement('li');
+    li.className = 'file-item' + (f.name === currentFile ? ' active' : '');
+    li.dataset.name = f.name;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'file-name' + (f.editable ? ' clickable' : '');
+    nameSpan.textContent = f.name;
+    if (f.editable) nameSpan.addEventListener('click', () => openFile(f.name));
+    li.appendChild(nameSpan);
+
+    if (f.deletable) {
+      const del = document.createElement('button');
+      del.className = 'btn-delete';
+      del.title = 'Löschen';
+      del.textContent = '×';
+      del.addEventListener('click', e => { e.stopPropagation(); deleteFile(f.name); });
+      li.appendChild(del);
+    }
+    fileList.appendChild(li);
+  }
+}
+
+// ── Open file in editor ───────────────────────────────────────────────────────
+async function openFile(name) {
+  const res = await fetch(`/edit/${TOKEN}/file/${encodeURIComponent(name)}`);
+  if (!res.ok) { showSaveStatus('Datei konnte nicht geladen werden.', true); return; }
+  const content = await res.text();
+
+  currentFile = name;
+  activeLabel.textContent = name;
+  hideSaveStatus();
+
+  // Update active highlight in list.
+  document.querySelectorAll('.file-item').forEach(li =>
+    li.classList.toggle('active', li.dataset.name === name)
+  );
+
+  // Build CodeMirror editor.
+  const lang = name.endsWith('.yaml') ? yaml() : jsonLang();
+  if (cmView) cmView.destroy();
+  cmView = new EditorView({
+    doc: content,
+    extensions: [basicSetup, lang, indentationMarkers()],
+    parent: cmHost,
+  });
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+btnSave.addEventListener('click', saveFile);
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    e.preventDefault();
+    saveFile();
+  }
+});
+
+// Tab/Shift-Tab: alle markierten Zeilen ein- bzw. ausrücken.
+// indentMore/indentLess arbeiten korrekt auf Mehrfach-Selektion.
+cmHost.addEventListener('keydown', e => {
+  if (e.key === 'Tab' && cmView) {
+    e.preventDefault();
+    e.shiftKey ? indentLess(cmView) : indentMore(cmView);
+  }
+});
+
+async function saveFile() {
+  if (!cmView) return;
+  const content = cmView.state.doc.toString();
+  const res = await fetch(`/edit/${TOKEN}/save`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ filename: currentFile, content }),
+  });
+  if (res.ok) {
+    showSaveStatus('Gespeichert ✓', false);
+    setTimeout(hideSaveStatus, 2500);
+    schedulePreview(); // re-render after every save (YAML or JSON)
+  } else {
+    showSaveStatus('Fehler beim Speichern.', true);
+  }
+}
+
+function showSaveStatus(msg, isError) {
+  saveStatus.textContent = msg;
+  saveStatus.className = 'save-status' + (isError ? ' error-text' : ' ok-text');
+  saveStatus.hidden = false;
+}
+function hideSaveStatus() { saveStatus.hidden = true; }
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+let previewTimer = null;
+
+jsonInput.addEventListener('input', schedulePreview);
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(renderPreview, 600);
+}
+
+async function renderPreview() {
+  const body = jsonInput.value.trim();
+  if (!body) return;
+
+  spinner.hidden    = false;
+  previewImg.hidden = true;
+  noPreview.hidden  = true;
+  renderErr.hidden  = true;
+
+  try {
+    const res = await fetch(`/${TEMPLATE}/render`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    if (!res.ok) {
+      const msg = (await res.text()).trim();
+      renderErr.textContent = msg;
+      renderErr.hidden = false;
+    } else {
+      if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
+      prevBlobUrl       = URL.createObjectURL(await res.blob());
+      previewImg.src    = prevBlobUrl;
+      previewImg.hidden = false;
+    }
+  } catch (e) {
+    renderErr.textContent = 'Netzwerkfehler: ' + e.message;
+    renderErr.hidden = false;
+  } finally {
+    spinner.hidden = true;
+  }
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+uploadInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  showUploadStatus('Wird hochgeladen…', false);
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const res = await fetch(`/edit/${TOKEN}/upload`, { method: 'POST', body: fd });
+  if (res.ok) {
+    showUploadStatus('Hochgeladen ✓', false);
+    setTimeout(hideUploadStatus, 2500);
+    await loadFiles();
+  } else {
+    showUploadStatus('Fehler: ' + (await res.text()), true);
+  }
+  e.target.value = '';
+});
+
+function showUploadStatus(msg, isError) {
+  uploadStatus.textContent = msg;
+  uploadStatus.className = 'upload-status' + (isError ? ' error-text' : ' ok-text');
+  uploadStatus.hidden = false;
+}
+function hideUploadStatus() { uploadStatus.hidden = true; }
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function deleteFile(name) {
+  if (!confirm(`"${name}" wirklich löschen?`)) return;
+  const res = await fetch(`/edit/${TOKEN}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  if (res.ok) {
+    if (currentFile === name) openFile('template.yaml');
+    await loadFiles();
+  } else {
+    alert('Fehler beim Löschen');
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  await loadFiles();
+  await openFile('template.yaml');
+
+  // Pre-fill JSON from default.json.
+  try {
+    const res = await fetch(`/edit/${TOKEN}/file/default.json`);
+    if (res.ok) {
+      jsonInput.value = await res.text();
+      schedulePreview();
+    }
+  } catch { /* no default.json — that's fine */ }
+}
+
+init();
+</script>
+<span class="app-version">{{appVersion}}</span>
+</body>
+</html>

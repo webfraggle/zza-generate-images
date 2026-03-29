@@ -1,0 +1,17 @@
+[14-Feb-2026 16:29:19 UTC] PHP Warning:  imagecreatefrompng(./img/bg320x270.png): Failed to open stream: No such file or directory in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 78
+[14-Feb-2026 16:29:19 UTC] PHP Fatal error:  Uncaught TypeError: imagesx(): Argument #1 ($image) must be of type GdImage, false given in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php:79
+Stack trace:
+#0 /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php(79): imagesx()
+#1 {main}
+  thrown in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 79
+[14-Feb-2026 16:33:55 UTC] PHP Warning:  Undefined variable $s in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 87
+[14-Feb-2026 16:33:55 UTC] PHP Warning:  Undefined variable $s in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 87
+[14-Feb-2026 16:33:55 UTC] PHP Warning:  Undefined variable $s in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 87
+[14-Feb-2026 16:33:55 UTC] PHP Warning:  Undefined variable $s in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 87
+[16-Feb-2026 18:10:18 UTC] PHP Warning:  file_get_contents(https://social-media-users-data-api-production.lightricks.workers.dev/instagram?username=webfraggle): Failed to open stream: HTTP request failed! in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 54
+[16-Feb-2026 18:10:18 UTC] PHP Warning:  Attempt to read property "followersCount" on null in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 65
+[17-Feb-2026 17:31:27 UTC] PHP Warning:  file_get_contents(https://social-media-users-data-api-production.lightricks.workers.dev/instagram?username=webfraggle): Failed to open stream: HTTP request failed! in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 54
+[17-Feb-2026 17:31:27 UTC] PHP Warning:  Attempt to read property "followersCount" on null in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/insta320x170.php on line 65
+[17-Feb-2026 17:31:31 UTC] PHP Warning:  Attempt to read property "followersCount" on null in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/index.php on line 65
+[17-Feb-2026 17:31:31 UTC] PHP Deprecated:  imageftbbox(): Passing null to parameter #4 ($string) of type string is deprecated in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/gfx_functions.inc.php on line 11
+[17-Feb-2026 17:31:31 UTC] PHP Deprecated:  imageftbbox(): Passing null to parameter #4 ($string) of type string is deprecated in /home/pl5pnvr8j7bz/public_html/zza2.yuv.de/i/instafollower/gfx_functions.inc.php on line 11

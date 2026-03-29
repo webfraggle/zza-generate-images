@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Template bearbeiten — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="form-page">
+
+<div class="form-card">
+  <h1>Template bearbeiten</h1>
+
+  <p class="form-desc">
+    {{if .IsNew}}
+    Das Template <strong>{{.TemplateName}}</strong> hat noch keinen Besitzer.
+    Gib deine E-Mail-Adresse ein, um es zu übernehmen und einen Editier-Link zu erhalten.
+    {{else}}
+    Gib deine E-Mail-Adresse ein. Du erhältst einen Editier-Link, falls die Adresse
+    mit der registrierten Adresse für <strong>{{.TemplateName}}</strong> übereinstimmt.
+    {{end}}
+  </p>
+
+  {{if .Error}}
+  <p class="error-text">{{.Error}}</p>
+  {{end}}
+
+  <form method="POST" action="/{{.TemplateName}}/edit">
+    <div class="form-group">
+      <label for="email">E-Mail-Adresse</label>
+      <input type="email" id="email" name="email" required autocomplete="email"
+             placeholder="name@example.com">
+    </div>
+    <button type="submit" class="btn btn-primary btn-full">
+      Editier-Link anfordern
+    </button>
+  </form>
+</div>
+<span class="app-version">{{appVersion}}</span>
+</body>
+</html>

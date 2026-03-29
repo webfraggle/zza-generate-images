@@ -1,0 +1,46 @@
+services:
+  zza:
+    image: ghcr.io/webfraggle/zza-generate-images:latest
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      TEMPLATES_DIR: /data/templates
+      CACHE_DIR: /data/cache
+      DB_PATH: /data/db/zza.db
+      TZ: Europe/Berlin
+    volumes:
+      - ./templates:/data/templates
+      - cache_data:/data/cache
+      - db_data:/data/db
+    labels:
+      - "traefik.enable=true"
+      # HTTP — Microcontroller-kompatibel, kein Redirect
+      - "traefik.http.routers.zza-http.rule=Host(`gen.yuv.de`)"
+      - "traefik.http.routers.zza-http.entrypoints=web"
+      - "traefik.http.services.zza.loadbalancer.server.port=8080"
+      # HTTPS — optional, kein Zwang
+      - "traefik.http.routers.zza-https.rule=Host(`gen.yuv.de`)"
+      - "traefik.http.routers.zza-https.entrypoints=websecure"
+      - "traefik.http.routers.zza-https.tls.certresolver=letsencrypt"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    networks:
+      - web
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+networks:
+  web:
+    external: true
+
+volumes:
+  cache_data:
+  db_data:

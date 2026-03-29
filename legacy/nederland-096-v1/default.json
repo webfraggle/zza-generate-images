@@ -1,0 +1,43 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 6,
+    "abschnitt": "A-F",
+    "mirrored": false,
+    "intervalTime": 60,
+    "timeFactor": 10,
+    "stationNr": 8000115,
+    "mode": 1,
+    "zug1": {
+        "vonnach": "Den Haag",
+        "nr": "Sprinter",
+        "zeit": "12:49",
+        "via": "via Mariahoeve en Laan v NOI",
+        "abw": "5",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Groningen",
+        "nr": "IC",
+        "zeit": "13:09",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

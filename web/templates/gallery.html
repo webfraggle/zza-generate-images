@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anzeigen-Generator — Galerie</title>
+  <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <span class="brand">Anzeigen-Generator</span>
+    <nav class="header-nav">
+      <a href="/" class="nav-link active">Galerie</a>
+      <a href="/admin" class="nav-link muted">Admin</a>
+    </nav>
+  </header>
+  <main class="gallery">
+    {{range .}}
+    <a class="card" href="/{{.Name}}">
+      <div class="card-preview">
+        {{if .HasDefault}}
+        <img src="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
+        {{else}}
+        <span class="card-no-preview">Keine Vorschau</span>
+        {{end}}
+      </div>
+      <div class="card-info">
+        <strong class="card-name">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</strong>
+        {{if .Meta.Description}}<span class="card-desc">{{.Meta.Description}}</span>{{end}}
+        <span class="card-id">{{if .Meta.Display}}{{.Meta.Display}}{{else}}{{.Name}}{{end}}</span>
+      </div>
+    </a>
+    {{else}}
+    <p style="padding:24px;color:var(--mid)">Keine Templates gefunden.</p>
+    {{end}}
+  </main>
+  <span class="app-version">{{appVersion}}</span>
+</body>
+</html>

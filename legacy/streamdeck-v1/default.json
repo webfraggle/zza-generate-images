@@ -1,0 +1,43 @@
+{
+    "folgezuege": "",
+    "gleis": 6,
+    "abschnitt": "",
+    "mirrored": false,
+    "intervalTime": 60,
+    "timeFactor": 10,
+    "stationNr": 8000115,
+    "mode": 1,
+    "zug1": {
+        "vonnach": "Berlin Ostbahnhof",
+        "nr": "ICE123",
+        "zeit": "10:15",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

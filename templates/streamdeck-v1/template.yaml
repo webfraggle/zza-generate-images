@@ -1,0 +1,62 @@
+meta:
+  name: "Stream Deck v1"
+  description: "Stream Deck Abfahrtstafel, 144×144px"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 144
+    height: 144
+
+fonts:
+  - id: bold
+    file: RobotoCondensed-Bold.ttf
+  - id: regular
+    file: RobotoCondensed-Regular.ttf
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Gleis (groß, links oben)
+  - type: text
+    value: "{{gleis}}"
+    x: 4
+    y: 15
+    font: bold
+    size: 41
+    color: "#ffffff"
+    align: left
+
+  # Zugnummer (rechts oben, klein)
+  - type: text
+    value: "{{zug1.nr}}"
+    x: 135
+    y: 26
+    font: bold
+    size: 15
+    color: "#ffffff"
+    align: right
+
+  # Abfahrtszeit (rechts, mittig)
+  - type: text
+    value: "{{zug1.zeit}}"
+    x: 135
+    y: 50
+    font: bold
+    size: 22
+    color: "#ffffff"
+    align: right
+
+  # Ziel (links unten)
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 8
+    y: 78
+    font: regular
+    size: 18
+    color: "#ffffff"
+    align: left
+    max_width: 132

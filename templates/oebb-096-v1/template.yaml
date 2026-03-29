@@ -1,0 +1,128 @@
+meta:
+  name: "ÖBB 0.96\""
+  description: "Österreichische Bundesbahnen, 0.96 Zoll Display"
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 160
+    height: 160
+
+fonts:
+  - id: bold
+    file: Roboto-Bold.ttf
+  - id: regular
+    file: Roboto-Light.ttf
+
+layers:
+  # Hintergrund
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Aktuelle Uhrzeit (rechts oben)
+  - type: text
+    value: "{{now.hour}}:{{now.minute}}"
+    x: 157
+    y: 9
+    font: regular
+    size: 9
+    color: "#ffffff"
+    align: right
+
+  # Abfahrtszeit + Verspätung (erste Zeile)
+  - type: text
+    value: "{{zug1.zeit}}"
+    x: 0
+    y: 19
+    font: regular
+    size: 8
+    color: "#ffffff"
+    align: left
+
+  - type: text
+    if: "greaterThan(zug1.abw, 0)"
+    value: "+{{zug1.abw}}'"
+    x: 37
+    y: 19
+    font: regular
+    size: 8
+    color: "#fbef52"
+    align: left
+
+  # Ziel (vonnach) — zweite Zeile
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 0
+    y: 29
+    font: regular
+    size: 11
+    color: "#ffffff"
+    align: left
+    max_width: 155
+
+  # Via-Stationen
+  - type: text
+    if: "not(isEmpty(zug1.via))"
+    value: "{{zug1.via}}"
+    x: 2
+    y: 36
+    font: regular
+    size: 8
+    color: "#ffffff"
+    align: left
+    max_width: 156
+
+  # Hinweis-Hintergrund (gelb bei *)
+  - type: rect
+    if: "startsWith(zug1.hinweis, '*')"
+    x: 0
+    y: 59
+    width: 160
+    height: 16
+    color: "#fbef52"
+
+  # Hinweis-Text
+  - type: text
+    if: "not(isEmpty(zug1.hinweis))"
+    value:
+      if: "startsWith(zug1.hinweis, '*')"
+      then: "{{zug1.hinweis | strip('*')}}"
+      else: "{{zug1.hinweis}}"
+    x: 2
+    y: 52
+    font: regular
+    size: 7
+    color:
+      if: "startsWith(zug1.hinweis, '*')"
+      then: "#000000"
+      else: "#ffffff"
+    align: left
+    max_width: 156
+
+  # S-Bahn Icon (wenn Nr mit "S" beginnt)
+  - type: image
+    if: "startsWith(zug1.nr, 'S')"
+    file: s.png
+    x: 37
+    y: 8
+
+  # Zugnummer als Text (ohne S-Bahn Icon)
+  - type: text
+    if: "not(startsWith(zug1.nr, 'S'))"
+    value: "{{zug1.nr}}"
+    x: 37
+    y: 9
+    font: bold
+    size: 9
+    color: "#ffffff"
+    align: left
+
+  # Obere Hälfte auf untere Hälfte spiegeln
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 160
+    src_height: 80
+    x: 0
+    y: 81

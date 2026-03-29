@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cache — Admin — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="admin-page">
+
+<header>
+  <span class="brand">Zugzielanzeiger</span>
+  <nav class="header-nav">
+    <a href="/" class="nav-link">Galerie</a>
+    <a href="/admin" class="nav-link">Admin</a>
+    <a href="/admin/cache" class="nav-link active">Cache</a>
+    <form method="POST" action="/admin/logout" style="margin:0">
+      <button type="submit" class="nav-link nav-link-btn">Abmelden</button>
+    </form>
+  </nav>
+</header>
+
+<main class="admin-main">
+  <div class="admin-toolbar">
+    <h2>Cache-Status</h2>
+  </div>
+
+  <div class="stats-card">
+    <table>
+      <tbody>
+        <tr><th>Verzeichnis</th><td><code>{{.Stats.Dir}}</code></td></tr>
+        <tr><th>Dateien</th><td>{{.Stats.FileCount}}</td></tr>
+        <tr><th>Größe</th><td>{{formatBytes .Stats.TotalBytes}}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <form method="POST" action="/admin/cache/flush" style="margin-top:20px"
+        onsubmit="return confirm('Cache wirklich leeren?')">
+    <button type="submit" class="btn btn-danger">Cache leeren</button>
+  </form>
+</main>
+<span class="app-version">{{appVersion}}</span>
+</body>
+</html>

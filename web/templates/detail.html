@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}} — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <span class="brand">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</span>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">Galerie</a>
+      <a href="/{{.Name}}/edit" class="nav-link active">Vorschau</a>
+    </nav>
+  </header>
+  <main class="editor">
+    <div class="editor-pane">
+      <span class="pane-label">JSON-Daten</span>
+      <textarea id="json-input" spellcheck="false">{{.DefaultJSON}}</textarea>
+      <div id="error-msg" class="error"></div>
+    </div>
+    <div class="preview-pane">
+      <span class="pane-label">Vorschau</span>
+      <div class="preview-card">
+        <div id="spinner" class="spinner" style="display:none"></div>
+        <div class="preview-halves" id="preview-halves" style="display:none">
+          <div class="canvas-frame"><canvas id="canvas-top"></canvas></div>
+          <div class="canvas-divider"></div>
+          <div class="canvas-frame"><canvas id="canvas-bottom"></canvas></div>
+        </div>
+      </div>
+      <div class="template-info">
+        <div class="info-left">
+          <h2 class="info-name">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</h2>
+          {{if .Meta.Description}}<div class="info-section"><span class="info-label">Beschreibung</span><p>{{.Meta.Description}}</p></div>{{end}}
+          {{if .Meta.Author}}<p class="info-kv"><span class="info-key">Autor</span> <span class="info-val">{{.Meta.Author}}</span></p>{{end}}
+          {{if .Meta.Display}}<p class="info-kv"><span class="info-key">Display</span> <span class="info-val">{{.Meta.Display}}</span></p>{{end}}
+          {{if .Meta.Canvas.Width}}<p class="info-kv"><span class="info-key">Canvas</span> <span class="info-val">{{.Meta.Canvas.Width}} × {{.Meta.Canvas.Height}} px</span></p>{{end}}
+          {{if .Meta.Instructions}}<div class="info-section"><span class="info-label">Anleitung</span><p>{{.Meta.Instructions}}</p></div>{{end}}
+          <div class="info-render-url">
+            <span class="info-label">Render-URL</span>
+            <div class="render-url-row">
+              <code id="render-url"></code>
+              <button id="copy-url-btn" class="btn-copy" title="URL kopieren">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.5"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="info-right">
+          <button id="download-btn" class="btn btn-primary" disabled>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="vertical-align:-2px;margin-right:6px"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>PNG herunterladen
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script>
+    const templateName = "{{.Name}}";
+    const textarea    = document.getElementById("json-input");
+    const errorMsg    = document.getElementById("error-msg");
+    const spinner     = document.getElementById("spinner");
+    const halves      = document.getElementById("preview-halves");
+    const canvasTop   = document.getElementById("canvas-top");
+    const canvasBot   = document.getElementById("canvas-bottom");
+    const renderUrlEl = document.getElementById("render-url");
+    const copyBtn     = document.getElementById("copy-url-btn");
+    const downloadBtn = document.getElementById("download-btn");
+    let currentURL    = null;
+    let currentBlob   = null;
+    let debounce;
+
+    const renderUrl = window.location.origin + "/" + templateName + "/render";
+    renderUrlEl.textContent = renderUrl;
+
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(renderUrl).then(() => {
+        copyBtn.classList.add("copied");
+        setTimeout(() => copyBtn.classList.remove("copied"), 1500);
+      });
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      if (!currentBlob) return;
+      const url = URL.createObjectURL(currentBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = templateName + ".png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    function drawSplit(src) {
+      const img = new Image();
+      img.onload = () => {
+        const w  = img.naturalWidth;
+        const h  = img.naturalHeight;
+        const h1 = Math.floor(h / 2);
+        const h2 = h - h1;
+
+        canvasTop.width  = w;  canvasTop.height  = h1;
+        canvasBot.width  = w;  canvasBot.height  = h2;
+
+        canvasTop.getContext("2d").drawImage(img, 0,  0, w, h1, 0, 0, w, h1);
+        canvasBot.getContext("2d").drawImage(img, 0, h1, w, h2, 0, 0, w, h2);
+
+        halves.style.display = "flex";
+        spinner.style.display = "none";
+        downloadBtn.disabled = false;
+      };
+      img.src = src;
+    }
+
+    textarea.addEventListener("input", () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(render, 600);
+    });
+
+    async function render() {
+      let body;
+      try {
+        body = JSON.stringify(JSON.parse(textarea.value));
+        errorMsg.textContent = "";
+      } catch (e) {
+        errorMsg.textContent = "Ungültiges JSON: " + e.message;
+        return;
+      }
+
+      spinner.style.display = "block";
+      halves.style.display  = "none";
+
+      try {
+        const resp = await fetch("/" + templateName + "/render", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: body,
+        });
+        if (!resp.ok) {
+          const text = await resp.text();
+          errorMsg.textContent = "Fehler " + resp.status + ": " + text.trim();
+          spinner.style.display = "none";
+          return;
+        }
+        const blob = await resp.blob();
+        currentBlob = blob;
+        const oldURL = currentURL;
+        currentURL = URL.createObjectURL(blob);
+        drawSplit(currentURL);
+        if (oldURL) URL.revokeObjectURL(oldURL);
+      } catch (e) {
+        errorMsg.textContent  = "Netzwerkfehler: " + e.message;
+        spinner.style.display = "none";
+      }
+    }
+
+    {{if .HasDefault}}
+    spinner.style.display = "block";
+    fetch("/{{.Name}}/preview").then(r => r.blob()).then(blob => {
+      currentBlob = blob;
+      currentURL = URL.createObjectURL(blob);
+      drawSplit(currentURL);
+    });
+    {{end}}
+  </script>
+  <span class="app-version">{{appVersion}}</span>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Zugzielanzeiger</title>
+  <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="admin-page">
+
+<header>
+  <span class="brand">Zugzielanzeiger</span>
+  <nav class="header-nav">
+    <a href="/" class="nav-link">Galerie</a>
+    <a href="/admin" class="nav-link active">Admin</a>
+    <a href="/admin/cache" class="nav-link">Cache</a>
+    <form method="POST" action="/admin/logout" style="margin:0">
+      <button type="submit" class="nav-link nav-link-btn">Abmelden</button>
+    </form>
+  </nav>
+</header>
+
+<main class="admin-main">
+  <div class="admin-toolbar">
+    <h2>Templates</h2>
+    <a href="/admin/cache" class="btn btn-sm btn-secondary">Cache-Status</a>
+  </div>
+
+  {{if .Templates}}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Anzeigename</th>
+        <th>Besitzer</th>
+        <th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Templates}}
+      <tr id="row-{{.Name}}">
+        <td><code>{{.Name}}</code></td>
+        <td>{{if .MetaName}}{{.MetaName}}{{else}}<span class="muted">—</span>{{end}}</td>
+        <td>{{if .Owner}}{{.Owner}}{{else}}<span class="muted">—</span>{{end}}</td>
+        <td class="admin-actions">
+          <a href="/admin/{{.Name}}" class="btn btn-sm btn-primary">Bearbeiten</a>
+          <button class="btn btn-sm btn-danger"
+                  onclick="deleteTemplate('{{.Name}}')">Löschen</button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="muted">Keine Templates vorhanden.</p>
+  {{end}}
+</main>
+
+<script>
+async function deleteTemplate(name) {
+  if (!confirm(`Template "${name}" wirklich löschen? Alle Dateien werden entfernt.`)) return;
+  const res = await fetch(`/admin/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  if (res.ok) {
+    const row = document.getElementById(`row-${name}`);
+    if (row) row.remove();
+  } else {
+    alert('Fehler beim Löschen: ' + res.status);
+  }
+}
+</script>
+<span class="app-version">{{appVersion}}</span>
+</body>
+</html>

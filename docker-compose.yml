@@ -1,0 +1,30 @@
+services:
+  zza:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      TEMPLATES_DIR: /data/templates
+      CACHE_DIR: /data/cache
+      DB_PATH: /data/db/zza.db
+    volumes:
+      - ./templates:/data/templates
+      - cache_data:/data/cache
+      - db_data:/data/db
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+volumes:
+  cache_data:
+  db_data:

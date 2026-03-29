@@ -1,0 +1,44 @@
+meta:
+  name: "Rotation Test"
+  description: ""
+  author: "christoph"
+  version: "1.0"
+  canvas:
+    width: 240
+    height: 240
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Hintergrund
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 240
+    color: "#ffffff"
+
+  # Bild: 46×46px, Zentrum bei (211,56); x=188, y=33
+  - type: image
+    file: clock-hour.png
+    x: 10
+    y: 10
+    rotate: 0
+
+  # Uhrzeiger (Minuten)
+  - type: image
+    file: clock-minutes.png
+    x: 188
+    y: 33
+    rotate: "0"
+
+  # Sekunden-Zeiger
+  - type: image
+    file: clock-sec.png
+    x: 120
+    y: 120
+    rotate: 7
