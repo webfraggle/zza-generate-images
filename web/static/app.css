@@ -223,8 +223,8 @@ header {
 .btn-secondary:hover { color: var(--ink); border-color: var(--border-strong); }
 
 .btn-level2 {
-  background: #ffffff;
-  color: #444444;
+  background: var(--surface);
+  color: var(--text-color);
   border-color: var(--border);
 }
 .btn-level2:hover { border-color: var(--border-strong); color: var(--ink); }
