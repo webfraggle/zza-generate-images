@@ -56,11 +56,22 @@ Gesammelte Ideen und Anforderungen — noch nicht priorisiert oder umgesetzt.
 - **Kein Login-System** — Authentifizierung nur via E-Mail-Link
 
 #### Flow: Neues Template anlegen
-1. User gibt gewünschten Template-Namen ein
-2. System prüft ob Name bereits existiert
-3. Falls frei: User gibt E-Mail-Adresse ein
-4. System speichert E-Mail zur Template-ID (nicht öffentlich auslesbar)
-5. Zeitlich begrenzter Editier-Link wird an die Mail geschickt
+Einstieg über „+ Neues Template"-Link in der Galerie-Navigation → `/create-new`.
+
+**Formularfelder (in dieser Reihenfolge):**
+1. E-Mail-Adresse (Pflicht)
+2. Template-ID — Kleinbuchstaben, Ziffern, Bindestriche, max. 64 Zeichen (Pflicht); async Verfügbarkeits-Check mit 300-ms-Debounce, Submit-Button bleibt deaktiviert bis ID frei ist
+3. Display-Größe — Radio: `1.05"` (240×240 px) oder `0.96"` (160×160 px)
+4. Titel (Pflicht, max. 80 Zeichen)
+5. Beschreibung (optional, max. 300 Zeichen)
+
+**Server-seitige Verarbeitung:**
+- `os.Mkdir` legt Template-Verzeichnis an (schlägt bei Doppel-Request atomisch fehl)
+- Starter-`template.yaml` + `default.json` werden sofort geschrieben
+- `RequestToken()` registriert E-Mail-Besitz in SQLite und versendet Editier-Link
+- Bei Fehler: Rollback via `os.RemoveAll` + ggf. DB-Cleanup
+
+**Ergebnis:** Bestätigungsseite `/create-new` (POST-Redirect) zeigt Template-Name und E-Mail-Adresse; User klickt Link in der Mail → Editor öffnet sich direkt.
 
 #### Flow: Bestehendes Template editieren
 1. User gibt Template-Namen ein

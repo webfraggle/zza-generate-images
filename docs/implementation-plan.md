@@ -783,6 +783,34 @@ Kleinere Features und Verbesserungen nach dem MVP-Launch.
 - Alle Routen außer `POST /{template}/render` werden auf HTTPS umgeleitet (via `X-Forwarded-Proto`)
 - Render-Route bleibt HTTP-fähig für Microcontroller ohne TLS
 
+### `/create-new` — Neues Template anlegen (2026-03-29)
+
+User-Flow zum Anlegen neuer Templates über eine Webseite.
+
+**Neue Dateien:**
+- `internal/editor/create.go` — `CreateTemplate()`, `generateStarterYAML()`, `yamlEscapeStr()`
+- `internal/editor/create_test.go` — 4 Unit-Tests
+- `internal/server/create_handlers.go` — `RegisterCreateRoutes()`, `handleCreateNew`, `handleCreateSubmit`, `handleCreateCheck`
+- `internal/server/create_handlers_test.go` — 7 Handler-Tests (In-Memory-SQLite)
+- `web/templates/create-new.html` — Formular mit async ID-Check
+- `web/templates/create-sent.html` — Bestätigungsseite nach Einreichung
+
+**Geänderte Dateien:**
+- `web/static/app.css` — CSS für Radio-Gruppe, Textarea, Hinweistexte (`.field-hint--ok/error/checking`)
+- `web/templates/gallery.html` — Nav-Link „+ Neues Template" → `/create-new`
+- `cmd/zza/main.go` — `srv.RegisterCreateRoutes(database, ...)` registriert
+
+**Flow:**
+1. `GET /create-new` → Formular (E-Mail, Template-ID, Display-Größe, Titel, Beschreibung)
+2. `GET /create-new/check?id=foo` → JSON `{"available": true/false, "reason": "..."}` (Debounce 300 ms)
+3. `POST /create-new` → Validierung → `CreateTemplate()` (Verzeichnis + YAML + default.json) → `RequestToken()` → E-Mail → `create-sent.html`
+
+**Template-Größen:**
+- `1.05"` → 240×240 px
+- `0.96"` → 160×160 px
+
+**Atomarität:** `os.Mkdir` (nicht `MkdirAll`) schlägt bei Doppel-Requests fehl; Rollback via `os.RemoveAll` bei Fehler; DB-Row-Cleanup bei fehlgeschlagenem `RequestToken`.
+
 ---
 
 ## Reihenfolge & Abhängigkeiten
@@ -799,6 +827,7 @@ Phase 8 (Template-Portierung)               ✅
 Phase 9 (Binaries + Docker) — MVP-Launch    ✅
 Phase 10 (Frontend-Design & UX)             ✅
 Post-Phase-10 (Erweiterungen)               ✅ 2026-03-29
+  └── /create-new (Neues Template anlegen)  ✅ 2026-03-29
 ```
 
 ---
