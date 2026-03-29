@@ -115,6 +115,19 @@ func serveCmd() *cobra.Command {
 				},
 			})
 
+			// Register create-new routes (same config as editor).
+			srv.RegisterCreateRoutes(database, server.EditorConfig{
+				TokenTTL: time.Duration(cfg.EditTokenTTLHours) * time.Hour,
+				Mail: editor.MailConfig{
+					Host:    cfg.SMTPHost,
+					Port:    cfg.SMTPPort,
+					User:    cfg.SMTPUser,
+					Pass:    cfg.SMTPPass,
+					From:    cfg.SMTPFrom,
+					BaseURL: cfg.BaseURL,
+				},
+			})
+
 			// Start cache cleanup every 15 minutes.
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
