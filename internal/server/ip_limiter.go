@@ -72,3 +72,16 @@ func (l *IPLimiter) RecordSuccess(ip string) {
 	defer l.mu.Unlock()
 	delete(l.entries, ip)
 }
+
+// Cleanup removes entries for IPs whose block has expired.
+// Call periodically to prevent unbounded map growth.
+func (l *IPLimiter) Cleanup() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := time.Now()
+	for ip, e := range l.entries {
+		if e.blockedUntil.IsZero() || now.After(e.blockedUntil) {
+			delete(l.entries, ip)
+		}
+	}
+}

@@ -39,6 +39,15 @@ var emailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]{2,}$`)
 func (s *Server) RegisterEditorRoutes(db *sql.DB, cfg EditorConfig) {
 	es := &editorState{db: db, cfg: cfg, tmpl: s.htmlTmpl, tdir: s.templatesDir, ipLimiter: NewIPLimiter()}
 
+	// Start periodic cleanup of the IP limiter to prevent unbounded map growth.
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			es.ipLimiter.Cleanup()
+		}
+	}()
+
 	// /{template}/edit stays on the main mux — no conflict.
 	s.mux.HandleFunc("GET /{template}/edit", es.handleEditRequest)
 	s.mux.HandleFunc("POST /{template}/edit", es.handleEditSubmit)
@@ -135,12 +144,25 @@ func (es *editorState) handleEditSubmit(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Check IP rate limit.
+	ip := clientIP(r)
+	if !es.ipLimiter.Allow(ip) {
+		d := editRequestData{
+			TemplateName: templateName,
+			Error:        "Zu viele Fehlversuche. Bitte versuche es in 6 Stunden erneut.",
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = es.tmpl.ExecuteTemplate(w, "edit-request.html", d)
+		return
+	}
+
 	// Issue token.
 	tok, err := editor.RequestToken(es.db, templateName, email, es.cfg.TokenTTL)
 	if err != nil {
 		var msg string
 		switch {
 		case errors.Is(err, editor.ErrEmailMismatch):
+			es.ipLimiter.RecordFailure(ip)
 			msg = "Diese E-Mail-Adresse ist nicht als Besitzer dieses Templates registriert."
 		case errors.Is(err, editor.ErrRateLimited):
 			msg = "Zu viele Anfragen. Bitte versuche es in einer Stunde erneut."
@@ -153,6 +175,8 @@ func (es *editorState) handleEditSubmit(w http.ResponseWriter, r *http.Request) 
 		_ = es.tmpl.ExecuteTemplate(w, "edit-request.html", d)
 		return
 	}
+
+	es.ipLimiter.RecordSuccess(ip)
 
 	// Send email (best-effort — don't block on SMTP misconfiguration in dev).
 	if es.cfg.Mail.Host != "" {

@@ -50,6 +50,26 @@ func TestIPLimiter_RecordSuccessResets(t *testing.T) {
 	}
 }
 
+func TestIPLimiter_CleanupRemovesExpiredEntries(t *testing.T) {
+	l := NewIPLimiter()
+	for i := 0; i < maxIPFailures; i++ {
+		l.RecordFailure("1.2.3.4")
+	}
+	// Expire the block.
+	l.mu.Lock()
+	l.entries["1.2.3.4"].blockedUntil = time.Now().Add(-time.Minute)
+	l.mu.Unlock()
+
+	l.Cleanup()
+
+	l.mu.Lock()
+	_, exists := l.entries["1.2.3.4"]
+	l.mu.Unlock()
+	if exists {
+		t.Error("expected entry to be removed after Cleanup")
+	}
+}
+
 func TestIPLimiter_CounterResetsAfterExpiry(t *testing.T) {
 	l := NewIPLimiter()
 	// Get blocked.
