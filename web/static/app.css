@@ -282,6 +282,71 @@ label {
 
 .form-group { margin-bottom: 16px; }
 
+/* Radio group for display size selection */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95em;
+  cursor: pointer;
+}
+
+/* Optional label hint */
+.label-optional {
+  font-weight: 400;
+  color: var(--text-mid);
+  font-size: 0.875em;
+}
+
+/* Textarea styling (consistent with text inputs) */
+textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 1em;
+  background: var(--surface);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 72px;
+  box-sizing: border-box;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(253,112,20,.12);
+}
+
+/* ID availability check status */
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.875em;
+  color: var(--text-mid);
+  min-height: 1.2em;
+}
+
+.field-hint--ok {
+  color: var(--green);
+}
+
+.field-hint--error {
+  color: var(--red);
+}
+
+.field-hint--checking {
+  color: var(--text-mid);
+}
+
 /* ── FORM / AUTH CARD ───────────────────────────────────────────────────────── */
 body.form-page {
   display: flex;

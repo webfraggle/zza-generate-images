@@ -31,7 +31,7 @@
              placeholder="mein-template"
              value="{{.ID}}"
              autocomplete="off">
-      <span id="id-status" class="field-hint"></span>
+      <span id="id-status" class="field-hint" aria-live="polite"></span>
     </div>
 
     <div class="form-group">
@@ -69,6 +69,12 @@
              placeholder="name@example.com"
              value="{{.Email}}">
     </div>
+
+    <noscript>
+      <p class="form-note" style="margin-top:12px">
+        JavaScript ist erforderlich, um die Template-ID zu prüfen und das Formular abzuschicken.
+      </p>
+    </noscript>
 
     <button type="submit" id="submit-btn" class="btn btn-primary btn-full" disabled>
       Template anlegen
