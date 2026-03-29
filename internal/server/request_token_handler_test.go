@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func newTestEditorServer(t *testing.T) (*Server, *sql.DB) {
 
 func postRequestToken(t *testing.T, srv *Server, templateName, email string) map[string]any {
 	t.Helper()
-	body := strings.NewReader("email=" + email)
+	body := strings.NewReader(url.Values{"email": {email}}.Encode())
 	req := httptest.NewRequest(http.MethodPost, "/"+templateName+"/request-token", body)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
@@ -54,7 +55,7 @@ func postRequestToken(t *testing.T, srv *Server, templateName, email string) map
 
 func TestRequestToken_NoOwner(t *testing.T) {
 	srv, _ := newTestEditorServer(t)
-	resp := postRequestToken(t, srv, "no-owner-tmpl", "test%40example.com")
+	resp := postRequestToken(t, srv, "no-owner-tmpl", "test@example.com")
 	if resp["ok"] != false {
 		t.Errorf("expected ok=false, got %v", resp)
 	}
@@ -68,7 +69,7 @@ func TestRequestToken_CorrectEmail(t *testing.T) {
 	if _, err := database.Exec(`INSERT INTO templates (name, email) VALUES (?, ?)`, "my-tmpl", "owner@example.com"); err != nil {
 		t.Fatal(err)
 	}
-	resp := postRequestToken(t, srv, "my-tmpl", "owner%40example.com")
+	resp := postRequestToken(t, srv, "my-tmpl", "owner@example.com")
 	if resp["ok"] != true {
 		t.Errorf("expected ok=true, got %v", resp)
 	}
@@ -79,7 +80,7 @@ func TestRequestToken_WrongEmail(t *testing.T) {
 	if _, err := database.Exec(`INSERT INTO templates (name, email) VALUES (?, ?)`, "my-tmpl2", "owner@example.com"); err != nil {
 		t.Fatal(err)
 	}
-	resp := postRequestToken(t, srv, "my-tmpl2", "wrong%40example.com")
+	resp := postRequestToken(t, srv, "my-tmpl2", "wrong@example.com")
 	if resp["ok"] != false {
 		t.Errorf("expected ok=false, got %v", resp)
 	}
@@ -95,10 +96,10 @@ func TestRequestToken_IPBlockedAfterSixFailures(t *testing.T) {
 	}
 	// 6 wrong-email attempts from the same IP (httptest default: 192.0.2.1).
 	for i := 0; i < maxIPFailures; i++ {
-		postRequestToken(t, srv, "my-tmpl3", "wrong%40example.com")
+		postRequestToken(t, srv, "my-tmpl3", "wrong@example.com")
 	}
 	// 7th attempt with correct email must still be blocked.
-	resp := postRequestToken(t, srv, "my-tmpl3", "owner%40example.com")
+	resp := postRequestToken(t, srv, "my-tmpl3", "owner@example.com")
 	if resp["ok"] != false {
 		t.Errorf("expected ok=false (IP blocked), got %v", resp)
 	}
