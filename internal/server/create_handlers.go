@@ -177,7 +177,10 @@ func (ch *createHandler) handleCreateSubmit(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		log.Printf("create-new: RequestToken %q: %v", id, err)
 		if rmErr := os.RemoveAll(filepath.Join(ch.tdir, id)); rmErr != nil {
-			log.Printf("create-new: cleanup after RequestToken failure %q: %v", id, rmErr)
+			log.Printf("create-new: cleanup dir after RequestToken failure %q: %v", id, rmErr)
+		}
+		if _, dbErr := ch.db.Exec(`DELETE FROM templates WHERE name = ?`, id); dbErr != nil {
+			log.Printf("create-new: cleanup db after RequestToken failure %q: %v", id, dbErr)
 		}
 		http.Error(w, "Interner Fehler.", http.StatusInternalServerError)
 		return
@@ -193,5 +196,7 @@ func (ch *createHandler) handleCreateSubmit(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = ch.tmpl.ExecuteTemplate(w, "create-sent.html", createSentData{Email: email, TemplateName: id})
+	if err := ch.tmpl.ExecuteTemplate(w, "create-sent.html", createSentData{Email: email, TemplateName: id}); err != nil {
+		log.Printf("create-new: execute create-sent.html: %v", err)
+	}
 }
