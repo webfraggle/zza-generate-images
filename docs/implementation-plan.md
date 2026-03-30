@@ -813,6 +813,29 @@ User-Flow zum Anlegen neuer Templates über eine Webseite.
 
 ---
 
+### Backup (2026-03-30)
+
+Tägliches Backup von Templates-Verzeichnis und SQLite-DB nach Google Drive via `rclone`. Kein Anwendungscode — läuft als Cronjob auf dem Host.
+
+**Dateien:**
+- `zza-backup.sh` — Backup-Skript (liegt im Repo-Root, wird auf dem Server ausgeführt)
+
+**Setup auf dem Server:**
+1. `apt install sqlite3 rclone -y`
+2. `rclone config` — Remote `gdrive` (Google Drive, OAuth)
+3. `chmod +x /root/zza-generate-images/zza-backup.sh`
+4. Cronjob: `0 3 * * * /root/zza-generate-images/zza-backup.sh`
+
+**Was wird gesichert:**
+- `/root/zza-generate-images/templates/` → `gdrive:/zza-backup/YYYY-MM-DD/templates/`
+- SQLite-DB via `sqlite3 .backup` → `gdrive:/zza-backup/YYYY-MM-DD/zza.db`
+
+**Retention:** 30 Tage (ältere Backups werden automatisch gelöscht)
+
+**Log:** `/var/log/zza-backup.log`
+
+---
+
 ## Reihenfolge & Abhängigkeiten
 
 ```
@@ -829,6 +852,7 @@ Phase 10 (Frontend-Design & UX)             ✅
 Post-Phase-10 (Erweiterungen)               ✅ 2026-03-29
   └── /create-new (Neues Template anlegen)  ✅ 2026-03-29
   └── Security-Fixes F1–F6                 ✅ 2026-03-30
+  └── Backup (rclone → Google Drive)      ✅ 2026-03-30
 ```
 
 ---

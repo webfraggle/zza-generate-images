@@ -22,7 +22,6 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 ## Server / API
 
 <!-- Ideen für neue Endpunkte, Caching, Performance etc. -->
-- Automatisches Backup
 
 ---
 
