@@ -2,7 +2,7 @@
 
 Audit-Datum: 2026-03-29
 Auditor: Security-Review-Agent
-Status: Offen — noch nicht behoben
+Status: Alle Findings behoben — 2026-03-30 (Branch `fix/security-findings`)
 
 ---
 
@@ -160,11 +160,11 @@ Oder: im Edit-Handler nach dem ersten API-Request das Token revoken. Abhängig v
 
 | ID | Schwere | Titel | Status |
 |---|---|---|---|
-| F1 | HOCH | Kein Rate Limit auf POST /create-new | Offen |
-| F2 | HOCH | Kein CSRF-Schutz | Offen |
-| F3 | MITTEL | IPLimiter.Cleanup() löscht aktive Fehlerzähler | Offen |
-| F4 | HOCH | E-Mail-Header-Injection (Mailer) | Offen |
-| F5 | MITTEL | E-Mail-Enumeration via Fehlermeldungen | Offen |
-| F6 | HOCH | Template-ID-Enumeration via /check | Offen |
+| F1 | HOCH | Kein Rate Limit auf POST /create-new | ✅ Behoben |
+| F2 | HOCH | Kein CSRF-Schutz | ✅ Behoben |
+| F3 | MITTEL | IPLimiter.Cleanup() löscht aktive Fehlerzähler | ✅ Behoben |
+| F4 | HOCH | E-Mail-Header-Injection (Mailer) | ✅ Behoben |
+| F5 | MITTEL | E-Mail-Enumeration via Fehlermeldungen | ✅ Behoben |
+| F6 | HOCH | Template-ID-Enumeration via /check | ✅ Behoben |
 
 **Klar bestanden:** Path Traversal, SQL Injection, Token-Entropie (crypto/rand 256 Bit), Upload-Whitelist, YAML-Injection, IP-Spoofing via Header.

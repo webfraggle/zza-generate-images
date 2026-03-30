@@ -828,6 +828,7 @@ Phase 9 (Binaries + Docker) — MVP-Launch    ✅
 Phase 10 (Frontend-Design & UX)             ✅
 Post-Phase-10 (Erweiterungen)               ✅ 2026-03-29
   └── /create-new (Neues Template anlegen)  ✅ 2026-03-29
+  └── Security-Fixes F1–F6                 ✅ 2026-03-30
 ```
 
 ---
