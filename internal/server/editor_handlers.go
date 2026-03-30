@@ -127,6 +127,11 @@ func (es *editorState) handleEditSubmit(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !checkOrigin(r, es.cfg.Mail.BaseURL) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return

@@ -59,7 +59,7 @@ func TestRequestToken_NoOwner(t *testing.T) {
 	if resp["ok"] != false {
 		t.Errorf("expected ok=false, got %v", resp)
 	}
-	if msg, _ := resp["error"].(string); msg != "Für dieses Template ist keine E-Mail hinterlegt." {
+	if msg, _ := resp["error"].(string); msg != "Falls eine E-Mail für dieses Template hinterlegt ist und deine Adresse übereinstimmt, erhältst du in Kürze einen Link." {
 		t.Errorf("unexpected error msg: %q", msg)
 	}
 }
@@ -84,7 +84,7 @@ func TestRequestToken_WrongEmail(t *testing.T) {
 	if resp["ok"] != false {
 		t.Errorf("expected ok=false, got %v", resp)
 	}
-	if msg, _ := resp["error"].(string); msg != "Diese E-Mail-Adresse ist nicht als Besitzer registriert." {
+	if msg, _ := resp["error"].(string); msg != "Falls eine E-Mail für dieses Template hinterlegt ist und deine Adresse übereinstimmt, erhältst du in Kürze einen Link." {
 		t.Errorf("unexpected error msg: %q", msg)
 	}
 }

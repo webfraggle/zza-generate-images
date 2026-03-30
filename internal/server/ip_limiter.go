@@ -80,7 +80,7 @@ func (l *IPLimiter) Cleanup() {
 	defer l.mu.Unlock()
 	now := time.Now()
 	for ip, e := range l.entries {
-		if e.blockedUntil.IsZero() || now.After(e.blockedUntil) {
+		if !e.blockedUntil.IsZero() && now.After(e.blockedUntil) {
 			delete(l.entries, ip)
 		}
 	}

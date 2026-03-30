@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
@@ -18,16 +19,27 @@ import (
 
 // createHandler handles the /create-new routes.
 type createHandler struct {
-	db   *sql.DB
-	cfg  EditorConfig
-	tmpl *template.Template
-	tdir string
+	db        *sql.DB
+	cfg       EditorConfig
+	tmpl      *template.Template
+	tdir      string
+	ipLimiter *IPLimiter
 }
 
 // RegisterCreateRoutes wires the create-new routes into the server.
 // Call this from main alongside RegisterEditorRoutes when a DB is available.
 func (s *Server) RegisterCreateRoutes(db *sql.DB, cfg EditorConfig) {
-	ch := &createHandler{db: db, cfg: cfg, tmpl: s.htmlTmpl, tdir: s.templatesDir}
+	ch := &createHandler{db: db, cfg: cfg, tmpl: s.htmlTmpl, tdir: s.templatesDir, ipLimiter: NewIPLimiter()}
+
+	// Start periodic cleanup of the IP limiter to prevent unbounded map growth.
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			ch.ipLimiter.Cleanup()
+		}
+	}()
+
 	s.mux.HandleFunc("GET /create-new", ch.handleCreateNew)
 	s.mux.HandleFunc("POST /create-new", ch.handleCreateSubmit)
 	s.mux.HandleFunc("GET /create-new/check", ch.handleCreateCheck)
@@ -62,6 +74,11 @@ func (ch *createHandler) handleCreateCheck(w http.ResponseWriter, r *http.Reques
 	id := strings.TrimSpace(r.URL.Query().Get("id"))
 	w.Header().Set("Content-Type", "application/json")
 
+	if !ch.ipLimiter.Allow(clientIP(r)) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"available": false})
+		return
+	}
+
 	if err := renderer.ValidateTemplateName(id); err != nil {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"available": false,
@@ -95,6 +112,21 @@ func (ch *createHandler) handleCreateCheck(w http.ResponseWriter, r *http.Reques
 func (ch *createHandler) handleCreateSubmit(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+
+	if !checkOrigin(r, ch.cfg.Mail.BaseURL) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	ip := clientIP(r)
+	if !ch.ipLimiter.Allow(ip) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = ch.tmpl.ExecuteTemplate(w, "create-new.html", createFormData{
+			Error:   "Zu viele Anfragen. Bitte versuche es später erneut.",
+			Display: "1.05",
+		})
 		return
 	}
 
@@ -185,6 +217,9 @@ func (ch *createHandler) handleCreateSubmit(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Interner Fehler.", http.StatusInternalServerError)
 		return
 	}
+
+	// Count each successful creation against the IP limit (prevents disk exhaustion + email bombing).
+	ch.ipLimiter.RecordFailure(ip)
 
 	// Send email (dev fallback: log the link).
 	if ch.cfg.Mail.Host != "" {

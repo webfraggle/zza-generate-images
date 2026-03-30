@@ -241,3 +241,38 @@ func TestServer_Render_CacheHit(t *testing.T) {
 		t.Errorf("second request should be cache HIT, got %q", rr2.Header().Get("X-Cache"))
 	}
 }
+
+func TestCheckOrigin(t *testing.T) {
+	base := "https://example.com"
+
+	cases := []struct {
+		name   string
+		origin string
+		refer  string
+		want   bool
+	}{
+		{"origin matches", base, "", true},
+		{"origin matches with path", base + "/foo", "", true},
+		{"origin mismatch", "https://evil.com", "", false},
+		{"no headers", "", "", true},
+		{"referer matches", "", base + "/create-new", true},
+		{"referer mismatch", "", "https://evil.com/csrf", false},
+		{"origin takes precedence over referer", base, "https://evil.com/csrf", true},
+		{"origin mismatch ignores referer", "https://evil.com", base + "/foo", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, "/", nil)
+			if tc.origin != "" {
+				r.Header.Set("Origin", tc.origin)
+			}
+			if tc.refer != "" {
+				r.Header.Set("Referer", tc.refer)
+			}
+			if got := checkOrigin(r, base); got != tc.want {
+				t.Errorf("checkOrigin = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

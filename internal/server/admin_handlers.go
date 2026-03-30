@@ -102,6 +102,17 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// checkOrigin returns true if the request's Origin or Referer header matches
+// baseURL. Requests without either header (e.g. direct API calls) are allowed.
+// This provides lightweight CSRF protection for browser-submitted forms.
+func checkOrigin(r *http.Request, baseURL string) bool {
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return strings.HasPrefix(origin, baseURL)
+	}
+	referer := r.Header.Get("Referer")
+	return referer == "" || strings.HasPrefix(referer, baseURL)
+}
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 
 type loginData struct {

@@ -20,6 +20,12 @@ type MailConfig struct {
 // SendTokenMail sends the edit link to the given address.
 // auth is skipped when User is empty (anonymous SMTP relay).
 func SendTokenMail(cfg MailConfig, to, templateName, token string, ttl time.Duration) error {
+	for _, s := range []string{to, templateName} {
+		if strings.ContainsAny(s, "\r\n") {
+			return fmt.Errorf("mailer: header injection attempt in %q", s)
+		}
+	}
+
 	editURL := strings.TrimRight(cfg.BaseURL, "/") + "/edit/" + token
 
 	hours := int(ttl.Hours())

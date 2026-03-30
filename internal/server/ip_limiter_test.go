@@ -70,6 +70,22 @@ func TestIPLimiter_CleanupRemovesExpiredEntries(t *testing.T) {
 	}
 }
 
+func TestIPLimiter_CleanupKeepsActiveFailures(t *testing.T) {
+	l := NewIPLimiter()
+	// Record some failures — not enough to trigger a block.
+	l.RecordFailure("1.2.3.4")
+	l.RecordFailure("1.2.3.4")
+
+	l.Cleanup()
+
+	l.mu.Lock()
+	_, exists := l.entries["1.2.3.4"]
+	l.mu.Unlock()
+	if !exists {
+		t.Error("expected entry with active failures to survive Cleanup")
+	}
+}
+
 func TestIPLimiter_CounterResetsAfterExpiry(t *testing.T) {
 	l := NewIPLimiter()
 	// Get blocked.

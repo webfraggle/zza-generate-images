@@ -33,6 +33,11 @@ func (es *editorState) handleRequestToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if !checkOrigin(r, es.cfg.Mail.BaseURL) {
+		writeTokenJSON(w, false, "Forbidden")
+		return
+	}
+
 	ip := clientIP(r)
 	if !es.ipLimiter.Allow(ip) {
 		writeTokenJSON(w, false, "Zu viele Fehlversuche. Bitte versuche es in 6 Stunden erneut.")
@@ -54,7 +59,8 @@ func (es *editorState) handleRequestToken(w http.ResponseWriter, r *http.Request
 	var dummy string
 	err := es.db.QueryRow(`SELECT name FROM templates WHERE name = ?`, templateName).Scan(&dummy)
 	if errors.Is(err, sql.ErrNoRows) {
-		writeTokenJSON(w, false, "Für dieses Template ist keine E-Mail hinterlegt.")
+		// Use the same generic message as for email mismatch to prevent template-owner enumeration.
+		writeTokenJSON(w, false, "Falls eine E-Mail für dieses Template hinterlegt ist und deine Adresse übereinstimmt, erhältst du in Kürze einen Link.")
 		return
 	}
 	if err != nil {
@@ -68,7 +74,7 @@ func (es *editorState) handleRequestToken(w http.ResponseWriter, r *http.Request
 		switch {
 		case errors.Is(err, editor.ErrEmailMismatch):
 			es.ipLimiter.RecordFailure(ip)
-			writeTokenJSON(w, false, "Diese E-Mail-Adresse ist nicht als Besitzer registriert.")
+			writeTokenJSON(w, false, "Falls eine E-Mail für dieses Template hinterlegt ist und deine Adresse übereinstimmt, erhältst du in Kürze einen Link.")
 		case errors.Is(err, editor.ErrRateLimited):
 			writeTokenJSON(w, false, "Zu viele Anfragen. Bitte versuche es in einer Stunde erneut.")
 		default:
