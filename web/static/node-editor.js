@@ -199,10 +199,12 @@ function _renderAll() {
   _svg.innerHTML = '';
   if (!_graph) return;
 
-  const nodeById = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
+  const nodeById    = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
+  const bodyNodeIds = new Set(_graph.nodes.flatMap(n => n.bodyChain || []));
 
   for (const node of _graph.nodes) {
-    _renderNode(node, nodeById, _viewport);
+    const el = _renderNode(node, nodeById, _viewport);
+    if (el && bodyNodeIds.has(node.id)) el.classList.add('ne-node--body');
   }
   // Defer until after browser layout so offsetWidth/offsetHeight are available.
   requestAnimationFrame(_renderConnections);
