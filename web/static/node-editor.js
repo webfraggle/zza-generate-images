@@ -166,9 +166,10 @@ function _hideContextMenu() {
 
 // ── Node management ───────────────────────────────────────────────────────────
 
+let _idCounter = 1;
 function _addNode(type, canvasX, canvasY) {
   if (!_graph) return;
-  const id = `n${Date.now()}`;
+  const id = `n${Date.now()}_${_idCounter++}`;
   const node = {
     id, type, canvasX, canvasY, data: {},
     ...(type === 'loop' ? { bodyChain: [] } : {}),
@@ -340,9 +341,13 @@ function _renderNode(node, nodeById, parent) {
         || (field.source === 'imageFiles' ? ['', ..._fileList]
           : field.source === 'fontIds'   ? ['', ..._fontIds]
           : ['']))];
-      // If stored value is not in options, add it so the display matches data
+      // If stored value is not in options, add it so the display matches data.
+      // For imageFiles source, only allow values passing the file-extension whitelist.
       const storedVal = node.data[field.name] || '';
-      if (storedVal && !options.includes(storedVal)) {
+      const storedOk = field.source === 'imageFiles'
+        ? /\.(png|jpe?g)$/i.test(storedVal)
+        : true;
+      if (storedVal && storedOk && !options.includes(storedVal)) {
         options.push(storedVal);
       }
       for (const opt of options) {

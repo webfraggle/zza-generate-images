@@ -61,7 +61,10 @@ function checkSupported(layer, insideLoop) {
   }
 
   const KNOWN_TYPES = new Set(['image', 'rect', 'text', 'copy', 'loop']);
-  if (layer.type !== undefined && !KNOWN_TYPES.has(layer.type)) {
+  if (layer.type === undefined || layer.type === null) {
+    return `Layer is missing a type field — edit in YAML tab`;
+  }
+  if (!KNOWN_TYPES.has(layer.type)) {
     return `Unknown layer type "${layer.type}" — edit in YAML tab`;
   }
 

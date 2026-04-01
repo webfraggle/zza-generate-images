@@ -8,6 +8,8 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 
 <!-- Ideen für den Template-Editor -->
 - Nodebasierter Editor → Design-Spec: `docs/superpowers/specs/2026-04-01-node-editor-design.md`
+- `YAML_FIELD_MAP` und `YAML_TO_DATA_KEY` aus `NODE_TYPES.fields` ableiten statt manuell pflegen (Wartungsfalle: Feld in NODE_TYPES ergänzen ≠ automatisch in YAML_FIELD_MAP) — erfordert `yamlKey`-Property in field-Defs oder Label-Konvention für `copy`-Labels (`src_w` vs `src_width`)
+- `edit-editor.html` und `admin-editor.html` konsolidieren — ~96 % Code-Duplikat; Unterschied ist nur Header-Text und API-Basis-URL
 
 ---
 
