@@ -275,10 +275,12 @@ function _renderNode(node, nodeById, parent) {
   el.style.left = node.canvasX + 'px';
   el.style.top  = node.canvasY + 'px';
 
-  // Input port (top)
-  const portIn = document.createElement('div');
-  portIn.className = 'ne-port-in';
-  el.appendChild(portIn);
+  // Input port (top) — not shown on loop nodes (circuit uses right-side connections)
+  if (node.type !== 'loop') {
+    const portIn = document.createElement('div');
+    portIn.className = 'ne-port-in';
+    el.appendChild(portIn);
+  }
 
   // Header (drag handle + type label + delete)
   const header = document.createElement('div');
@@ -359,16 +361,15 @@ function _renderNode(node, nodeById, parent) {
 
   el.appendChild(body);
 
-  // Output port (bottom)
-  const portOut = document.createElement('div');
-  portOut.className = 'ne-port-out';
-  el.appendChild(portOut);
+  // Output port (bottom) — not shown on loop nodes
+  const portOut = node.type !== 'loop' ? document.createElement('div') : null;
+  if (portOut) {
+    portOut.className = 'ne-port-out';
+    el.appendChild(portOut);
+  }
 
-  // Wire drag + port-drag (stubs for now, wired in Tasks 7 & 8)
   _makeDraggable(el, node);
-  // _initPortDrag is a stub (Task 8) — the call is pre-wired here so Task 8
-  // only needs to implement the function body, not find the call site.
-  _initPortDrag(portOut, el, node);
+  if (portOut) _initPortDrag(portOut, el, node);
 
   parent.appendChild(el);
   return el;
