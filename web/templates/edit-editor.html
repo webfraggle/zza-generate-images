@@ -34,9 +34,24 @@
   <div class="editor-code-col">
     <div class="code-toolbar">
       <span id="active-file" class="pane-label">template.yaml</span>
+      <div class="tab-switcher tab-switcher--hidden" id="tab-switcher">
+        <button class="tab-btn tab-btn--active" id="tab-yaml" data-tab="yaml">YAML</button>
+        <button class="tab-btn" id="tab-nodes" data-tab="nodes">NODES</button>
+      </div>
       <button id="btn-save" class="btn btn-primary btn-sm">Speichern</button>
     </div>
     <div id="cm-host" class="cm-host"></div>
+    <div id="node-canvas-wrap" class="node-canvas-wrap" hidden>
+      <div id="node-canvas" class="node-canvas">
+        <div id="nc-viewport" class="nc-viewport">
+          <svg id="nc-svg" class="nc-svg"></svg>
+        </div>
+      </div>
+      <div id="node-lock" class="node-lock" hidden>
+        <p>Diese YAML enthält Features die im Node-Editor nicht darstellbar sind.</p>
+        <p id="node-lock-reason" class="node-lock-reason"></p>
+      </div>
+    </div>
     <p id="save-status" class="save-status" hidden></p>
   </div>
 
@@ -69,6 +84,10 @@ import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?dep
 import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
 import { indentationMarkers } from 'https://esm.sh/@replit/codemirror-indentation-markers@6.5.3?deps=codemirror@6.0.1';
 import { indentMore, indentLess } from 'https://esm.sh/@codemirror/commands@6.10.3?deps=codemirror@6.0.1';
+import { initCanvas, loadGraph, getGraph, setFileList, setFontIds } from '/static/node-editor.js';
+import { graphToLayers } from '/static/node-serializer.js';
+import { layersToGraph } from '/static/node-parser.js';
+import jsYaml from 'https://esm.sh/js-yaml@4.1.0';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TOKEN    = '{{.Token}}';
@@ -78,6 +97,8 @@ const TEMPLATE = '{{.TemplateName}}';
 let currentFile  = 'template.yaml';
 let cmView       = null;
 let prevBlobUrl  = null; // for revoking old preview blob URLs
+let activeTab    = 'yaml';   // 'yaml' | 'nodes'
+let nodeCanvasInitialized = false;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const fileList    = document.getElementById('file-list');
@@ -95,6 +116,16 @@ const previewSize = document.getElementById('preview-size');
 
 const uploadInput = document.getElementById('file-upload');
 const uploadStatus= document.getElementById('upload-status');
+
+const tabSwitcher    = document.getElementById('tab-switcher');
+const tabYaml        = document.getElementById('tab-yaml');
+const tabNodes       = document.getElementById('tab-nodes');
+const nodeCanvasWrap = document.getElementById('node-canvas-wrap');
+const nodeCanvas     = document.getElementById('node-canvas');
+const ncViewport     = document.getElementById('nc-viewport');
+const ncSvg          = document.getElementById('nc-svg');
+const nodeLock       = document.getElementById('node-lock');
+const nodeLockReason = document.getElementById('node-lock-reason');
 
 function formatSize(bytes) {
   return bytes < 1024
@@ -145,6 +176,17 @@ async function openFile(name) {
   activeLabel.textContent = name;
   hideSaveStatus();
 
+  // Show tab switcher only for template.yaml
+  tabSwitcher.classList.toggle('tab-switcher--hidden', name !== 'template.yaml');
+  // Switch back to YAML tab when opening a non-yaml file
+  if (name !== 'template.yaml' && activeTab === 'nodes') {
+    activeTab = 'yaml';
+    tabYaml.classList.add('tab-btn--active');
+    tabNodes.classList.remove('tab-btn--active');
+    cmHost.hidden = false;
+    nodeCanvasWrap.hidden = true;
+  }
+
   // Update active highlight in list.
   document.querySelectorAll('.file-item').forEach(li =>
     li.classList.toggle('active', li.dataset.name === name)
@@ -181,6 +223,10 @@ cmHost.addEventListener('keydown', e => {
 
 async function saveFile() {
   if (!cmView) return;
+  // If NODES tab is active, serialize graph → YAML before saving
+  if (activeTab === 'nodes' && nodeLock.hidden && getGraph()) {
+    switchToYaml();
+  }
   const content = cmView.state.doc.toString();
   const res = await fetch(`/edit/${TOKEN}/save`, {
     method:  'POST',
@@ -287,6 +333,91 @@ async function deleteFile(name) {
   } else {
     alert('Fehler beim Löschen');
   }
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+tabYaml.addEventListener('click',  () => switchTab('yaml'));
+tabNodes.addEventListener('click', () => switchTab('nodes'));
+
+function switchTab(tab) {
+  if (activeTab === tab) return;
+
+  if (tab === 'nodes') {
+    switchToNodes();
+  } else {
+    switchToYaml();
+  }
+
+  activeTab = tab;
+  tabYaml.classList.toggle('tab-btn--active',  tab === 'yaml');
+  tabNodes.classList.toggle('tab-btn--active', tab === 'nodes');
+  cmHost.hidden          = tab !== 'yaml';
+  nodeCanvasWrap.hidden  = tab !== 'nodes';
+}
+
+function switchToNodes() {
+  const yamlStr = cmView ? cmView.state.doc.toString() : '';
+
+  let parsed;
+  try {
+    parsed = jsYaml.load(yamlStr) || {};
+  } catch (e) {
+    nodeLock.hidden = false;
+    nodeLockReason.textContent = 'YAML-Fehler: ' + e.message;
+    return;
+  }
+
+  const layers = parsed.layers || [];
+  const result = layersToGraph(layers);
+
+  if (!nodeCanvasInitialized) {
+    initCanvas(nodeCanvas, ncViewport, ncSvg);
+    nodeCanvasInitialized = true;
+  }
+  _updateNodeEditorAssets(parsed);
+
+  if (!result.ok) {
+    nodeLock.hidden = false;
+    nodeLockReason.textContent = result.reason;
+    loadGraph({ nodes: [], chain: [] });
+    return;
+  }
+
+  nodeLock.hidden = true;
+  loadGraph({ nodes: result.nodes, chain: result.chain });
+}
+
+function switchToYaml() {
+  const graph = getGraph();
+  if (!graph) return;
+
+  const yamlStr = cmView ? cmView.state.doc.toString() : '';
+  let parsed = {};
+  try { parsed = jsYaml.load(yamlStr) || {}; } catch { /* ignore */ }
+
+  const newLayers = graphToLayers(graph);
+  const newDoc = jsYaml.dump({ ...parsed, layers: newLayers }, {
+    indent: 2,
+    lineWidth: -1,
+    quotingType: '"',
+    forceQuotes: false,
+  });
+
+  if (cmView) {
+    cmView.dispatch({
+      changes: { from: 0, to: cmView.state.doc.length, insert: newDoc }
+    });
+  }
+}
+
+function _updateNodeEditorAssets(parsed) {
+  const imgFiles = Array.from(document.querySelectorAll('.file-item'))
+    .map(li => li.dataset.name)
+    .filter(n => n && /\.(png|jpe?g)$/i.test(n));
+  setFileList(imgFiles);
+
+  const fontIds = (parsed.fonts || []).map(f => f.id).filter(Boolean);
+  setFontIds(fontIds);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

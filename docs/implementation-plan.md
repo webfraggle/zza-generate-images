@@ -853,7 +853,62 @@ Post-Phase-10 (Erweiterungen)               ✅ 2026-03-29
   └── /create-new (Neues Template anlegen)  ✅ 2026-03-29
   └── Security-Fixes F1–F6                 ✅ 2026-03-30
   └── Backup (rclone → Google Drive)      ✅ 2026-03-30
+Node Editor Phase 1                         ✅ 2026-04-01
+  └── Node Editor Phase 2                  ⬜ (geplant)
 ```
+
+---
+
+## Node Editor Phase 1 — YAML ↔ NODES Tab-Umschalter ✅ (2026-04-01)
+
+**Ziel:** Visueller Node-Editor als Alternative zum CodeMirror-YAML-Tab im Template-Editor. Phase 1 deckt den Happy-Path für Templates ohne Bedingungen.
+
+### Neue Dateien
+
+| Datei | Inhalt |
+|---|---|
+| `web/static/node-types.js` | `NODE_TYPES`, `YAML_FIELD_MAP`, `YAML_TO_DATA_KEY` (eingefroren) |
+| `web/static/node-serializer.js` | `graphToLayers({nodes, chain})` → YAML-Layer-Array (pure function) |
+| `web/static/node-parser.js` | `layersToGraph(layers)` → `{ok, nodes, chain}` oder `{ok:false, reason}` (pure function) |
+| `web/static/node-editor.js` | Canvas-Init, Pan/Zoom, Node-Rendering, SVG-Verbindungen, Drag, Port-Drag, Auto-Layout |
+| `web/static/test/node-serializer.test.mjs` | 10 Unit-Tests |
+| `web/static/test/node-parser.test.mjs` | 10 Unit-Tests |
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|---|---|
+| `web/templates/edit-editor.html` | Tab-Umschalter YAML ↔ NODES, Canvas-Container, ES-Module-Imports |
+| `web/static/app.css` | ~250 Zeilen Node-Editor-CSS |
+
+### Graph-Modell
+
+```
+{ nodes: [{id, type, canvasX, canvasY, data, bodyChain?}], chain: string[] }
+```
+
+- `chain` = Top-Level-Render-Reihenfolge
+- `bodyChain` = IDs der Loop-Body-Nodes (Body-Nodes sind im gleichen `nodes`-Array, horizontal rechts vom Loop positioniert)
+
+### Wichtige Entscheidungen
+
+- **Tab-Lock**: NODES-Tab wird gesperrt bei: `layer.if:`, konditionalen Feld-Objekten `{if/then/else}`, verschachtelten Loops, unbekannten oder fehlenden `type`-Feldern
+- **Numeric-Serialisierung**: `numeric: true` Flag in `NODE_TYPES.fields` steuert ob Werte als Zahl oder String serialisiert werden (verhindert `!!str`-Fehler im Go yaml.v3-Parser)
+- **Loop-Darstellung**: Loop-Node mit Port-Punkten oben/unten (Hauptkette), plus Schaltkreis rechts: Loop-rechts-Ausgang → erste Body-Node oben → Body-Nodes horizontal → letzte Body-Node unten → Bogen zurück → Loop-rechts-Eingang
+- **Auto-Layout**: Nach Port-Drag-Verbindung läuft `_autoLayout(true)` mit 350ms CSS-Transition-Animation
+- **js-yaml DEPRECATED_BOOLEANS_SYNTAX**: `y`, `n`, `yes`, `no` etc. werden immer gequotet (hardcoded in js-yaml 4.x, nicht konfigurierbar) — akzeptiert
+
+### Tests
+
+```
+node --test web/static/test/node-serializer.test.mjs
+node --test web/static/test/node-parser.test.mjs
+```
+
+### Abweichungen vom ursprünglichen Plan
+
+- Feature wurde nicht im ursprünglichen 10-Phasen-Plan geplant; nachträglich entwickelt nach `docs/superpowers/specs/2026-04-01-node-editor-design.md`
+- Phase 2 (if/elif/else-Badges, Block-Nodes, Feld-if-Chips) noch offen
 
 ---
 
