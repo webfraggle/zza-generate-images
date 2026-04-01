@@ -182,12 +182,9 @@ function _renderAll() {
   if (!_graph) return;
 
   const nodeById = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
-  const bodyNodeIds = new Set(_graph.nodes.flatMap(n => n.bodyChain || []));
 
   for (const node of _graph.nodes) {
-    if (!bodyNodeIds.has(node.id)) {
-      _renderNode(node, nodeById, _viewport);
-    }
+    _renderNode(node, nodeById, _viewport);
   }
   // Defer until after browser layout so offsetWidth/offsetHeight are available.
   requestAnimationFrame(_renderConnections);
@@ -288,18 +285,6 @@ function _renderNode(node, nodeById, parent) {
     body.appendChild(row);
   }
 
-  // Loop body sub-chain (rendered inside loop node)
-  if (node.type === 'loop' && node.bodyChain) {
-    const bodyContainer = document.createElement('div');
-    bodyContainer.className = 'ne-body-chain';
-    bodyContainer.dataset.loopId = node.id;
-    for (const childId of node.bodyChain) {
-      const childNode = nodeById[childId];
-      if (childNode) _renderNode(childNode, nodeById, bodyContainer);
-    }
-    body.appendChild(bodyContainer);
-  }
-
   el.appendChild(body);
 
   // Output port (bottom)
@@ -324,7 +309,20 @@ function _renderConnections() {
     const fromNode = nodeById[_graph.chain[i]];
     const toNode   = nodeById[_graph.chain[i + 1]];
     if (!fromNode || !toNode) continue;
-    _drawConnection(fromNode, toNode);
+    _drawConnection(fromNode, toNode, '#B8B0A8');
+  }
+  // Body chain connections: horizontal lines from loop → body nodes
+  for (const node of _graph.nodes) {
+    if (node.type !== 'loop' || !node.bodyChain?.length) continue;
+    for (let i = 0; i < node.bodyChain.length; i++) {
+      const bodyNode = nodeById[node.bodyChain[i]];
+      if (!bodyNode) continue;
+      _drawLoopBodyConnection(node, bodyNode);
+      if (i < node.bodyChain.length - 1) {
+        const nextBody = nodeById[node.bodyChain[i + 1]];
+        if (nextBody) _drawConnection(bodyNode, nextBody, '#C83232');
+      }
+    }
   }
 }
 
@@ -342,7 +340,7 @@ function _getPortPos(node, port) {
   return { x, y };
 }
 
-function _drawConnection(fromNode, toNode) {
+function _drawConnection(fromNode, toNode, color) {
   const from = _getPortPos(fromNode, 'out');
   const to   = _getPortPos(toNode, 'in');
 
@@ -352,7 +350,7 @@ function _drawConnection(fromNode, toNode) {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', d);
   path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', '#B8B0A8');
+  path.setAttribute('stroke', color);
   path.setAttribute('stroke-width', '1.5');
   path.setAttribute('stroke-dasharray', '4,2');
   _svg.appendChild(path);
@@ -360,7 +358,35 @@ function _drawConnection(fromNode, toNode) {
   // Arrowhead
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   arrow.setAttribute('points', `${to.x},${to.y} ${to.x-4},${to.y-6} ${to.x+4},${to.y-6}`);
-  arrow.setAttribute('fill', '#B8B0A8');
+  arrow.setAttribute('fill', color);
+  _svg.appendChild(arrow);
+}
+
+function _drawLoopBodyConnection(loopNode, bodyNode) {
+  const loopEl = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
+  const loopW  = loopEl ? loopEl.offsetWidth  : 220;
+  const loopH  = loopEl ? loopEl.offsetHeight : 120;
+
+  // From right-center of loop node to top-center of body node (in port)
+  const fromX = loopNode.canvasX + loopW;
+  const fromY = loopNode.canvasY + loopH / 2;
+  const toX   = bodyNode.canvasX + 110;  // center top
+  const toY   = bodyNode.canvasY;
+
+  const dx = (toX - fromX) * 0.5;
+  const d = `M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX} ${toY - 40}, ${toX} ${toY}`;
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#C83232');
+  path.setAttribute('stroke-width', '1.5');
+  path.setAttribute('stroke-dasharray', '4,2');
+  _svg.appendChild(path);
+
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  arrow.setAttribute('points', `${toX},${toY} ${toX-4},${toY-6} ${toX+4},${toY-6}`);
+  arrow.setAttribute('fill', '#C83232');
   _svg.appendChild(arrow);
 }
 

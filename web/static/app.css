@@ -1149,23 +1149,6 @@ body.admin-page { background: var(--bg); }
 .ne-port-in  { top: -6px; }
 .ne-port-out { bottom: -6px; }
 
-/* Loop body container */
-.ne-node--loop .ne-body-chain {
-  margin: 6px 8px 8px 8px;
-  border: 1.5px solid #C83232;
-  border-radius: 4px;
-  padding: 6px;
-  background: #fff8f8;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-/* Body nodes inside a loop flow in the container instead of using canvas coordinates */
-.ne-node--loop .ne-body-chain .ne-node {
-  position: relative;
-  left: auto;
-  top: auto;
-}
 
 /* Lock overlay */
 .node-lock[hidden] { display: none; }
