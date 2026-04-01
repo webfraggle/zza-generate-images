@@ -1015,6 +1015,7 @@ body.admin-page { background: var(--bg); }
 .tab-switcher--hidden { display: none; }
 
 /* Node canvas wrapper */
+.node-canvas-wrap[hidden] { display: none; }
 .node-canvas-wrap {
   flex: 1;
   position: relative;
