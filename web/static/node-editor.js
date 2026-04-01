@@ -17,6 +17,12 @@ let _panning = false, _panStart = null;
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 export function initCanvas(canvasEl, viewportEl, svgEl) {
+  // Remove listeners from previous canvas if re-initializing
+  if (_canvas) {
+    _canvas.removeEventListener('mousedown', _onCanvasMouseDown);
+    _canvas.removeEventListener('wheel', _onWheel);
+    _canvas.removeEventListener('contextmenu', _onContextMenu);
+  }
   _canvas   = canvasEl;
   _viewport = viewportEl;
   _svg      = svgEl;
@@ -151,6 +157,8 @@ function _addNode(type, canvasX, canvasY) {
   };
   _graph.nodes.push(node);
   _graph.chain.push(id);
+  // Invariant: a node must be in exactly one of [chain] or a bodyChain.
+  // Task 8 connection-drag must remove the node from chain when assigning it to a bodyChain.
   const nodeById = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
   _renderNode(node, nodeById, _viewport);
   _renderConnections();
