@@ -43,10 +43,12 @@ meta:
   canvas:
     width: 160    # Breite in Pixeln
     height: 80    # Höhe in Pixeln
+    colors: 32    # optional — Farbpalette reduzieren (2–256); weglassen = volle Farbe
 ```
 
 - `display` (optional) — Bezeichnung des Ziel-Displays, z.B. `"0.96 Zoll OLED"`. Wird auf der Vorschau-Seite angezeigt.
 - `instructions` (optional) — Freitext-Anleitung für Nutzer des Templates. Wird auf der Vorschau-Seite angezeigt. Mehrzeilig möglich mit YAML Block-Scalar (`|`).
+- `canvas.colors` (optional) — Reduziert die Ausgabe auf eine Indexed-PNG mit maximal N Farben (2–256) via Median-Cut-Algorithmus. Verringert die Dateigröße bei einfachen Grafiken erheblich. Weglassen oder `0` = volle 32-Bit-Farbe.
 
 ---
 
