@@ -31,11 +31,13 @@ function nodeToLayer(node, nodeById) {
 
 function loopNodeToLayer(node, nodeById) {
   const layer = { type: 'loop' };
-  const d = node.data;
-  if (d.loopValue)  layer.value     = d.loopValue;
-  if (d.splitBy)    layer.split_by  = d.splitBy;
-  if (d.varName)    layer.var       = d.varName;
-  if (d.maxItems)   layer.max_items = d.maxItems;
+  const fieldMap = YAML_FIELD_MAP['loop'];
+  for (const [dataKey, yamlKey] of Object.entries(fieldMap)) {
+    const val = node.data[dataKey];
+    if (val !== undefined && val !== '') {
+      layer[yamlKey] = val;
+    }
+  }
   if (node.bodyChain && node.bodyChain.length > 0) {
     layer.layers = node.bodyChain
       .map(id => nodeById[id])

@@ -103,3 +103,13 @@ test('loop node without body chain produces no layers key', () => {
   const layers = graphToLayers(makeGraph(nodes, ['n1']));
   assert.equal(layers[0].layers, undefined);
 });
+
+test('loop node preserves falsy-but-valid field value "0"', () => {
+  const nodes = [
+    { id: 'n1', type: 'loop', canvasX: 0, canvasY: 0,
+      data: { loopValue: '{{items}}', splitBy: '0', varName: 'item', maxItems: '3' },
+      bodyChain: [] }
+  ];
+  const layers = graphToLayers(makeGraph(nodes, ['n1']));
+  assert.equal(layers[0].split_by, '0');
+});
