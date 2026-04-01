@@ -244,7 +244,7 @@ Beim Wechsel auf den Node-Tab wird `template.yaml` client-seitig geparst (YAML i
 ## Was der Node-Editor nicht abdeckt (bewusst)
 
 - Verschachtelte Loops (`type: loop` in `type: loop`)
-- Koordinaten-Ausdrücke mit Arithmetik (`{{i * 12 + 30}}`) — werden als Textfeld dargestellt, nicht visuell modelliert
-- `type: copy` mit Ausdrücken
 
-Bei diesen Features bleibt der YAML-Editor die einzige Option — der Node-Tab wird gesperrt.
+Bei diesem Feature bleibt der YAML-Editor die einzige Option — der Node-Tab wird gesperrt.
+
+**Hinweis zu Koordinaten und Ausdrücken:** Alle Koordinatenfelder (`x`, `y`, `width`, `height`, `rotate`, `src_x` etc.) sind freie Textfelder — `{{i * 12 + 30}}` und andere Arithmetik-Ausdrücke können direkt eingetippt werden. Das gilt auch für `type: copy`.
