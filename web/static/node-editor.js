@@ -373,38 +373,31 @@ function _renderNode(node, nodeById, parent) {
   parent.appendChild(el);
   return el;
 }
-// Returns the node whose out-port represents the "exit" of a chain step.
-// For loops with body nodes the exit is the last body node.
-function _exitNode(node, nodeById) {
-  if (node.type === 'loop' && node.bodyChain?.length) {
-    const last = nodeById[node.bodyChain[node.bodyChain.length - 1]];
-    if (last) return last;
-  }
-  return node;
-}
-
 function _renderConnections() {
   _svg.innerHTML = '';
   if (!_graph) return;
   const nodeById = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
+
+  // Main chain: bottom-out → top-in, grey
   for (let i = 0; i < _graph.chain.length - 1; i++) {
     const fromNode = nodeById[_graph.chain[i]];
     const toNode   = nodeById[_graph.chain[i + 1]];
     if (!fromNode || !toNode) continue;
-    _drawConnection(_exitNode(fromNode, nodeById), toNode, '#B8B0A8');
+    _drawConnection(fromNode, toNode, '#B8B0A8');
   }
-  // Body chain connections: horizontal lines from loop → body nodes
+
+  // Loop body circuit: loop right-out → body[0] → … → body[n] → loop right-in
   for (const node of _graph.nodes) {
     if (node.type !== 'loop' || !node.bodyChain?.length) continue;
-    for (let i = 0; i < node.bodyChain.length; i++) {
-      const bodyNode = nodeById[node.bodyChain[i]];
-      if (!bodyNode) continue;
-      _drawLoopBodyConnection(node, bodyNode);
-      if (i < node.bodyChain.length - 1) {
-        const nextBody = nodeById[node.bodyChain[i + 1]];
-        if (nextBody) _drawBodyBodyConnection(bodyNode, nextBody);
-      }
+    const firstBody = nodeById[node.bodyChain[0]];
+    const lastBody  = nodeById[node.bodyChain[node.bodyChain.length - 1]];
+    if (firstBody) _drawLoopBodyEntry(node, firstBody);
+    for (let i = 0; i < node.bodyChain.length - 1; i++) {
+      const a = nodeById[node.bodyChain[i]];
+      const b = nodeById[node.bodyChain[i + 1]];
+      if (a && b) _drawBodyBodyConnection(a, b);
     }
+    if (lastBody) _drawLoopBodyReturn(node, lastBody);
   }
 }
 
@@ -425,10 +418,12 @@ function _getPortPos(node, port) {
 function _drawConnection(fromNode, toNode, color) {
   const from = _getPortPos(fromNode, 'out');
   const to   = _getPortPos(toNode, 'in');
+  const dy   = Math.abs(to.y - from.y) * 0.5;
+  _svgPath(`M ${from.x} ${from.y} C ${from.x} ${from.y + dy}, ${to.x} ${to.y - dy}, ${to.x} ${to.y}`, color);
+  _svgArrowDown(to.x, to.y, color);
+}
 
-  const dy = Math.abs(to.y - from.y) * 0.5;
-  const d = `M ${from.x} ${from.y} C ${from.x} ${from.y + dy}, ${to.x} ${to.y - dy}, ${to.x} ${to.y}`;
-
+function _svgPath(d, color) {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path.setAttribute('d', d);
   path.setAttribute('fill', 'none');
@@ -436,43 +431,60 @@ function _drawConnection(fromNode, toNode, color) {
   path.setAttribute('stroke-width', '1.5');
   path.setAttribute('stroke-dasharray', '4,2');
   _svg.appendChild(path);
+}
 
-  // Arrowhead
+function _svgArrowDown(x, y, color) {
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  arrow.setAttribute('points', `${to.x},${to.y} ${to.x-4},${to.y-6} ${to.x+4},${to.y-6}`);
+  arrow.setAttribute('points', `${x},${y} ${x-4},${y-6} ${x+4},${y-6}`);
   arrow.setAttribute('fill', color);
   _svg.appendChild(arrow);
 }
 
-function _drawLoopBodyConnection(loopNode, bodyNode) {
+// Loop right-out (upper third) → first body node top-center
+function _drawLoopBodyEntry(loopNode, bodyNode) {
   const loopEl = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
   const loopW  = loopEl ? loopEl.offsetWidth  : 220;
   const loopH  = loopEl ? loopEl.offsetHeight : 120;
 
-  // From right-center of loop node to top-center of body node (in port)
   const fromX = loopNode.canvasX + loopW;
-  const fromY = loopNode.canvasY + loopH / 2;
-  const toX   = bodyNode.canvasX + 110;  // center top
+  const fromY = loopNode.canvasY + loopH * 0.35;
+  const toX   = bodyNode.canvasX + 110;
   const toY   = bodyNode.canvasY;
 
   const dx = (toX - fromX) * 0.5;
   const d = `M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX} ${toY - 40}, ${toX} ${toY}`;
 
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', d);
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', '#C83232');
-  path.setAttribute('stroke-width', '1.5');
-  path.setAttribute('stroke-dasharray', '4,2');
-  _svg.appendChild(path);
+  _svgPath(d, '#C83232');
+  _svgArrowDown(toX, toY, '#C83232');
+}
 
+// Last body node right-center → loop right-in (lower third), arcing below
+function _drawLoopBodyReturn(loopNode, lastBodyNode) {
+  const loopEl    = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
+  const bodyEl    = _viewport.querySelector(`.ne-node[data-id="${lastBodyNode.id}"]`);
+  const loopW     = loopEl ? loopEl.offsetWidth  : 220;
+  const loopH     = loopEl ? loopEl.offsetHeight : 120;
+  const bodyW     = bodyEl ? bodyEl.offsetWidth  : 220;
+  const bodyH     = bodyEl ? bodyEl.offsetHeight : 120;
+
+  const fromX = lastBodyNode.canvasX + bodyW;
+  const fromY = lastBodyNode.canvasY + bodyH / 2;
+  const toX   = loopNode.canvasX + loopW;
+  const toY   = loopNode.canvasY + loopH * 0.65;
+
+  // Arc below: both control points push down
+  const drop = Math.max(60, bodyH * 0.5);
+  const d = `M ${fromX} ${fromY} C ${fromX + 50} ${fromY + drop}, ${toX + 50} ${toY + drop}, ${toX} ${toY}`;
+
+  _svgPath(d, '#C83232');
+  // Arrowhead pointing left (entering from the right)
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  arrow.setAttribute('points', `${toX},${toY} ${toX-4},${toY-6} ${toX+4},${toY-6}`);
+  arrow.setAttribute('points', `${toX},${toY} ${toX+6},${toY-4} ${toX+6},${toY+4}`);
   arrow.setAttribute('fill', '#C83232');
   _svg.appendChild(arrow);
 }
 
-// Horizontal right-to-left connector between body nodes in same loop chain
+// Horizontal right-center → left-center connector between adjacent body nodes
 function _drawBodyBodyConnection(fromNode, toNode) {
   const fromEl = _viewport.querySelector(`.ne-node[data-id="${fromNode.id}"]`);
   const fromW  = fromEl ? fromEl.offsetWidth  : 220;
@@ -486,16 +498,9 @@ function _drawBodyBodyConnection(fromNode, toNode) {
   const toY   = toNode.canvasY + toH / 2;
 
   const dx = (toX - fromX) * 0.4;
-  const d = `M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX - dx} ${toY}, ${toX} ${toY}`;
+  _svgPath(`M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX - dx} ${toY}, ${toX} ${toY}`, '#C83232');
 
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', d);
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', '#C83232');
-  path.setAttribute('stroke-width', '1.5');
-  path.setAttribute('stroke-dasharray', '4,2');
-  _svg.appendChild(path);
-
+  // Arrowhead pointing right
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   arrow.setAttribute('points', `${toX},${toY} ${toX-6},${toY-4} ${toX-6},${toY+4}`);
   arrow.setAttribute('fill', '#C83232');
