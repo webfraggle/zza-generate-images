@@ -101,3 +101,15 @@ test('nodes get auto-positioned in a vertical stack', () => {
   // X should be consistent
   assert.equal(result.nodes[0].canvasX, result.nodes[1].canvasX);
 });
+
+test('null layer element locks (invalid)', () => {
+  const result = layersToGraph([null]);
+  assert.equal(result.ok, false);
+  assert.ok(result.reason.includes('null') || result.reason.includes('Invalid'));
+});
+
+test('unknown layer type locks', () => {
+  const result = layersToGraph([{ type: 'gradient', x: '0' }]);
+  assert.equal(result.ok, false);
+  assert.ok(result.reason.includes('gradient') || result.reason.toLowerCase().includes('unknown'));
+});

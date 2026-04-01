@@ -3,14 +3,11 @@
 // No external dependencies. Call layersToGraph(jsYaml.load(yamlStr).layers) in browser.
 import { YAML_TO_DATA_KEY } from './node-types.js';
 
-const NODE_WIDTH  = 220;
+const NODE_WIDTH  = 220;  // reserved for future horizontal layout
 const NODE_HEIGHT = 120;  // estimated height for auto-layout
 const NODE_GAP    = 24;
 const CANVAS_START_X = 80;
 const CANVAS_START_Y = 40;
-
-let _idCounter = 1;
-function newId() { return `n${_idCounter++}`; }
 
 /**
  * Convert YAML layers array to graph.
@@ -19,7 +16,9 @@ function newId() { return `n${_idCounter++}`; }
  *          |{ ok: false, reason: string }}
  */
 export function layersToGraph(layers) {
-  _idCounter = 1;
+  let idCounter = 1;
+  const newId = () => `n${idCounter++}`;
+
   if (!Array.isArray(layers) || layers.length === 0) {
     return { ok: true, nodes: [], chain: [] };
   }
@@ -32,7 +31,7 @@ export function layersToGraph(layers) {
     const check = checkSupported(layer, false);
     if (check) return { ok: false, reason: check };
 
-    const { node, bodyNodes } = layerToNode(layer, CANVAS_START_X, y);
+    const { node, bodyNodes } = layerToNode(layer, CANVAS_START_X, y, newId);
     nodes.push(node);
     nodes.push(...bodyNodes);
     chain.push(node.id);
@@ -48,6 +47,15 @@ export function layersToGraph(layers) {
  * @param {boolean} insideLoop - true when checking body layers
  */
 function checkSupported(layer, insideLoop) {
+  if (layer === null || typeof layer !== 'object') {
+    return `Invalid layer (expected object, got ${layer === null ? 'null' : typeof layer})`;
+  }
+
+  const KNOWN_TYPES = new Set(['image', 'rect', 'text', 'copy', 'loop']);
+  if (layer.type !== undefined && !KNOWN_TYPES.has(layer.type)) {
+    return `Unknown layer type "${layer.type}" — edit in YAML tab`;
+  }
+
   if (layer.if !== undefined) {
     return `Layer uses "if:" — edit in YAML tab (Layer-if not supported in Phase 1)`;
   }
@@ -71,7 +79,7 @@ function checkSupported(layer, insideLoop) {
   return null;
 }
 
-function layerToNode(layer, x, y) {
+function layerToNode(layer, x, y, newId) {
   const fieldMap = YAML_TO_DATA_KEY[layer.type] || {};
   const data = {};
   for (const [yamlKey, dataKey] of Object.entries(fieldMap)) {
@@ -85,7 +93,7 @@ function layerToNode(layer, x, y) {
     const bodyChain = [];
     let bodyY = y + 40;
     for (const bodyLayer of (layer.layers || [])) {
-      const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, x + 20, bodyY);
+      const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, x + 20, bodyY, newId);
       bodyNodes.push(bodyNode, ...nested);
       bodyChain.push(bodyNode.id);
       bodyY += NODE_HEIGHT + NODE_GAP;
