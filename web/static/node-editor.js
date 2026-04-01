@@ -277,12 +277,10 @@ function _renderNode(node, nodeById, parent) {
   el.style.left = node.canvasX + 'px';
   el.style.top  = node.canvasY + 'px';
 
-  // Input port (top) — not shown on loop nodes (circuit uses right-side connections)
-  if (node.type !== 'loop') {
-    const portIn = document.createElement('div');
-    portIn.className = 'ne-port-in';
-    el.appendChild(portIn);
-  }
+  // Input port (top)
+  const portIn = document.createElement('div');
+  portIn.className = 'ne-port-in';
+  el.appendChild(portIn);
 
   // Header (drag handle + type label + delete)
   const header = document.createElement('div');
@@ -363,15 +361,13 @@ function _renderNode(node, nodeById, parent) {
 
   el.appendChild(body);
 
-  // Output port (bottom) — not shown on loop nodes
-  const portOut = node.type !== 'loop' ? document.createElement('div') : null;
-  if (portOut) {
-    portOut.className = 'ne-port-out';
-    el.appendChild(portOut);
-  }
+  // Output port (bottom)
+  const portOut = document.createElement('div');
+  portOut.className = 'ne-port-out';
+  el.appendChild(portOut);
 
   _makeDraggable(el, node);
-  if (portOut) _initPortDrag(portOut, el, node);
+  _initPortDrag(portOut, el, node);
 
   parent.appendChild(el);
   return el;
