@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -274,5 +275,47 @@ func TestCheckOrigin(t *testing.T) {
 				t.Errorf("checkOrigin = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestHandleRender_WithColorPalette(t *testing.T) {
+	// Own TemplatesDir with a mini-template that sets colors: 2.
+	templatesDir := t.TempDir()
+	tmplDir := filepath.Join(templatesDir, "palette-test")
+	if err := os.MkdirAll(tmplDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tmplYAML := "meta:\n  canvas:\n    width: 4\n    height: 4\n    colors: 2\nlayers:\n  - type: rect\n    x: 0\n    y: 0\n    width: 4\n    height: 4\n    color: \"#FF0000\"\n"
+	if err := os.WriteFile(filepath.Join(tmplDir, "template.yaml"), []byte(tmplYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Port:             "8080",
+		TemplatesDir:     templatesDir,
+		CacheDir:         t.TempDir(),
+		CacheMaxAgeHours: 1,
+		CacheMaxSizeMB:   10,
+	}
+	srv, err := New(cfg, web.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := strings.NewReader("{}")
+	req := httptest.NewRequest(http.MethodPost, "/palette-test/render", body)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("render with palette: got %d, body: %s", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type: got %q, want image/png", ct)
+	}
+	b := rr.Body.Bytes()
+	if len(b) < 8 || b[0] != 0x89 || b[1] != 0x50 || b[2] != 0x4E || b[3] != 0x47 {
+		t.Error("response body is not a valid PNG")
 	}
 }

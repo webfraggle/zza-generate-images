@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"image"
 	"image/png"
 	"io"
 	"io/fs"
@@ -297,9 +298,15 @@ func (s *Server) renderAndServe(w http.ResponseWriter, templateName string, body
 		return
 	}
 
+	// Optionally reduce color palette.
+	var encImg image.Image = img
+	if tmpl.Meta.Canvas.Colors > 0 {
+		encImg = renderer.Quantize(img, tmpl.Meta.Canvas.Colors)
+	}
+
 	// Encode PNG.
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
+	if err := png.Encode(&buf, encImg); err != nil {
 		http.Error(w, "PNG encode error", http.StatusInternalServerError)
 		log.Printf("render: png encode %q: %v", templateName, err)
 		return
