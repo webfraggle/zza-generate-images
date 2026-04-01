@@ -31,6 +31,7 @@ type Meta struct {
 type Canvas struct {
 	Width  int `yaml:"width"`
 	Height int `yaml:"height"`
+	Colors int `yaml:"colors"` // 0 = no reduction (default); 2–256 = indexed PNG output
 }
 
 // FontDef maps a font ID to a font file.

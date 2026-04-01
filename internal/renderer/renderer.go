@@ -60,6 +60,11 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 	}
 
 	tmpl.Dir = tmplPath
+
+	if c := tmpl.Meta.Canvas.Colors; c != 0 && (c < 2 || c > 256) {
+		return nil, fmt.Errorf("renderer: LoadTemplate: canvas.colors must be between 2 and 256 (got %d)", c)
+	}
+
 	return &tmpl, nil
 }
 
