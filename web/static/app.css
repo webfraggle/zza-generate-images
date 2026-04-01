@@ -1160,6 +1160,12 @@ body.admin-page { background: var(--bg); }
   flex-direction: column;
   gap: 6px;
 }
+/* Body nodes inside a loop flow in the container instead of using canvas coordinates */
+.ne-node--loop .ne-body-chain .ne-node {
+  position: relative;
+  left: auto;
+  top: auto;
+}
 
 /* Lock overlay */
 .node-lock[hidden] { display: none; }
