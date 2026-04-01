@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"image"
 	"image/png"
 	"os"
 
@@ -51,6 +52,12 @@ func RenderCmd() *cobra.Command {
 				return fmt.Errorf("render: rendering: %w", err)
 			}
 
+			// Optionally reduce color palette.
+			var encImg image.Image = img
+			if tmpl.Meta.Canvas.Colors > 0 {
+				encImg = renderer.Quantize(img, tmpl.Meta.Canvas.Colors)
+			}
+
 			// Write PNG output.
 			outF, err := os.Create(outputFile)
 			if err != nil {
@@ -63,7 +70,7 @@ func RenderCmd() *cobra.Command {
 				}
 			}()
 
-			if err := png.Encode(outF, img); err != nil {
+			if err := png.Encode(outF, encImg); err != nil {
 				return fmt.Errorf("render: encoding PNG: %w", err)
 			}
 
