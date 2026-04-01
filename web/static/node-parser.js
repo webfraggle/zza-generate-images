@@ -100,12 +100,12 @@ function layerToNode(layer, x, y, newId) {
   if (layer.type === 'loop') {
     const bodyNodes = [];
     const bodyChain = [];
-    let bodyY = y;
+    let bodyX = x + NODE_WIDTH + 30;
     for (const bodyLayer of (layer.layers || [])) {
-      const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, x + NODE_WIDTH + 30, bodyY, newId);
+      const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, bodyX, y, newId);
       bodyNodes.push(bodyNode, ...nested);
       bodyChain.push(bodyNode.id);
-      bodyY += nodeHeight(bodyLayer.type) + NODE_GAP;
+      bodyX += NODE_WIDTH + 30;
     }
     return {
       node: { id: newId(), type: 'loop', canvasX: x, canvasY: y, data, bodyChain },

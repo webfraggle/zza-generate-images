@@ -138,7 +138,11 @@ function _showContextMenu(screenX, screenY, canvasX, canvasY) {
   }
 
   document.body.appendChild(menu);
-  const hide = () => { _hideContextMenu(); document.removeEventListener('mousedown', hide); };
+  const hide = (ev) => {
+    if (menu.contains(ev.target)) return;
+    _hideContextMenu();
+    document.removeEventListener('mousedown', hide);
+  };
   setTimeout(() => document.addEventListener('mousedown', hide), 0);
 }
 
@@ -320,7 +324,7 @@ function _renderConnections() {
       _drawLoopBodyConnection(node, bodyNode);
       if (i < node.bodyChain.length - 1) {
         const nextBody = nodeById[node.bodyChain[i + 1]];
-        if (nextBody) _drawConnection(bodyNode, nextBody, '#C83232');
+        if (nextBody) _drawBodyBodyConnection(bodyNode, nextBody);
       }
     }
   }
@@ -386,6 +390,36 @@ function _drawLoopBodyConnection(loopNode, bodyNode) {
 
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   arrow.setAttribute('points', `${toX},${toY} ${toX-4},${toY-6} ${toX+4},${toY-6}`);
+  arrow.setAttribute('fill', '#C83232');
+  _svg.appendChild(arrow);
+}
+
+// Horizontal right-to-left connector between body nodes in same loop chain
+function _drawBodyBodyConnection(fromNode, toNode) {
+  const fromEl = _viewport.querySelector(`.ne-node[data-id="${fromNode.id}"]`);
+  const fromW  = fromEl ? fromEl.offsetWidth  : 220;
+  const fromH  = fromEl ? fromEl.offsetHeight : 120;
+  const toEl   = _viewport.querySelector(`.ne-node[data-id="${toNode.id}"]`);
+  const toH    = toEl   ? toEl.offsetHeight   : 120;
+
+  const fromX = fromNode.canvasX + fromW;
+  const fromY = fromNode.canvasY + fromH / 2;
+  const toX   = toNode.canvasX;
+  const toY   = toNode.canvasY + toH / 2;
+
+  const dx = (toX - fromX) * 0.4;
+  const d = `M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX - dx} ${toY}, ${toX} ${toY}`;
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#C83232');
+  path.setAttribute('stroke-width', '1.5');
+  path.setAttribute('stroke-dasharray', '4,2');
+  _svg.appendChild(path);
+
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  arrow.setAttribute('points', `${toX},${toY} ${toX-6},${toY-4} ${toX-6},${toY+4}`);
   arrow.setAttribute('fill', '#C83232');
   _svg.appendChild(arrow);
 }
