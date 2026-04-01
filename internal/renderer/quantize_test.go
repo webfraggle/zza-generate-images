@@ -69,8 +69,8 @@ func TestQuantize_SingleColorImage(t *testing.T) {
 func TestQuantize_ClampN_TooSmall(t *testing.T) {
 	src := makeNRGBA(4, 4, color.NRGBA{R: 100, G: 100, B: 100, A: 255})
 	out := Quantize(src, 0) // clamped to 2
-	if len(out.Palette) < 1 {
-		t.Error("palette must not be empty")
+	if len(out.Palette) < 2 {
+		t.Errorf("palette size %d: expected at least 2 (n=0 clamped to 2)", len(out.Palette))
 	}
 }
 

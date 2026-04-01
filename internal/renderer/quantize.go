@@ -54,7 +54,9 @@ func medianCut(pixels []color.NRGBA, n int) []color.NRGBA {
 		idx := bucketWithLargestRange(buckets)
 		b := buckets[idx]
 		if len(b) <= 1 {
-			break // cannot split further
+			// The largest-range bucket has ≤1 pixel, meaning all buckets
+			// are unsplittable — no further reduction is possible.
+			break
 		}
 		axis := dominantAxis(b)
 		sortByAxis(b, axis)
@@ -154,6 +156,7 @@ func avgColor(b []color.NRGBA) color.NRGBA {
 		sumB += int(c.B)
 	}
 	n := len(b)
+	// Alpha is always 255 — this quantizer is designed for opaque images only.
 	return color.NRGBA{
 		R: uint8(sumR / n),
 		G: uint8(sumG / n),
