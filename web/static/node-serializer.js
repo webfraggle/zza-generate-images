@@ -1,7 +1,24 @@
 // web/static/node-serializer.js
 // Pure function: converts graph data model to YAML layers array.
 // No external dependencies — call jsYaml.dump(graphToLayers(graph)) in the browser.
-import { YAML_FIELD_MAP } from './node-types.js';
+import { YAML_FIELD_MAP, NODE_TYPES } from './node-types.js';
+
+// Set of data-key names that must be serialized as numbers (not strings).
+// Built from NODE_TYPES field definitions to stay in sync with node-types.js.
+const NUMERIC_DATA_KEYS = new Set(
+  Object.values(NODE_TYPES).flatMap(t =>
+    t.fields.filter(f => f.numeric).map(f => f.name)
+  )
+);
+
+function toYamlValue(dataKey, val) {
+  if (NUMERIC_DATA_KEYS.has(dataKey)) {
+    const n = Number(val);
+    // Keep as string if not a plain number (e.g. template expressions like {{x}})
+    return Number.isFinite(n) ? n : val;
+  }
+  return val;
+}
 
 /**
  * Convert graph to YAML-ready layers array.
@@ -23,7 +40,7 @@ function nodeToLayer(node, nodeById) {
   for (const [dataKey, yamlKey] of Object.entries(fieldMap)) {
     const val = node.data[dataKey];
     if (val !== undefined && val !== '') {
-      layer[yamlKey] = val;
+      layer[yamlKey] = toYamlValue(dataKey, val);
     }
   }
   return layer;
@@ -35,7 +52,7 @@ function loopNodeToLayer(node, nodeById) {
   for (const [dataKey, yamlKey] of Object.entries(fieldMap)) {
     const val = node.data[dataKey];
     if (val !== undefined && val !== '') {
-      layer[yamlKey] = val;
+      layer[yamlKey] = toYamlValue(dataKey, val);
     }
   }
   if (node.bodyChain && node.bodyChain.length > 0) {

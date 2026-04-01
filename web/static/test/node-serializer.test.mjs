@@ -22,7 +22,7 @@ test('single image node', () => {
   );
   const layers = graphToLayers(graph);
   assert.equal(layers.length, 1);
-  assert.deepEqual(layers[0], { type: 'image', file: 'bg.png', x: '0', y: '0' });
+  assert.deepEqual(layers[0], { type: 'image', file: 'bg.png', x: 0, y: 0 });
 });
 
 test('image node omits empty fields', () => {
@@ -42,7 +42,7 @@ test('rect node with color', () => {
     ['n1']
   );
   const layers = graphToLayers(graph);
-  assert.deepEqual(layers[0], { type: 'rect', x: '10', y: '20', width: '100', height: '50', color: '#FF0000' });
+  assert.deepEqual(layers[0], { type: 'rect', x: 10, y: 20, width: 100, height: 50, color: '#FF0000' });
 });
 
 test('text node', () => {
@@ -51,7 +51,7 @@ test('text node', () => {
     ['n1']
   );
   const layers = graphToLayers(graph);
-  assert.deepEqual(layers[0], { type: 'text', value: '{{zug1.zeit}}', x: '5', y: '60', font: 'regular', size: '16', color: '#000000', align: 'left' });
+  assert.deepEqual(layers[0], { type: 'text', value: '{{zug1.zeit}}', x: 5, y: 60, font: 'regular', size: 16, color: '#000000', align: 'left' });
 });
 
 test('copy node', () => {
@@ -60,7 +60,7 @@ test('copy node', () => {
     ['n1']
   );
   const layers = graphToLayers(graph);
-  assert.deepEqual(layers[0], { type: 'copy', src_x: '0', src_y: '0', src_width: '240', src_height: '120', x: '0', y: '120' });
+  assert.deepEqual(layers[0], { type: 'copy', src_x: 0, src_y: 0, src_width: 240, src_height: 120, x: 0, y: 120 });
 });
 
 test('chain of nodes preserves order', () => {
@@ -89,7 +89,7 @@ test('loop node with body chain', () => {
   assert.equal(layers[0].value, '{{zug1.via}}');
   assert.equal(layers[0].split_by, '-');
   assert.equal(layers[0].var, 'via_item');
-  assert.equal(layers[0].max_items, '5');
+  assert.equal(layers[0].max_items, 5);
   assert.equal(layers[0].layers.length, 1);
   assert.equal(layers[0].layers[0].type, 'text');
   assert.equal(layers[0].layers[0].value, '{{via_item}}');
