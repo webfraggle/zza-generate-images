@@ -821,6 +821,7 @@ body.editor-page {
 }
 .preview-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .no-preview { color: var(--light-text); font-size: 1.1rem; font-family: var(--font-mono); }
+.preview-size { display: block; text-align: center; font-size: 0.75rem; color: var(--light-text); margin-top: 4px; }
 
 .render-error-box {
   max-width: 100%; max-height: 100%; overflow: auto;

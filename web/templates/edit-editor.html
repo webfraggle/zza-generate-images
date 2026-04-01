@@ -51,6 +51,7 @@
       <div id="preview-wrap" class="preview-wrap">
         <div id="spinner" class="spinner" hidden></div>
         <img id="preview-img" alt="" hidden>
+        <span id="preview-size" class="preview-size" hidden></span>
         <span id="no-preview" class="no-preview">—</span>
         <pre id="render-error" class="render-error-box" hidden></pre>
       </div>
@@ -90,8 +91,16 @@ const previewImg  = document.getElementById('preview-img');
 const noPreview   = document.getElementById('no-preview');
 const renderErr   = document.getElementById('render-error');
 
+const previewSize = document.getElementById('preview-size');
+
 const uploadInput = document.getElementById('file-upload');
 const uploadStatus= document.getElementById('upload-status');
+
+function formatSize(bytes) {
+  return bytes < 1024
+    ? bytes + ' Bytes'
+    : (bytes / 1024).toFixed(3) + ' KB';
+}
 
 // ── File list ─────────────────────────────────────────────────────────────────
 async function loadFiles() {
@@ -208,10 +217,11 @@ async function renderPreview() {
   const body = jsonInput.value.trim();
   if (!body) return;
 
-  spinner.hidden    = false;
-  previewImg.hidden = true;
-  noPreview.hidden  = true;
-  renderErr.hidden  = true;
+  spinner.hidden      = false;
+  previewImg.hidden   = true;
+  previewSize.hidden  = true;
+  noPreview.hidden    = true;
+  renderErr.hidden    = true;
 
   try {
     const res = await fetch(`/${TEMPLATE}/render`, {
@@ -224,10 +234,13 @@ async function renderPreview() {
       renderErr.textContent = msg;
       renderErr.hidden = false;
     } else {
+      const blob = await res.blob();
       if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
-      prevBlobUrl       = URL.createObjectURL(await res.blob());
-      previewImg.src    = prevBlobUrl;
-      previewImg.hidden = false;
+      prevBlobUrl             = URL.createObjectURL(blob);
+      previewImg.src          = prevBlobUrl;
+      previewImg.hidden       = false;
+      previewSize.textContent = formatSize(blob.size);
+      previewSize.hidden      = false;
     }
   } catch (e) {
     renderErr.textContent = 'Netzwerkfehler: ' + e.message;
