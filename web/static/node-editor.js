@@ -189,7 +189,8 @@ function _renderAll() {
       _renderNode(node, nodeById, _viewport);
     }
   }
-  _renderConnections();
+  // Defer until after browser layout so offsetWidth/offsetHeight are available.
+  requestAnimationFrame(_renderConnections);
 }
 
 // ── Stubs (filled by Tasks 6, 7, 8) ──────────────────────────────────────────
