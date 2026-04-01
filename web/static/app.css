@@ -1148,6 +1148,8 @@ body.admin-page { background: var(--bg); }
 }
 .ne-port-in  { top: -6px; }
 .ne-port-out { bottom: -6px; }
+.ne-node--loop .ne-port-in,
+.ne-node--loop .ne-port-out { display: none; }
 
 
 /* Lock overlay */
