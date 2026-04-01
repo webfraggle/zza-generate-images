@@ -215,7 +215,7 @@ cmHost.addEventListener('keydown', e => {
 async function saveFile() {
   if (!cmView) return;
   // If NODES tab is active, serialize graph → YAML before saving
-  if (activeTab === 'nodes' && getGraph()) {
+  if (activeTab === 'nodes' && nodeLock.hidden && getGraph()) {
     switchToYaml();
   }
   const content = cmView.state.doc.toString();
