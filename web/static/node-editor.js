@@ -467,8 +467,8 @@ function _drawLoopBodyReturn(loopNode, lastBodyNode) {
   const bodyW     = bodyEl ? bodyEl.offsetWidth  : 220;
   const bodyH     = bodyEl ? bodyEl.offsetHeight : 120;
 
-  const fromX = lastBodyNode.canvasX + bodyW;
-  const fromY = lastBodyNode.canvasY + bodyH / 2;
+  const fromX = lastBodyNode.canvasX + bodyW / 2;
+  const fromY = lastBodyNode.canvasY + bodyH;
   const toX   = loopNode.canvasX + loopW;
   const toY   = loopNode.canvasY + loopH * 0.65;
 
