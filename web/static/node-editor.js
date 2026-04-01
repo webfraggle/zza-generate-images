@@ -194,8 +194,119 @@ function _renderAll() {
 
 // ── Stubs (filled by Tasks 6, 7, 8) ──────────────────────────────────────────
 
-// eslint-disable-next-line no-unused-vars
-function _renderNode(node, nodeById, parent) { /* Task 6 */ }
+function _renderNode(node, nodeById, parent) {
+  const cfg = NODE_TYPES[node.type];
+  if (!cfg) return;
+
+  const el = document.createElement('div');
+  el.className = 'ne-node';
+  el.dataset.id = node.id;
+  el.style.left = node.canvasX + 'px';
+  el.style.top  = node.canvasY + 'px';
+
+  // Input port (top)
+  const portIn = document.createElement('div');
+  portIn.className = 'ne-port-in';
+  el.appendChild(portIn);
+
+  // Header (drag handle + type label + delete)
+  const header = document.createElement('div');
+  header.className = 'ne-node-header';
+
+  const dot = document.createElement('div');
+  dot.className = 'ne-node-type-dot';
+  dot.style.background = cfg.color;
+
+  const label = document.createElement('span');
+  label.className = 'ne-node-label';
+  label.textContent = cfg.label;
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'ne-node-delete';
+  delBtn.title = 'Node löschen';
+  delBtn.textContent = '×';
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    _deleteNode(node.id);
+  });
+
+  header.appendChild(dot);
+  header.appendChild(label);
+  header.appendChild(delBtn);
+  el.appendChild(header);
+
+  // Body (fields)
+  const body = document.createElement('div');
+  body.className = 'ne-node-body';
+
+  for (const field of cfg.fields) {
+    const row = document.createElement('div');
+    row.className = 'ne-field';
+
+    const lbl = document.createElement('span');
+    lbl.className = 'ne-field-label';
+    lbl.textContent = field.label;
+    row.appendChild(lbl);
+
+    let input;
+    if (field.inputType === 'text') {
+      input = document.createElement('input');
+      input.type = 'text';
+      input.value = node.data[field.name] || '';
+      input.addEventListener('input', () => { node.data[field.name] = input.value; });
+    } else if (field.inputType === 'color') {
+      input = document.createElement('input');
+      input.type = 'color';
+      input.value = /^#[0-9a-fA-F]{6}$/.test(node.data[field.name] || '')
+        ? node.data[field.name]
+        : '#000000';
+      input.addEventListener('input', () => { node.data[field.name] = input.value; });
+    } else if (field.inputType === 'dropdown') {
+      input = document.createElement('select');
+      const options = field.options
+        || (field.source === 'imageFiles' ? ['', ..._fileList]
+          : field.source === 'fontIds'   ? ['', ..._fontIds]
+          : ['']);
+      for (const opt of options) {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt || '—';
+        if (opt === (node.data[field.name] || '')) o.selected = true;
+        input.appendChild(o);
+      }
+      input.addEventListener('change', () => { node.data[field.name] = input.value; });
+    }
+
+    if (input) row.appendChild(input);
+    body.appendChild(row);
+  }
+
+  // Loop body sub-chain (rendered inside loop node)
+  if (node.type === 'loop' && node.bodyChain) {
+    const bodyContainer = document.createElement('div');
+    bodyContainer.className = 'ne-body-chain';
+    bodyContainer.dataset.loopId = node.id;
+    for (const childId of node.bodyChain) {
+      const childNode = nodeById[childId];
+      if (childNode) _renderNode(childNode, nodeById, bodyContainer);
+    }
+    body.appendChild(bodyContainer);
+  }
+
+  el.appendChild(body);
+
+  // Output port (bottom)
+  const portOut = document.createElement('div');
+  portOut.className = 'ne-port-out';
+  el.appendChild(portOut);
+
+  // Wire drag + port-drag (stubs for now, wired in Tasks 7 & 8)
+  _makeDraggable(el, node);
+  _initPortDrag(portOut, el, node);
+
+  parent.appendChild(el);
+  return el;
+}
 // eslint-disable-next-line no-unused-vars
 function _renderConnections() { /* Task 7 */ }
 // eslint-disable-next-line no-unused-vars
