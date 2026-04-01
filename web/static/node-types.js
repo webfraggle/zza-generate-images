@@ -50,6 +50,7 @@ export const NODE_TYPES = {
       { name: 'src_height', label: 'src_h',   inputType: 'text' },
       { name: 'x',          label: 'x',       inputType: 'text' },
       { name: 'y',          label: 'y',       inputType: 'text' },
+      // Note: copy has no destination width/height — the src region is pasted 1:1 at (x,y)
     ],
   },
   loop: {
@@ -75,7 +76,11 @@ export const YAML_FIELD_MAP = {
 };
 
 // YAML field names → data key (inverse map, used by node-parser.js).
-export const YAML_TO_DATA_KEY = {};
-for (const [type, map] of Object.entries(YAML_FIELD_MAP)) {
-  YAML_TO_DATA_KEY[type] = Object.fromEntries(Object.entries(map).map(([dk, yk]) => [yk, dk]));
-}
+export const YAML_TO_DATA_KEY = Object.freeze(
+  Object.fromEntries(
+    Object.entries(YAML_FIELD_MAP).map(([type, map]) => [
+      type,
+      Object.freeze(Object.fromEntries(Object.entries(map).map(([dk, yk]) => [yk, dk]))),
+    ])
+  )
+);
