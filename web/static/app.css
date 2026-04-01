@@ -1161,6 +1161,7 @@ body.admin-page { background: var(--bg); }
 }
 
 /* Lock overlay */
+.node-lock[hidden] { display: none; }
 .node-lock {
   position: absolute;
   inset: 0;
