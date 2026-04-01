@@ -58,6 +58,7 @@ meta:
   canvas:
     width: 160    # Bildbreite in Pixeln
     height: 160   # Bildhöhe in Pixeln
+    colors: 32    # optional — Farbpalette reduzieren (2–256)
 ```
 
 | Feld | Beschreibung |
@@ -69,8 +70,26 @@ meta:
 | `display` | Bezeichnung des Ziel-Displays (z.B. `"0.96 Zoll OLED"`) — erscheint auf der Galerie-Karte und Vorschau-Seite |
 | `instructions` | Freitext-Anleitung für Nutzer (mehrzeilig mit YAML `\|`) — erscheint auf der Vorschau-Seite |
 | `canvas` | Bildabmessungen (`width` × `height` in Pixeln) — Pflichtfeld |
+| `canvas.colors` | Farbpalette reduzieren (2–256) — kleinere PNG-Dateien für Microcontroller (siehe unten) |
 
 Alle Felder außer `canvas` sind optional, aber empfohlen — sie erscheinen in der Galerie und auf der Vorschau-Seite.
+
+### Farbpaletten-Reduktion (`canvas.colors`)
+
+TFT-Displays an Microcontrollern profitieren von kleinen PNG-Dateien. Da generierte Zuganzeigebilder nur wenige Farben enthalten, lässt sich die Dateigröße mit `canvas.colors` deutlich reduzieren — ohne sichtbaren Qualitätsverlust.
+
+```yaml
+canvas:
+  width: 160
+  height: 80
+  colors: 32    # Ausgabe auf 32 Farben reduzieren
+```
+
+- Der Renderer wählt automatisch die **optimale Palette** für das jeweilige Bild (Median-Cut-Algorithmus)
+- Kein Dithering — bei kleinen Texten auf TFT-Displays würde Dithering fransige Schriftkanten erzeugen
+- **Richtwert:** 16–32 Farben liefern bei einfachen Grafiken mit Anti-Aliasing gute Ergebnisse
+- Weglassen oder `colors: 0` = volle 32-Bit-Farbe (Standard, kein Unterschied zu bisherigem Verhalten)
+- Gültige Werte: 2–256 (technisches Limit von Indexed PNG)
 
 ---
 
