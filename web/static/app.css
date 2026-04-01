@@ -27,6 +27,8 @@
   --font-mono:     'IBM Plex Mono', monospace;
   --radius:        0px;
   --radius-md:     5px;
+  --canvas-bg:         #F8F6F3;
+  --canvas-bg-overlay: rgba(248,246,243,.92);
 }
 
 html {
@@ -1024,7 +1026,7 @@ body.admin-page { background: var(--bg); }
   flex: 1;
   overflow: hidden;
   position: relative;
-  background: #F8F6F3;
+  background: var(--canvas-bg);
   cursor: default;
   user-select: none;
 }
@@ -1162,7 +1164,7 @@ body.admin-page { background: var(--bg); }
 .node-lock {
   position: absolute;
   inset: 0;
-  background: rgba(248,246,243,.92);
+  background: var(--canvas-bg-overlay);
   display: flex;
   flex-direction: column;
   align-items: center;
