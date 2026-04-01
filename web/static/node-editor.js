@@ -315,9 +315,79 @@ function _renderNode(node, nodeById, parent) {
   parent.appendChild(el);
   return el;
 }
-// eslint-disable-next-line no-unused-vars
-function _renderConnections() { /* Task 7 */ }
-// eslint-disable-next-line no-unused-vars
-function _makeDraggable(el, node) { /* Task 7 */ }
+function _renderConnections() {
+  _svg.innerHTML = '';
+  if (!_graph) return;
+
+  for (let i = 0; i < _graph.chain.length - 1; i++) {
+    const fromNode = _graph.nodes.find(n => n.id === _graph.chain[i]);
+    const toNode   = _graph.nodes.find(n => n.id === _graph.chain[i + 1]);
+    if (!fromNode || !toNode) continue;
+    _drawConnection(fromNode, toNode);
+  }
+}
+
+function _getPortPos(node, port) {
+  const el = _viewport.querySelector(`.ne-node[data-id="${node.id}"]`);
+  if (!el) {
+    const x = node.canvasX + 110;
+    const y = port === 'out' ? node.canvasY + 120 : node.canvasY;
+    return { x, y };
+  }
+  const x = node.canvasX + el.offsetWidth / 2;
+  const y = port === 'out'
+    ? node.canvasY + el.offsetHeight
+    : node.canvasY;
+  return { x, y };
+}
+
+function _drawConnection(fromNode, toNode) {
+  const from = _getPortPos(fromNode, 'out');
+  const to   = _getPortPos(toNode, 'in');
+
+  const dy = Math.abs(to.y - from.y) * 0.5;
+  const d = `M ${from.x} ${from.y} C ${from.x} ${from.y + dy}, ${to.x} ${to.y - dy}, ${to.x} ${to.y}`;
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#B8B0A8');
+  path.setAttribute('stroke-width', '1.5');
+  path.setAttribute('stroke-dasharray', '4,2');
+  _svg.appendChild(path);
+
+  // Arrowhead
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  arrow.setAttribute('points', `${to.x},${to.y} ${to.x-4},${to.y-6} ${to.x+4},${to.y-6}`);
+  arrow.setAttribute('fill', '#B8B0A8');
+  _svg.appendChild(arrow);
+}
+
+function _makeDraggable(el, node) {
+  const header = el.querySelector('.ne-node-header');
+  if (!header) return;
+  header.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const origX = node.canvasX;
+    const origY = node.canvasY;
+
+    const onMove = ev => {
+      node.canvasX = origX + (ev.clientX - startX) / _zoom;
+      node.canvasY = origY + (ev.clientY - startY) / _zoom;
+      el.style.left = node.canvasX + 'px';
+      el.style.top  = node.canvasY + 'px';
+      _renderConnections();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
 // eslint-disable-next-line no-unused-vars
 function _initPortDrag(portOutEl, nodeEl, fromNode) { /* Task 8 */ }
