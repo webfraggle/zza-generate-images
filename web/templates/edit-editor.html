@@ -34,9 +34,24 @@
   <div class="editor-code-col">
     <div class="code-toolbar">
       <span id="active-file" class="pane-label">template.yaml</span>
+      <div class="tab-switcher tab-switcher--hidden" id="tab-switcher">
+        <button class="tab-btn tab-btn--active" id="tab-yaml" data-tab="yaml">YAML</button>
+        <button class="tab-btn" id="tab-nodes" data-tab="nodes">NODES</button>
+      </div>
       <button id="btn-save" class="btn btn-primary btn-sm">Speichern</button>
     </div>
     <div id="cm-host" class="cm-host"></div>
+    <div id="node-canvas-wrap" class="node-canvas-wrap" hidden>
+      <div id="node-canvas" class="node-canvas">
+        <div id="nc-viewport" class="nc-viewport">
+          <svg id="nc-svg" class="nc-svg"></svg>
+        </div>
+      </div>
+      <div id="node-lock" class="node-lock" hidden>
+        <p>Diese YAML enthält Features die im Node-Editor nicht darstellbar sind.</p>
+        <p id="node-lock-reason" class="node-lock-reason"></p>
+      </div>
+    </div>
     <p id="save-status" class="save-status" hidden></p>
   </div>
 
