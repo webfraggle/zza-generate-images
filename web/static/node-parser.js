@@ -1,13 +1,22 @@
 // web/static/node-parser.js
 // Pure function: converts YAML layers array to graph data model.
 // No external dependencies. Call layersToGraph(jsYaml.load(yamlStr).layers) in browser.
-import { YAML_TO_DATA_KEY } from './node-types.js';
+import { YAML_TO_DATA_KEY, NODE_TYPES } from './node-types.js';
 
 const NODE_WIDTH  = 220;  // reserved for future horizontal layout
-const NODE_HEIGHT = 120;  // estimated height for auto-layout
-const NODE_GAP    = 24;
+const NODE_GAP    = 32;
 const CANVAS_START_X = 80;
 const CANVAS_START_Y = 40;
+
+// Header + body padding + port-dot overhead (constants match app.css)
+const NODE_HEADER_H = 30;
+const NODE_FIELD_H  = 28;  // field row incl. gap
+const NODE_BODY_PAD = 22;
+
+function nodeHeight(type) {
+  const fields = NODE_TYPES[type]?.fields?.length ?? 4;
+  return NODE_HEADER_H + NODE_BODY_PAD + fields * NODE_FIELD_H;
+}
 
 /**
  * Convert YAML layers array to graph.
@@ -35,7 +44,7 @@ export function layersToGraph(layers) {
     nodes.push(node);
     nodes.push(...bodyNodes);
     chain.push(node.id);
-    y += NODE_HEIGHT + NODE_GAP;
+    y += nodeHeight(layer.type) + NODE_GAP;
   }
 
   return { ok: true, nodes, chain };
@@ -96,7 +105,7 @@ function layerToNode(layer, x, y, newId) {
       const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, x + 20, bodyY, newId);
       bodyNodes.push(bodyNode, ...nested);
       bodyChain.push(bodyNode.id);
-      bodyY += NODE_HEIGHT + NODE_GAP;
+      bodyY += nodeHeight(bodyLayer.type) + NODE_GAP;
     }
     return {
       node: { id: newId(), type: 'loop', canvasX: x, canvasY: y, data, bodyChain },
