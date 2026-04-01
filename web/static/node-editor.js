@@ -2,6 +2,20 @@
 // Node editor canvas: pan, zoom, node rendering, drag, connections, context menu.
 import { NODE_TYPES } from './node-types.js';
 
+// ── Layout constants (mirror node-parser.js) ──────────────────────────────────
+const NODE_WIDTH    = 220;
+const NODE_GAP      = 32;
+const CANVAS_ORIGIN_X = 80;
+const CANVAS_ORIGIN_Y = 40;
+const NODE_HEADER_H = 30;
+const NODE_FIELD_H  = 28;
+const NODE_BODY_PAD = 22;
+
+function _nodeHeight(type) {
+  const fields = NODE_TYPES[type]?.fields?.length ?? 4;
+  return NODE_HEADER_H + NODE_BODY_PAD + fields * NODE_FIELD_H;
+}
+
 // ── State ──────────────────────────────────────────────────────────────────────
 let _canvas   = null;
 let _viewport = null;
@@ -194,6 +208,60 @@ function _renderAll() {
   requestAnimationFrame(_renderConnections);
 }
 
+// ── Auto-layout ───────────────────────────────────────────────────────────────
+
+function _autoLayout(animate) {
+  if (!_graph) return;
+  const nodeById = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
+
+  // Compute target positions
+  let y = CANVAS_ORIGIN_Y;
+  for (const id of _graph.chain) {
+    const node = nodeById[id];
+    if (!node) continue;
+    node.canvasX = CANVAS_ORIGIN_X;
+    node.canvasY = y;
+
+    if (node.type === 'loop' && node.bodyChain?.length) {
+      let bodyX = CANVAS_ORIGIN_X + NODE_WIDTH + 30;
+      for (const bodyId of node.bodyChain) {
+        const bodyNode = nodeById[bodyId];
+        if (!bodyNode) continue;
+        bodyNode.canvasX = bodyX;
+        bodyNode.canvasY = y;
+        bodyX += NODE_WIDTH + 30;
+      }
+    }
+
+    y += _nodeHeight(node.type) + NODE_GAP;
+  }
+
+  // Apply positions to existing DOM elements
+  for (const node of _graph.nodes) {
+    const el = _viewport.querySelector(`.ne-node[data-id="${node.id}"]`);
+    if (!el) continue;
+    if (animate) el.style.transition = 'left 0.35s ease, top 0.35s ease';
+    el.style.left = node.canvasX + 'px';
+    el.style.top  = node.canvasY + 'px';
+  }
+
+  // Redraw connections — continuously during animation, then strip transition
+  const duration = animate ? 380 : 0;
+  const start = performance.now();
+  const tick = () => {
+    requestAnimationFrame(_renderConnections);
+    if (performance.now() - start < duration) {
+      requestAnimationFrame(tick);
+    } else if (animate) {
+      for (const node of _graph.nodes) {
+        const el = _viewport.querySelector(`.ne-node[data-id="${node.id}"]`);
+        if (el) el.style.transition = '';
+      }
+    }
+  };
+  requestAnimationFrame(tick);
+}
+
 // ── Stubs (filled by Tasks 6, 7, 8) ──────────────────────────────────────────
 
 function _renderNode(node, nodeById, parent) {
@@ -305,6 +373,16 @@ function _renderNode(node, nodeById, parent) {
   parent.appendChild(el);
   return el;
 }
+// Returns the node whose out-port represents the "exit" of a chain step.
+// For loops with body nodes the exit is the last body node.
+function _exitNode(node, nodeById) {
+  if (node.type === 'loop' && node.bodyChain?.length) {
+    const last = nodeById[node.bodyChain[node.bodyChain.length - 1]];
+    if (last) return last;
+  }
+  return node;
+}
+
 function _renderConnections() {
   _svg.innerHTML = '';
   if (!_graph) return;
@@ -313,7 +391,7 @@ function _renderConnections() {
     const fromNode = nodeById[_graph.chain[i]];
     const toNode   = nodeById[_graph.chain[i + 1]];
     if (!fromNode || !toNode) continue;
-    _drawConnection(fromNode, toNode, '#B8B0A8');
+    _drawConnection(_exitNode(fromNode, nodeById), toNode, '#B8B0A8');
   }
   // Body chain connections: horizontal lines from loop → body nodes
   for (const node of _graph.nodes) {
@@ -498,7 +576,7 @@ function _initPortDrag(portOutEl, nodeEl, fromNode) {
       _graph.chain = _graph.chain.filter(id => id !== toId);
       const newFromIdx = _graph.chain.indexOf(fromNode.id);
       _graph.chain.splice(newFromIdx + 1, 0, toId);
-      _renderConnections();
+      _autoLayout(true);
     };
 
     document.addEventListener('mousemove', onMove);
