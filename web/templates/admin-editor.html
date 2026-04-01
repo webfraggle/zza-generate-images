@@ -91,7 +91,7 @@ const uploadStatus= document.getElementById('upload-status');
 function formatSize(bytes) {
   return bytes < 1024
     ? bytes + ' Bytes'
-    : (bytes / 1024).toFixed(3) + ' KB';
+    : (bytes / 1024).toFixed(3).replace('.', ',') + ' KB';
 }
 
 async function loadFiles() {

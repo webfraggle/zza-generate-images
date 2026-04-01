@@ -811,6 +811,7 @@ body.editor-page {
 .preview-wrap {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
