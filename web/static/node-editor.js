@@ -427,6 +427,10 @@ function _initPortDrag(portOutEl, nodeEl, fromNode) {
       const toId = targetNodeEl.dataset.id;
       if (!toId || !_graph) return;
 
+      // Guard: prevent dropping onto a body-chain node (would violate chain invariant)
+      const isBodyNode = _graph.nodes.some(n => n.bodyChain?.includes(toId));
+      if (isBodyNode) return;
+
       // Reorder: remove toId from chain, insert after fromNode
       const fromIdx = _graph.chain.indexOf(fromNode.id);
       if (fromIdx === -1) return;
