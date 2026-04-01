@@ -7,7 +7,7 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 ## Editor
 
 <!-- Ideen für den Template-Editor -->
-- Nodebasierter Editor
+- Nodebasierter Editor → Design-Spec: `docs/superpowers/specs/2026-04-01-node-editor-design.md`
 
 ---
 
