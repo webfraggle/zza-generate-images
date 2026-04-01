@@ -8,6 +8,7 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 
 <!-- Ideen für den Template-Editor -->
 - Nodebasierter Editor
+- `edit-editor.html` und `admin-editor.html` konsolidieren — ~96 % Code-Duplikat; Unterschied ist nur Header-Text und API-Basis-URL (`/edit/${TOKEN}/…` vs. `/admin/${TEMPLATE}/…`). Ansätze: gemeinsames JS-Modul (`editor.js`) oder ein einzelnes Go-Template mit `{{if .IsAdmin}}`.
 
 ---
 
