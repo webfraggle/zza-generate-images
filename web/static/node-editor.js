@@ -318,10 +318,10 @@ function _renderNode(node, nodeById, parent) {
 function _renderConnections() {
   _svg.innerHTML = '';
   if (!_graph) return;
-
+  const nodeById = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
   for (let i = 0; i < _graph.chain.length - 1; i++) {
-    const fromNode = _graph.nodes.find(n => n.id === _graph.chain[i]);
-    const toNode   = _graph.nodes.find(n => n.id === _graph.chain[i + 1]);
+    const fromNode = nodeById[_graph.chain[i]];
+    const toNode   = nodeById[_graph.chain[i + 1]];
     if (!fromNode || !toNode) continue;
     _drawConnection(fromNode, toNode);
   }
@@ -369,6 +369,8 @@ function _makeDraggable(el, node) {
   header.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     e.stopPropagation();
+    e.preventDefault();
+    document.body.style.cursor = 'grabbing';
     const startX = e.clientX;
     const startY = e.clientY;
     const origX = node.canvasX;
@@ -382,6 +384,7 @@ function _makeDraggable(el, node) {
       _renderConnections();
     };
     const onUp = () => {
+      document.body.style.cursor = '';
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
