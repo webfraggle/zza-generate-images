@@ -200,6 +200,7 @@ function _renderNode(node, nodeById, parent) {
 
   const el = document.createElement('div');
   el.className = 'ne-node';
+  if (node.type === 'loop') el.classList.add('ne-node--loop');
   el.dataset.id = node.id;
   el.style.left = node.canvasX + 'px';
   el.style.top  = node.canvasY + 'px';
@@ -263,10 +264,15 @@ function _renderNode(node, nodeById, parent) {
       input.addEventListener('input', () => { node.data[field.name] = input.value; });
     } else if (field.inputType === 'dropdown') {
       input = document.createElement('select');
-      const options = field.options
+      const options = [...(field.options
         || (field.source === 'imageFiles' ? ['', ..._fileList]
           : field.source === 'fontIds'   ? ['', ..._fontIds]
-          : ['']);
+          : ['']))];
+      // If stored value is not in options, add it so the display matches data
+      const storedVal = node.data[field.name] || '';
+      if (storedVal && !options.includes(storedVal)) {
+        options.push(storedVal);
+      }
       for (const opt of options) {
         const o = document.createElement('option');
         o.value = opt;
@@ -302,6 +308,8 @@ function _renderNode(node, nodeById, parent) {
 
   // Wire drag + port-drag (stubs for now, wired in Tasks 7 & 8)
   _makeDraggable(el, node);
+  // _initPortDrag is a stub (Task 8) — the call is pre-wired here so Task 8
+  // only needs to implement the function body, not find the call site.
   _initPortDrag(portOut, el, node);
 
   parent.appendChild(el);
