@@ -392,5 +392,51 @@ function _makeDraggable(el, node) {
     document.addEventListener('mouseup', onUp);
   });
 }
-// eslint-disable-next-line no-unused-vars
-function _initPortDrag(portOutEl, nodeEl, fromNode) { /* Task 8 */ }
+function _initPortDrag(portOutEl, nodeEl, fromNode) {
+  portOutEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    // Temporary dashed line during drag
+    const tmpLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    tmpLine.setAttribute('stroke', '#FD7014');
+    tmpLine.setAttribute('stroke-width', '1.5');
+    tmpLine.setAttribute('stroke-dasharray', '4,2');
+    _svg.appendChild(tmpLine);
+
+    const canvasRect = _canvas.getBoundingClientRect();
+
+    const onMove = ev => {
+      const from = _getPortPos(fromNode, 'out');
+      const tx = (ev.clientX - canvasRect.left - _panX) / _zoom;
+      const ty = (ev.clientY - canvasRect.top  - _panY) / _zoom;
+      tmpLine.setAttribute('x1', from.x); tmpLine.setAttribute('y1', from.y);
+      tmpLine.setAttribute('x2', tx);     tmpLine.setAttribute('y2', ty);
+    };
+
+    const onUp = ev => {
+      tmpLine.remove();
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+
+      // Find which node's element is under the cursor
+      const target = document.elementFromPoint(ev.clientX, ev.clientY);
+      const targetNodeEl = target?.closest('.ne-node');
+      if (!targetNodeEl || targetNodeEl === nodeEl) return;
+      const toId = targetNodeEl.dataset.id;
+      if (!toId || !_graph) return;
+
+      // Reorder: remove toId from chain, insert after fromNode
+      const fromIdx = _graph.chain.indexOf(fromNode.id);
+      if (fromIdx === -1) return;
+      _graph.chain = _graph.chain.filter(id => id !== toId);
+      const newFromIdx = _graph.chain.indexOf(fromNode.id);
+      _graph.chain.splice(newFromIdx + 1, 0, toId);
+      _renderConnections();
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
