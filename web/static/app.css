@@ -1213,3 +1213,176 @@ body.admin-page { background: var(--bg); }
   font-size: 11px;
 }
 .ne-context-menu-item:hover { background: var(--surface-2); }
+
+/* ── Phase 2: BLOCK node ───────────────────────────────────────────────────── */
+.ne-node--block {
+  border-color: #FD7014;
+}
+.ne-node--block .ne-node-header {
+  background: rgba(253,112,20,.08);
+}
+.ne-block-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #fff;
+}
+.ne-block-badge--if   { background: #FD7014; }
+.ne-block-badge--elif { background: #c85800; }
+.ne-block-badge--else { background: #8c3c00; }
+
+/* ── Phase 2: layer-if row ──────────────────────────────────────────────────── */
+.ne-field--layer-if {
+  grid-template-columns: auto 1fr;
+  gap: 4px;
+}
+.ne-layer-if-select {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 4px;
+  color: var(--light-text);
+  width: 48px;
+}
+.ne-layer-if-cond {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  color: var(--ink);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Phase 2: fieldIf toggle ────────────────────────────────────────────────── */
+.ne-field-if-wrapper { display: contents; }
+.ne-field--sub .ne-field-label { color: var(--light-text); opacity: .7; }
+.ne-field-if-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--light-text);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  margin-left: 3px;
+}
+.ne-field-if-toggle:hover { border-color: #FD7014; color: #FD7014; }
+.ne-field-if-toggle--clear { color: var(--red); border-color: var(--red); }
+
+/* ── Phase 2: filter pipeline chips ────────────────────────────────────────── */
+.ne-field-filter-row {
+  grid-column: 1 / -1;
+  padding-left: 64px; /* align with field inputs (label col = 60px + 4px gap) */
+}
+.filter-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-height: 20px;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 6px 1px 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink);
+  cursor: grab;
+}
+.filter-chip--dragging { opacity: .4; }
+.filter-chip--drag-over { border-color: #FD7014; }
+.filter-chip-label { user-select: none; }
+.filter-chip-remove {
+  cursor: pointer;
+  color: var(--light-text);
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 1px;
+}
+.filter-chip-remove:hover { color: var(--red); }
+.filter-add-wrapper {
+  position: relative;
+  display: inline-block;
+}
+.filter-add-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--light-text);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 6px 1px;
+}
+.filter-add-btn:hover { border-color: #FD7014; color: #FD7014; }
+.filter-add-dropdown {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  z-index: 200;
+  min-width: 130px;
+  overflow: hidden;
+}
+.filter-add-group { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.filter-add-group:last-child { border-bottom: none; }
+.filter-add-group-title {
+  padding: 2px 10px;
+  font-size: 9px;
+  color: var(--light-text);
+  letter-spacing: .05em;
+}
+.filter-add-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 4px 14px;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.filter-add-item:hover { background: var(--surface-2); }
+.filter-arg-input {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--surface-2);
+  border: 1px solid #FD7014;
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--ink);
+  width: 90px;
+  margin-left: 4px;
+}
+.filter-preview {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--light-text);
+  min-height: 14px;
+  padding-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
