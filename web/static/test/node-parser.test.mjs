@@ -174,9 +174,9 @@ describe('layersToGraph — Filter-Pipeline', () => {
 });
 
 describe('layersToGraph — BLOCK-Nodes', () => {
-  it("block-Layer → node.type='block', blockType='if'", () => {
+  it("if+layers → node.type='block', blockType='if'", () => {
     const r = layersToGraph([{
-      block: "startsWith(nr,'ICN')",
+      if: "startsWith(nr,'ICN')",
       layers: [{ type: 'image', file: 'icn.png' }],
     }]);
     assert.ok(r.ok);
@@ -205,7 +205,7 @@ describe('layersToGraph — BLOCK-Nodes', () => {
 
   it('vollständige if/elif/else-Kette mit regulärem Layer danach', () => {
     const r = layersToGraph([
-      { block: "startsWith(nr,'ICN')", layers: [{ type: 'image', file: 'icn.png' }] },
+      { if: "startsWith(nr,'ICN')", layers: [{ type: 'image', file: 'icn.png' }] },
       { elif: "startsWith(nr,'IC')",  layers: [{ type: 'image', file: 'ic.png' }] },
       { else: true,                   layers: [{ type: 'text', value: '{{nr}}' }] },
       { type: 'text', value: '{{zeit}}' },

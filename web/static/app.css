@@ -1092,6 +1092,16 @@ body.admin-page { background: var(--bg); }
   padding: 0 2px;
 }
 .ne-node-delete:hover { color: var(--red); }
+.ne-node-eject {
+  background: none;
+  border: none;
+  color: var(--light-text);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.ne-node-eject:hover { color: var(--accent); }
 .ne-node-body {
   padding: 8px;
   display: flex;

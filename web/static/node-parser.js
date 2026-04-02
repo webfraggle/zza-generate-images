@@ -22,9 +22,12 @@ function nodeHeight(type) {
 
 /** Erkennt ob ein Layer ein Block/Elif/Else-Block oder ein regulärer Layer ist. */
 function detectLayerKind(layer) {
-  if (layer.block !== undefined) return 'block-if';
-  if (layer.layers !== undefined && layer.elif !== undefined) return 'block-elif';
-  if (layer.layers !== undefined && layer.else !== undefined) return 'block-else';
+  // Block-level: has `layers:` but no `type:` (distinguishes from layer-level if-badge)
+  if (layer.layers !== undefined && layer.type === undefined) {
+    if (layer.if   !== undefined) return 'block-if';
+    if (layer.elif !== undefined) return 'block-elif';
+    if (layer.else !== undefined) return 'block-else';
+  }
   if (layer.type !== undefined) return 'regular';
   return 'unknown';
 }
@@ -159,7 +162,7 @@ function layerToNode(layer, x, y, newId) {
 
 function blockLayerToNode(layer, kind, x, y, newId) {
   const blockType = kind === 'block-if' ? 'if' : kind === 'block-elif' ? 'elif' : 'else';
-  const blockCond = kind === 'block-if'   ? String(layer.block)
+  const blockCond = kind === 'block-if'   ? String(layer.if)
                   : kind === 'block-elif' ? String(layer.elif)
                   : '';
 

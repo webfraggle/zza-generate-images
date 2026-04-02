@@ -249,7 +249,10 @@ function _renderAll() {
 
   for (const node of _graph.nodes) {
     const el = _renderNode(node, nodeById, _viewport);
-    if (el && bodyNodeIds.has(node.id)) el.classList.add('ne-node--body');
+    if (el && bodyNodeIds.has(node.id)) {
+      el.classList.add('ne-node--body');
+      _addEjectButton(el, node);
+    }
   }
   // Defer until after browser layout so offsetHeight is available for auto-layout.
   requestAnimationFrame(() => { _autoLayout(false); });
@@ -803,6 +806,28 @@ function _drawBodyBodyConnection(fromNode, toNode, color = '#C83232') {
   _svgArrowDown(toX, toY, color);
 }
 
+function _addEjectButton(el, node) {
+  const header = el.querySelector('.ne-node-header');
+  if (!header) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ne-node-eject';
+  btn.title = 'Aus Block/Loop entfernen';
+  btn.textContent = '↑';
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const parent = _graph.nodes.find(n => n.bodyChain?.includes(node.id));
+    if (!parent) return;
+    parent.bodyChain = parent.bodyChain.filter(id => id !== node.id);
+    const parentIdx = _graph.chain.indexOf(parent.id);
+    _graph.chain.splice(parentIdx >= 0 ? parentIdx + 1 : _graph.chain.length, 0, node.id);
+    _renderAll();
+  });
+  const delBtn = header.querySelector('.ne-node-delete');
+  if (delBtn) header.insertBefore(btn, delBtn);
+  else header.appendChild(btn);
+}
+
 function _makeDraggable(el, node) {
   const header = el.querySelector('.ne-node-header');
   if (!header) return;
@@ -878,7 +903,19 @@ function _initPortDrag(portOutEl, nodeEl, fromNode) {
         return;
       }
 
-      // Main chain drag: prevent dropping onto body nodes
+      // Main chain drag: drop onto block/loop → add fromNode to its bodyChain
+      const toNode = _graph.nodes.find(n => n.id === toId);
+      if (toNode && (toNode.type === 'block' || toNode.type === 'loop')) {
+        if (!toNode.bodyChain) toNode.bodyChain = [];
+        if (!toNode.bodyChain.includes(fromNode.id)) {
+          _graph.chain = _graph.chain.filter(id => id !== fromNode.id);
+          toNode.bodyChain.push(fromNode.id);
+          _renderAll();
+        }
+        return;
+      }
+
+      // Prevent dropping onto a body node
       const isBodyNode = _graph.nodes.some(n => n.bodyChain?.includes(toId));
       if (isBodyNode) return;
 

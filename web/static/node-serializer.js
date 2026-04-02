@@ -102,7 +102,7 @@ function blockNodeToLayer(node, nodeById) {
     .map(n => nodeToLayer(n, nodeById));
 
   if (node.blockType === 'if') {
-    return { block: node.blockCond, layers: bodyLayers };
+    return { if: node.blockCond, layers: bodyLayers };
   }
   if (node.blockType === 'elif') {
     return { elif: node.blockCond, layers: bodyLayers };
