@@ -1,6 +1,7 @@
 // web/static/node-editor.js
 // Node editor canvas: pan, zoom, node rendering, drag, connections, context menu.
 import { NODE_TYPES } from './node-types.js';
+import { renderFilterRow } from './node-filters.js';
 
 // ── Layout constants (mirror node-parser.js) ──────────────────────────────────
 const NODE_WIDTH    = 220;
@@ -12,9 +13,13 @@ const NODE_FIELD_H  = 28;
 const NODE_BODY_PAD = 22;
 
 function _nodeHeight(type) {
-  if (type === 'block') return NODE_HEADER_H + NODE_BODY_PAD + NODE_FIELD_H; // cond row
-  const fields = NODE_TYPES[type]?.fields?.length ?? 4;
-  return NODE_HEADER_H + NODE_BODY_PAD + fields * NODE_FIELD_H;
+  if (type === 'block') return NODE_HEADER_H + NODE_BODY_PAD + NODE_FIELD_H;
+  const typeDef = NODE_TYPES[type] || {};
+  const fields  = typeDef.fields || [];
+  // +1 for the layer-if row always rendered above the fields
+  // +1 per filterPipeline field for the chip+preview row
+  const extraRows = 1 + fields.filter(f => f.filterPipeline).length;
+  return NODE_HEADER_H + NODE_BODY_PAD + (fields.length + extraRows) * NODE_FIELD_H;
 }
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -352,7 +357,46 @@ function _renderNode(node, nodeById, parent) {
   const body = document.createElement('div');
   body.className = 'ne-node-body';
 
+  // ── Layer-if badge row ───────────────────────────────────────────────────────
+  const layerIfRow = document.createElement('div');
+  layerIfRow.className = 'ne-field ne-field--layer-if';
+
+  const layerIfSelect = document.createElement('select');
+  layerIfSelect.className = 'ne-layer-if-select';
+  for (const opt of ['—', 'if', 'elif', 'else']) {
+    const o = document.createElement('option');
+    o.value = opt === '—' ? '' : opt;
+    o.textContent = opt;
+    if ((node.layerIfType || '') === (opt === '—' ? '' : opt)) o.selected = true;
+    layerIfSelect.appendChild(o);
+  }
+
+  const layerIfInput = document.createElement('input');
+  layerIfInput.type = 'text';
+  layerIfInput.className = 'ne-layer-if-cond';
+  layerIfInput.placeholder = 'Bedingung…';
+  layerIfInput.value = node.layerIfCond || '';
+  layerIfInput.style.display = node.layerIfType && node.layerIfType !== 'else' ? '' : 'none';
+
+  layerIfSelect.addEventListener('change', () => {
+    const v = layerIfSelect.value;
+    node.layerIfType = v || undefined;
+    node.layerIfCond = v ? (node.layerIfCond || '') : undefined;
+    layerIfInput.style.display = v && v !== 'else' ? '' : 'none';
+  });
+  layerIfInput.addEventListener('input', () => { node.layerIfCond = layerIfInput.value; });
+
+  layerIfRow.appendChild(layerIfSelect);
+  layerIfRow.appendChild(layerIfInput);
+  body.appendChild(layerIfRow);
+
+  // ── Fields ───────────────────────────────────────────────────────────────────
   for (const field of cfg.fields) {
+    if (field.fieldIf) {
+      _renderFieldIfRow(body, node, field);
+      continue;
+    }
+
     const row = document.createElement('div');
     row.className = 'ne-field';
 
@@ -366,34 +410,26 @@ function _renderNode(node, nodeById, parent) {
       input = document.createElement('input');
       input.type = 'text';
       input.value = node.data[field.name] || '';
-      input.addEventListener('input', () => { node.data[field.name] = input.value; });
-    } else if (field.inputType === 'color') {
-      input = document.createElement('input');
-      input.type = 'color';
-      input.value = /^#[0-9a-fA-F]{6}$/.test(node.data[field.name] || '')
-        ? node.data[field.name]
-        : '#000000';
-      input.addEventListener('input', () => { node.data[field.name] = input.value; });
+      input.addEventListener('input', () => {
+        node.data[field.name] = input.value;
+        if (field.filterPipeline) refresher();
+      });
     } else if (field.inputType === 'dropdown') {
       input = document.createElement('select');
       const options = [...(field.options
         || (field.source === 'imageFiles' ? ['', ..._fileList]
           : field.source === 'fontIds'   ? ['', ..._fontIds]
           : ['']))];
-      // If stored value is not in options, add it so the display matches data.
-      // For imageFiles source, only allow values passing the file-extension whitelist.
       const storedVal = node.data[field.name] || '';
       const storedOk = field.source === 'imageFiles'
         ? /\.(png|jpe?g)$/i.test(storedVal)
         : true;
-      if (storedVal && storedOk && !options.includes(storedVal)) {
-        options.push(storedVal);
-      }
+      if (storedVal && storedOk && !options.includes(storedVal)) options.push(storedVal);
       for (const opt of options) {
         const o = document.createElement('option');
         o.value = opt;
         o.textContent = opt || '—';
-        if (opt === (node.data[field.name] || '')) o.selected = true;
+        if (opt === storedVal) o.selected = true;
         input.appendChild(o);
       }
       input.addEventListener('change', () => { node.data[field.name] = input.value; });
@@ -401,6 +437,33 @@ function _renderNode(node, nodeById, parent) {
 
     if (input) row.appendChild(input);
     body.appendChild(row);
+
+    // Filter pipeline chips + preview row
+    if (field.filterPipeline) {
+      const filterContainer = document.createElement('div');
+      filterContainer.className = 'ne-field-filter-row';
+      let _latestPreview = () => {};
+      _previewRefreshers.add(() => _latestPreview());
+
+      function refresher() { _latestPreview(); }
+
+      function renderFilters() {
+        const filters = node.data[field.name + '_filters'] || [];
+        const result = renderFilterRow(
+          filterContainer,
+          () => node.data[field.name] || '',
+          filters,
+          (newFilters) => {
+            node.data[field.name + '_filters'] = newFilters;
+            renderFilters();
+          },
+          () => _testJson
+        );
+        _latestPreview = result.updatePreview;
+      }
+      renderFilters();
+      body.appendChild(filterContainer);
+    }
   }
 
   el.appendChild(body);
@@ -494,6 +557,106 @@ function _renderBlockNode(node, parent) {
   parent.appendChild(el);
   return el;
 }
+
+/**
+ * Renders a fieldIf row (toggle: plain color vs if/then/else mode).
+ * Used for fields with `fieldIf: true` (e.g. color).
+ */
+function _renderFieldIfRow(body, node, field) {
+  const dk = field.name; // data key e.g. 'color'
+
+  // Outer wrapper that we re-render in place
+  const wrapper = document.createElement('div');
+  wrapper.className = 'ne-field-if-wrapper';
+
+  function render() {
+    wrapper.innerHTML = '';
+    const isIfMode = !!(node.data[dk + 'If']);
+
+    if (!isIfMode) {
+      // Simple mode: label + color input + toggle button
+      const row = document.createElement('div');
+      row.className = 'ne-field';
+      const lbl = document.createElement('span');
+      lbl.className = 'ne-field-label';
+      lbl.textContent = field.label;
+      row.appendChild(lbl);
+
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.value = /^#[0-9a-fA-F]{6}$/.test(node.data[dk] || '')
+        ? node.data[dk]
+        : '#000000';
+      colorInput.addEventListener('input', () => { node.data[dk] = colorInput.value; });
+      row.appendChild(colorInput);
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'ne-field-if-toggle';
+      toggleBtn.title = 'Bedingung hinzufügen';
+      toggleBtn.textContent = 'if';
+      toggleBtn.addEventListener('click', () => {
+        node.data[dk + 'If']   = '';
+        node.data[dk + 'Then'] = node.data[dk] || '#000000';
+        node.data[dk + 'Else'] = '#000000';
+        delete node.data[dk];
+        render();
+      });
+      row.appendChild(toggleBtn);
+      wrapper.appendChild(row);
+    } else {
+      // If/then/else mode: three rows
+      const ifRow = document.createElement('div');
+      ifRow.className = 'ne-field';
+      const ifLbl = document.createElement('span');
+      ifLbl.className = 'ne-field-label';
+      ifLbl.textContent = field.label + ' if';
+      ifRow.appendChild(ifLbl);
+      const ifInput = document.createElement('input');
+      ifInput.type = 'text';
+      ifInput.value = node.data[dk + 'If'] || '';
+      ifInput.placeholder = 'Bedingung…';
+      ifInput.addEventListener('input', () => { node.data[dk + 'If'] = ifInput.value; });
+      ifRow.appendChild(ifInput);
+
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'ne-field-if-toggle ne-field-if-toggle--clear';
+      clearBtn.title = 'Bedingung entfernen';
+      clearBtn.textContent = '×';
+      clearBtn.addEventListener('click', () => {
+        node.data[dk] = node.data[dk + 'Then'] || '#000000';
+        delete node.data[dk + 'If'];
+        delete node.data[dk + 'Then'];
+        delete node.data[dk + 'Else'];
+        render();
+      });
+      ifRow.appendChild(clearBtn);
+      wrapper.appendChild(ifRow);
+
+      for (const sub of ['Then', 'Else']) {
+        const subRow = document.createElement('div');
+        subRow.className = 'ne-field ne-field--sub';
+        const subLbl = document.createElement('span');
+        subLbl.className = 'ne-field-label';
+        subLbl.textContent = sub.toLowerCase();
+        subRow.appendChild(subLbl);
+        const subInput = document.createElement('input');
+        subInput.type = 'color';
+        subInput.value = /^#[0-9a-fA-F]{6}$/.test(node.data[dk + sub] || '')
+          ? node.data[dk + sub]
+          : '#000000';
+        subInput.addEventListener('input', () => { node.data[dk + sub] = subInput.value; });
+        subRow.appendChild(subInput);
+        wrapper.appendChild(subRow);
+      }
+    }
+  }
+
+  render();
+  body.appendChild(wrapper);
+}
+
 function _renderConnections() {
   _svg.innerHTML = '';
   if (!_graph) return;
