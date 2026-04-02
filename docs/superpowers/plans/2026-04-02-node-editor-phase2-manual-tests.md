@@ -87,7 +87,7 @@ Alle Phase-1-Checks gelten weiterhin (Tab-Umschalter, Pan/Zoom, Drag, Kette umso
 - Rechtsklick auf leere Canvas-Fläche → Kontextmenü hat neue Gruppe `BLOCK` mit drei Einträgen: `BLOCK-IF`, `BLOCK-ELIF`, `BLOCK-ELSE`
 - `BLOCK-IF` wählen → neuer Node erscheint mit **orangem Rand**, Badge `[IF]` im Header
 - Bedingungsfeld: `startsWith(nr,'ICN')` eingeben
-- Tab YAML → `block: "startsWith(nr,'ICN')"` + `layers: []`
+- Tab YAML → `if: "startsWith(nr,'ICN')"` + `layers: []` (**nicht** `block:`)
 
 ### 4b. BLOCK-ELIF und BLOCK-ELSE
 
@@ -96,9 +96,11 @@ Alle Phase-1-Checks gelten weiterhin (Tab-Umschalter, Pan/Zoom, Drag, Kette umso
 
 ### 4c. Body-Nodes in BLOCK-Kette
 
-- IMAGE-Node in BLOCK-IF ziehen (via Port-Drag vom Block-Node auf den IMAGE-Node)
-- **Erwartung:** IMAGE-Node wird Body-Node des BLOCK; orangefarbene Bögen verbinden Block → IMAGE → zurück zum Block
-- Tab YAML → `block: ..., layers: [{type: 'image', ...}]`
+- IMAGE-Node erstellen, dann rechten Port des IMAGE-Nodes auf den BLOCK-IF-Node ziehen
+- **Erwartung:** IMAGE-Node wird Body-Node des BLOCK; taucht unterhalb des BLOCK-Nodes auf; orangefarbene Bögen verbinden Block → IMAGE → zurück zum Block
+- Tab YAML → `if: ..., layers: [{type: 'image', ...}]`
+- Body-Node hat **↑-Button** im Header → klicken → Node zurück in Hauptkette
+- Mehrere Body-Nodes: untere Port-Dot des einen auf obere Port-Dot des anderen ziehen → Reihenfolge ändert sich
 
 ### 4d. Verbindungen
 
@@ -127,7 +129,7 @@ layers:
     y: 0
     width: 100
     height: 20
-  - block: "startsWith(nr,'ICN')"
+  - if: "startsWith(nr,'ICN')"
     layers:
       - type: image
         file: icn.png
@@ -156,4 +158,17 @@ layers:
 
 ---
 
-Alle 6 Testgruppen bestanden → Branch bereit für Security- und Code-Review, danach Merge in `develop`.
+---
+
+## 7. Horizontales Layout
+
+- **Hauptkette fließt links → rechts** (nicht mehr vertikal)
+- Loop/Block-Body-Nodes hängen **unterhalb** des Parent-Nodes (vertikal)
+- Port-Dots: Hauptkette-Nodes haben Punkt links (●—) und rechts (—●); Body-Nodes haben Punkt oben und unten
+- Verbindungslinien: Hauptkette horizontal (→ grau gestrichelt), Body-Circuit vertikal (↓) mit Rückbogen rechts
+- Auto-Layout beim ersten Öffnen des NODES-Tabs: Nodes überlappen sich nicht
+- If-Button auf color-Feld: Node wächst → darunter liegende Nodes rücken automatisch nach unten
+
+---
+
+Alle 7 Testgruppen bestanden → Branch bereit für Security- und Code-Review, danach Merge in `develop`.
