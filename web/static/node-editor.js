@@ -695,7 +695,14 @@ function _getPortPos(node, port) {
   const el = _viewport.querySelector(`.ne-node[data-id="${node.id}"]`);
   const w  = el ? el.offsetWidth  : NODE_WIDTH;
   const h  = el ? el.offsetHeight : 120;
-  // Main chain nodes: left port (in), right port (out)
+  // Body nodes: top (in) / bottom (out)
+  if (_graph?.nodes.some(n => n.bodyChain?.includes(node.id))) {
+    return {
+      x: node.canvasX + w / 2,
+      y: port === 'out' ? node.canvasY + h : node.canvasY,
+    };
+  }
+  // Main chain nodes: left (in) / right (out)
   return {
     x: port === 'out' ? node.canvasX + w : node.canvasX,
     y: node.canvasY + h / 2,
@@ -860,7 +867,18 @@ function _initPortDrag(portOutEl, nodeEl, fromNode) {
       const toId = targetNodeEl.dataset.id;
       if (!toId || !_graph) return;
 
-      // Guard: prevent dropping onto a body-chain node (would violate chain invariant)
+      // Is fromNode a body node? → reorder within its parent's bodyChain
+      const fromParent = _graph.nodes.find(n => n.bodyChain?.includes(fromNode.id));
+      if (fromParent) {
+        if (!fromParent.bodyChain.includes(toId)) return; // only reorder within same parent
+        fromParent.bodyChain = fromParent.bodyChain.filter(id => id !== toId);
+        const newFromIdx = fromParent.bodyChain.indexOf(fromNode.id);
+        fromParent.bodyChain.splice(newFromIdx + 1, 0, toId);
+        _autoLayout(true);
+        return;
+      }
+
+      // Main chain drag: prevent dropping onto body nodes
       const isBodyNode = _graph.nodes.some(n => n.bodyChain?.includes(toId));
       if (isBodyNode) return;
 

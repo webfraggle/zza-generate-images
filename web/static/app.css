@@ -1150,8 +1150,17 @@ body.admin-page { background: var(--bg); }
 }
 .ne-port-in  { left: -6px; }
 .ne-port-out { right: -6px; }
+/* Body nodes: vertical ports top (in) / bottom (out) */
 .ne-node--body .ne-port-in,
-.ne-node--body .ne-port-out { display: none; }
+.ne-node--body .ne-port-out {
+  display: block;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  top: auto;
+}
+.ne-node--body .ne-port-in  { top: -6px; }
+.ne-node--body .ne-port-out { bottom: -6px; }
 
 
 /* Lock overlay */
