@@ -1,6 +1,6 @@
 // web/static/test/node-serializer.test.mjs
 // Run with: node --test web/static/test/node-serializer.test.mjs
-import { test } from 'node:test';
+import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { graphToLayers } from '../node-serializer.js';
 
@@ -113,7 +113,6 @@ test('loop node preserves falsy-but-valid field value "0"', () => {
   const layers = graphToLayers(makeGraph(nodes, ['n1']));
   assert.equal(layers[0].split_by, '0');
 });
-import { describe, it } from 'node:test';
 
 describe('graphToLayers — Layer if-Badge', () => {
   it('layerIfType="if" → layer.if', () => {
@@ -182,7 +181,7 @@ describe('graphToLayers — Filter-Pipeline', () => {
 });
 
 describe('graphToLayers — BLOCK-Nodes', () => {
-  it("BLOCK-IF → {block: cond, layers: [...]}", () => {
+  it("BLOCK-IF → {if: cond, layers: [...]}", () => {
     const graph = {
       nodes: [
         { id: 'n1', type: 'block', blockType: 'if', blockCond: "startsWith(nr,'ICN')",
@@ -192,7 +191,7 @@ describe('graphToLayers — BLOCK-Nodes', () => {
       chain: ['n1'],
     };
     const layer = graphToLayers(graph)[0];
-    assert.equal(layer.block, "startsWith(nr,'ICN')");
+    assert.equal(layer.if, "startsWith(nr,'ICN')");
     assert.equal(layer.layers[0].type, 'image');
   });
 
