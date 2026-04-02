@@ -12,6 +12,7 @@ const NODE_FIELD_H  = 28;
 const NODE_BODY_PAD = 22;
 
 function _nodeHeight(type) {
+  if (type === 'block') return NODE_HEADER_H + NODE_BODY_PAD + NODE_FIELD_H; // cond row
   const fields = NODE_TYPES[type]?.fields?.length ?? 4;
   return NODE_HEADER_H + NODE_BODY_PAD + fields * NODE_FIELD_H;
 }
@@ -23,6 +24,10 @@ let _svg      = null;
 let _graph    = null;   // { nodes, chain }
 let _fileList = [];
 let _fontIds  = [];
+let _testJson = null;   // parsed JSON object for live filter preview
+
+// Callbacks registered by field-chip UIs to refresh their preview on testJson change
+const _previewRefreshers = new Set();
 
 // Pan/zoom state
 let _panX = 40, _panY = 40, _zoom = 1;
@@ -64,6 +69,19 @@ export function setFontIds(ids) {
 
 export function getGraph() {
   return _graph;
+}
+
+export function setTestJson(jsonStr) {
+  try {
+    _testJson = jsonStr ? JSON.parse(jsonStr) : null;
+  } catch {
+    _testJson = null;
+  }
+  for (const refresh of _previewRefreshers) refresh();
+}
+
+export function getTestJson() {
+  return _testJson;
 }
 
 // ── Transform ─────────────────────────────────────────────────────────────────
@@ -151,6 +169,25 @@ function _showContextMenu(screenX, screenY, canvasX, canvasY) {
     menu.appendChild(groupEl);
   }
 
+  // BLOCK group
+  const blockGroup = document.createElement('div');
+  blockGroup.className = 'ne-context-menu-group';
+  const blockTitle = document.createElement('div');
+  blockTitle.className = 'ne-context-menu-title';
+  blockTitle.textContent = 'BLOCK';
+  blockGroup.appendChild(blockTitle);
+  for (const blockType of ['if', 'elif', 'else']) {
+    const btn = document.createElement('button');
+    btn.className = 'ne-context-menu-item';
+    btn.textContent = 'BLOCK-' + blockType.toUpperCase();
+    btn.addEventListener('click', () => {
+      _hideContextMenu();
+      _addNode('block', canvasX, canvasY, { blockType, blockCond: '' });
+    });
+    blockGroup.appendChild(btn);
+  }
+  menu.appendChild(blockGroup);
+
   document.body.appendChild(menu);
   const hide = (ev) => {
     if (menu.contains(ev.target)) return;
@@ -167,12 +204,13 @@ function _hideContextMenu() {
 // ── Node management ───────────────────────────────────────────────────────────
 
 let _idCounter = 1;
-function _addNode(type, canvasX, canvasY) {
+function _addNode(type, canvasX, canvasY, extra = {}) {
   if (!_graph) return;
   const id = `n${Date.now()}_${_idCounter++}`;
   const node = {
     id, type, canvasX, canvasY, data: {},
-    ...(type === 'loop' ? { bodyChain: [] } : {}),
+    ...(type === 'loop'  ? { bodyChain: [] } : {}),
+    ...(type === 'block' ? { bodyChain: [], blockType: extra.blockType || 'if', blockCond: extra.blockCond || '' } : {}),
   };
   _graph.nodes.push(node);
   _graph.chain.push(id);
@@ -198,6 +236,7 @@ function _deleteNode(id) {
 function _renderAll() {
   Array.from(_viewport.querySelectorAll('.ne-node')).forEach(el => el.remove());
   _svg.innerHTML = '';
+  _previewRefreshers.clear();
   if (!_graph) return;
 
   const nodeById    = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
@@ -225,7 +264,7 @@ function _autoLayout(animate) {
     node.canvasX = CANVAS_ORIGIN_X;
     node.canvasY = y;
 
-    if (node.type === 'loop' && node.bodyChain?.length) {
+    if ((node.type === 'loop' || node.type === 'block') && node.bodyChain?.length) {
       let bodyX = CANVAS_ORIGIN_X + NODE_WIDTH + 30;
       for (const bodyId of node.bodyChain) {
         const bodyNode = nodeById[bodyId];
@@ -265,11 +304,11 @@ function _autoLayout(animate) {
   requestAnimationFrame(tick);
 }
 
-// ── Stubs (filled by Tasks 6, 7, 8) ──────────────────────────────────────────
-
 function _renderNode(node, nodeById, parent) {
   const cfg = NODE_TYPES[node.type];
   if (!cfg) return;
+
+  if (node.type === 'block') return _renderBlockNode(node, parent);
 
   const el = document.createElement('div');
   el.className = 'ne-node';
@@ -377,6 +416,84 @@ function _renderNode(node, nodeById, parent) {
   parent.appendChild(el);
   return el;
 }
+
+function _renderBlockNode(node, parent) {
+  const cfg = NODE_TYPES['block'];
+
+  const el = document.createElement('div');
+  el.className = 'ne-node ne-node--block';
+  el.dataset.id = node.id;
+  el.style.left = node.canvasX + 'px';
+  el.style.top  = node.canvasY + 'px';
+
+  // Input port
+  const portIn = document.createElement('div');
+  portIn.className = 'ne-port-in';
+  el.appendChild(portIn);
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'ne-node-header';
+
+  const dot = document.createElement('div');
+  dot.className = 'ne-node-type-dot';
+  dot.style.background = cfg.color;
+
+  const label = document.createElement('span');
+  label.className = 'ne-node-label';
+  label.textContent = cfg.label;
+
+  const badge = document.createElement('span');
+  badge.className = 'ne-block-badge ne-block-badge--' + node.blockType;
+  badge.textContent = node.blockType.toUpperCase();
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'ne-node-delete';
+  delBtn.title = 'Node löschen';
+  delBtn.textContent = '×';
+  delBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    _deleteNode(node.id);
+  });
+
+  header.appendChild(dot);
+  header.appendChild(label);
+  header.appendChild(badge);
+  header.appendChild(delBtn);
+  el.appendChild(header);
+
+  // Body: condition input (not for 'else')
+  const body = document.createElement('div');
+  body.className = 'ne-node-body';
+
+  const row = document.createElement('div');
+  row.className = 'ne-field';
+  const lbl = document.createElement('span');
+  lbl.className = 'ne-field-label';
+  lbl.textContent = 'cond';
+  row.appendChild(lbl);
+
+  if (node.blockType !== 'else') {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = node.blockCond || '';
+    input.addEventListener('input', () => { node.blockCond = input.value; });
+    row.appendChild(input);
+  }
+  body.appendChild(row);
+  el.appendChild(body);
+
+  // Output port
+  const portOut = document.createElement('div');
+  portOut.className = 'ne-port-out';
+  el.appendChild(portOut);
+
+  _makeDraggable(el, node);
+  _initPortDrag(portOut, el, node);
+
+  parent.appendChild(el);
+  return el;
+}
 function _renderConnections() {
   _svg.innerHTML = '';
   if (!_graph) return;
@@ -390,18 +507,19 @@ function _renderConnections() {
     _drawConnection(fromNode, toNode, '#B8B0A8');
   }
 
-  // Loop body circuit: loop right-out → body[0] → … → body[n] → loop right-in
+  // Loop/Block body circuit: parent right-out → body[0] → … → body[n] → parent right-in
   for (const node of _graph.nodes) {
-    if (node.type !== 'loop' || !node.bodyChain?.length) continue;
+    if ((node.type !== 'loop' && node.type !== 'block') || !node.bodyChain?.length) continue;
+    const color = node.type === 'block' ? '#FD7014' : '#C83232';
     const firstBody = nodeById[node.bodyChain[0]];
     const lastBody  = nodeById[node.bodyChain[node.bodyChain.length - 1]];
-    if (firstBody) _drawLoopBodyEntry(node, firstBody);
+    if (firstBody) _drawLoopBodyEntry(node, firstBody, color);
     for (let i = 0; i < node.bodyChain.length - 1; i++) {
       const a = nodeById[node.bodyChain[i]];
       const b = nodeById[node.bodyChain[i + 1]];
-      if (a && b) _drawBodyBodyConnection(a, b);
+      if (a && b) _drawBodyBodyConnection(a, b, color);
     }
-    if (lastBody) _drawLoopBodyReturn(node, lastBody);
+    if (lastBody) _drawLoopBodyReturn(node, lastBody, color);
   }
 }
 
@@ -444,8 +562,8 @@ function _svgArrowDown(x, y, color) {
   _svg.appendChild(arrow);
 }
 
-// Loop right-out (upper third) → first body node top-center
-function _drawLoopBodyEntry(loopNode, bodyNode) {
+// Parent right-out (upper third) → first body node top-center
+function _drawLoopBodyEntry(loopNode, bodyNode, color = '#C83232') {
   const loopEl = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
   const loopW  = loopEl ? loopEl.offsetWidth  : 220;
   const loopH  = loopEl ? loopEl.offsetHeight : 120;
@@ -458,12 +576,12 @@ function _drawLoopBodyEntry(loopNode, bodyNode) {
   const dx = (toX - fromX) * 0.5;
   const d = `M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX} ${toY - 40}, ${toX} ${toY}`;
 
-  _svgPath(d, '#C83232');
-  _svgArrowDown(toX, toY, '#C83232');
+  _svgPath(d, color);
+  _svgArrowDown(toX, toY, color);
 }
 
-// Last body node right-center → loop right-in (lower third), arcing below
-function _drawLoopBodyReturn(loopNode, lastBodyNode) {
+// Last body node bottom-center → parent right-in (lower third), arcing below
+function _drawLoopBodyReturn(loopNode, lastBodyNode, color = '#C83232') {
   const loopEl    = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
   const bodyEl    = _viewport.querySelector(`.ne-node[data-id="${lastBodyNode.id}"]`);
   const loopW     = loopEl ? loopEl.offsetWidth  : 220;
@@ -480,16 +598,16 @@ function _drawLoopBodyReturn(loopNode, lastBodyNode) {
   const drop = Math.max(60, bodyH * 0.5);
   const d = `M ${fromX} ${fromY} C ${fromX + 50} ${fromY + drop}, ${toX + 50} ${toY + drop}, ${toX} ${toY}`;
 
-  _svgPath(d, '#C83232');
+  _svgPath(d, color);
   // Arrowhead pointing left (entering from the right)
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   arrow.setAttribute('points', `${toX},${toY} ${toX+6},${toY-4} ${toX+6},${toY+4}`);
-  arrow.setAttribute('fill', '#C83232');
+  arrow.setAttribute('fill', color);
   _svg.appendChild(arrow);
 }
 
 // Horizontal right-center → left-center connector between adjacent body nodes
-function _drawBodyBodyConnection(fromNode, toNode) {
+function _drawBodyBodyConnection(fromNode, toNode, color = '#C83232') {
   const fromEl = _viewport.querySelector(`.ne-node[data-id="${fromNode.id}"]`);
   const fromW  = fromEl ? fromEl.offsetWidth  : 220;
   const fromH  = fromEl ? fromEl.offsetHeight : 120;
@@ -502,12 +620,12 @@ function _drawBodyBodyConnection(fromNode, toNode) {
   const toY   = toNode.canvasY + toH / 2;
 
   const dx = (toX - fromX) * 0.4;
-  _svgPath(`M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX - dx} ${toY}, ${toX} ${toY}`, '#C83232');
+  _svgPath(`M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX - dx} ${toY}, ${toX} ${toY}`, color);
 
   // Arrowhead pointing right
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   arrow.setAttribute('points', `${toX},${toY} ${toX-6},${toY-4} ${toX-6},${toY+4}`);
-  arrow.setAttribute('fill', '#C83232');
+  arrow.setAttribute('fill', color);
   _svg.appendChild(arrow);
 }
 
