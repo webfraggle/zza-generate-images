@@ -251,8 +251,8 @@ function _renderAll() {
     const el = _renderNode(node, nodeById, _viewport);
     if (el && bodyNodeIds.has(node.id)) el.classList.add('ne-node--body');
   }
-  // Defer until after browser layout so offsetWidth/offsetHeight are available.
-  requestAnimationFrame(_renderConnections);
+  // Defer until after browser layout so offsetHeight is available for auto-layout.
+  requestAnimationFrame(() => { _autoLayout(false); });
 }
 
 // ── Auto-layout ───────────────────────────────────────────────────────────────
@@ -261,26 +261,29 @@ function _autoLayout(animate) {
   if (!_graph) return;
   const nodeById = Object.fromEntries(_graph.nodes.map(n => [n.id, n]));
 
-  // Compute target positions
-  let y = CANVAS_ORIGIN_Y;
+  // Compute target positions — main chain horizontal, body chains vertical
+  let x = CANVAS_ORIGIN_X;
   for (const id of _graph.chain) {
     const node = nodeById[id];
     if (!node) continue;
-    node.canvasX = CANVAS_ORIGIN_X;
-    node.canvasY = y;
+    node.canvasX = x;
+    node.canvasY = CANVAS_ORIGIN_Y;
 
     if ((node.type === 'loop' || node.type === 'block') && node.bodyChain?.length) {
-      let bodyX = CANVAS_ORIGIN_X + NODE_WIDTH + 30;
+      const parentEl = _viewport.querySelector(`.ne-node[data-id="${node.id}"]`);
+      const parentH  = parentEl ? parentEl.offsetHeight : _nodeHeight(node.type);
+      let bodyY = CANVAS_ORIGIN_Y + parentH + NODE_GAP;
       for (const bodyId of node.bodyChain) {
         const bodyNode = nodeById[bodyId];
         if (!bodyNode) continue;
-        bodyNode.canvasX = bodyX;
-        bodyNode.canvasY = y;
-        bodyX += NODE_WIDTH + 30;
+        bodyNode.canvasX = x;
+        bodyNode.canvasY = bodyY;
+        const bodyEl = _viewport.querySelector(`.ne-node[data-id="${bodyId}"]`);
+        bodyY += (bodyEl ? bodyEl.offsetHeight : _nodeHeight(bodyNode.type)) + NODE_GAP;
       }
     }
 
-    y += _nodeHeight(node.type) + NODE_GAP;
+    x += NODE_WIDTH + NODE_GAP;
   }
 
   // Apply positions to existing DOM elements
@@ -571,7 +574,7 @@ function _renderFieldIfRow(body, node, field) {
 
   function render() {
     wrapper.innerHTML = '';
-    const isIfMode = !!(node.data[dk + 'If']);
+    const isIfMode = (dk + 'If') in node.data;
 
     if (!isIfMode) {
       // Simple mode: label + color input + toggle button
@@ -601,6 +604,7 @@ function _renderFieldIfRow(body, node, field) {
         node.data[dk + 'Else'] = '#000000';
         delete node.data[dk];
         render();
+        _autoLayout(true);
       });
       row.appendChild(toggleBtn);
       wrapper.appendChild(row);
@@ -630,6 +634,7 @@ function _renderFieldIfRow(body, node, field) {
         delete node.data[dk + 'Then'];
         delete node.data[dk + 'Else'];
         render();
+        _autoLayout(true);
       });
       ifRow.appendChild(clearBtn);
       wrapper.appendChild(ifRow);
@@ -688,24 +693,21 @@ function _renderConnections() {
 
 function _getPortPos(node, port) {
   const el = _viewport.querySelector(`.ne-node[data-id="${node.id}"]`);
-  if (!el) {
-    const x = node.canvasX + 110;
-    const y = port === 'out' ? node.canvasY + 120 : node.canvasY;
-    return { x, y };
-  }
-  const x = node.canvasX + el.offsetWidth / 2;
-  const y = port === 'out'
-    ? node.canvasY + el.offsetHeight
-    : node.canvasY;
-  return { x, y };
+  const w  = el ? el.offsetWidth  : NODE_WIDTH;
+  const h  = el ? el.offsetHeight : 120;
+  // Main chain nodes: left port (in), right port (out)
+  return {
+    x: port === 'out' ? node.canvasX + w : node.canvasX,
+    y: node.canvasY + h / 2,
+  };
 }
 
 function _drawConnection(fromNode, toNode, color) {
   const from = _getPortPos(fromNode, 'out');
   const to   = _getPortPos(toNode, 'in');
-  const dy   = Math.abs(to.y - from.y) * 0.5;
-  _svgPath(`M ${from.x} ${from.y} C ${from.x} ${from.y + dy}, ${to.x} ${to.y - dy}, ${to.x} ${to.y}`, color);
-  _svgArrowDown(to.x, to.y, color);
+  const dx   = Math.abs(to.x - from.x) * 0.5;
+  _svgPath(`M ${from.x} ${from.y} C ${from.x + dx} ${from.y}, ${to.x - dx} ${to.y}, ${to.x} ${to.y}`, color);
+  _svgArrowRight(to.x, to.y, color);
 }
 
 function _svgPath(d, color) {
@@ -725,71 +727,73 @@ function _svgArrowDown(x, y, color) {
   _svg.appendChild(arrow);
 }
 
-// Parent right-out (upper third) → first body node top-center
+function _svgArrowRight(x, y, color) {
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  arrow.setAttribute('points', `${x},${y} ${x-6},${y-4} ${x-6},${y+4}`);
+  arrow.setAttribute('fill', color);
+  _svg.appendChild(arrow);
+}
+
+// Parent bottom-center → first body node top-center
 function _drawLoopBodyEntry(loopNode, bodyNode, color = '#C83232') {
   const loopEl = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
   const loopW  = loopEl ? loopEl.offsetWidth  : 220;
   const loopH  = loopEl ? loopEl.offsetHeight : 120;
+  const bodyEl = _viewport.querySelector(`.ne-node[data-id="${bodyNode.id}"]`);
+  const bodyW  = bodyEl ? bodyEl.offsetWidth  : 220;
 
-  const fromX = loopNode.canvasX + loopW;
-  const fromY = loopNode.canvasY + loopH * 0.35;
-  const toX   = bodyNode.canvasX + 110;
+  const fromX = loopNode.canvasX + loopW / 2;
+  const fromY = loopNode.canvasY + loopH;
+  const toX   = bodyNode.canvasX + bodyW / 2;
   const toY   = bodyNode.canvasY;
 
-  const dx = (toX - fromX) * 0.5;
-  const d = `M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX} ${toY - 40}, ${toX} ${toY}`;
-
+  const dy = Math.abs(toY - fromY) * 0.5;
+  const d  = `M ${fromX} ${fromY} C ${fromX} ${fromY + dy}, ${toX} ${toY - dy}, ${toX} ${toY}`;
   _svgPath(d, color);
   _svgArrowDown(toX, toY, color);
 }
 
-// Last body node bottom-center → parent right-in (lower third), arcing below
+// Last body node right-center → parent right-center, arcing right
 function _drawLoopBodyReturn(loopNode, lastBodyNode, color = '#C83232') {
-  const loopEl    = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
-  const bodyEl    = _viewport.querySelector(`.ne-node[data-id="${lastBodyNode.id}"]`);
-  const loopW     = loopEl ? loopEl.offsetWidth  : 220;
-  const loopH     = loopEl ? loopEl.offsetHeight : 120;
-  const bodyW     = bodyEl ? bodyEl.offsetWidth  : 220;
-  const bodyH     = bodyEl ? bodyEl.offsetHeight : 120;
+  const loopEl  = _viewport.querySelector(`.ne-node[data-id="${loopNode.id}"]`);
+  const bodyEl  = _viewport.querySelector(`.ne-node[data-id="${lastBodyNode.id}"]`);
+  const loopW   = loopEl ? loopEl.offsetWidth  : 220;
+  const loopH   = loopEl ? loopEl.offsetHeight : 120;
+  const bodyW   = bodyEl ? bodyEl.offsetWidth  : 220;
+  const bodyH   = bodyEl ? bodyEl.offsetHeight : 120;
 
-  const fromX = lastBodyNode.canvasX + bodyW / 2;
-  const fromY = lastBodyNode.canvasY + bodyH;
+  const fromX = lastBodyNode.canvasX + bodyW;
+  const fromY = lastBodyNode.canvasY + bodyH / 2;
   const toX   = loopNode.canvasX + loopW;
   const toY   = loopNode.canvasY + loopH * 0.65;
 
-  // Arc below: both control points push down
-  const drop = Math.max(60, bodyH * 0.5);
-  const d = `M ${fromX} ${fromY} C ${fromX + 50} ${fromY + drop}, ${toX + 50} ${toY + drop}, ${toX} ${toY}`;
-
+  // Arc to the right: both control points extend rightward
+  const arc = Math.max(50, bodyW * 0.4);
+  const d = `M ${fromX} ${fromY} C ${fromX + arc} ${fromY}, ${toX + arc} ${toY}, ${toX} ${toY}`;
   _svgPath(d, color);
-  // Arrowhead pointing left (entering from the right)
+  // Arrowhead pointing left (←)
   const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
   arrow.setAttribute('points', `${toX},${toY} ${toX+6},${toY-4} ${toX+6},${toY+4}`);
   arrow.setAttribute('fill', color);
   _svg.appendChild(arrow);
 }
 
-// Horizontal right-center → left-center connector between adjacent body nodes
+// Vertical bottom-center → top-center connector between adjacent body nodes
 function _drawBodyBodyConnection(fromNode, toNode, color = '#C83232') {
   const fromEl = _viewport.querySelector(`.ne-node[data-id="${fromNode.id}"]`);
   const fromW  = fromEl ? fromEl.offsetWidth  : 220;
   const fromH  = fromEl ? fromEl.offsetHeight : 120;
   const toEl   = _viewport.querySelector(`.ne-node[data-id="${toNode.id}"]`);
-  const toH    = toEl   ? toEl.offsetHeight   : 120;
+  const toW    = toEl   ? toEl.offsetWidth    : 220;
 
-  const fromX = fromNode.canvasX + fromW;
-  const fromY = fromNode.canvasY + fromH / 2;
-  const toX   = toNode.canvasX;
-  const toY   = toNode.canvasY + toH / 2;
+  const fromX = fromNode.canvasX + fromW / 2;
+  const fromY = fromNode.canvasY + fromH;
+  const toX   = toNode.canvasX + toW / 2;
+  const toY   = toNode.canvasY;
 
-  const dx = (toX - fromX) * 0.4;
-  _svgPath(`M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX - dx} ${toY}, ${toX} ${toY}`, color);
-
-  // Arrowhead pointing right
-  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-  arrow.setAttribute('points', `${toX},${toY} ${toX-6},${toY-4} ${toX-6},${toY+4}`);
-  arrow.setAttribute('fill', color);
-  _svg.appendChild(arrow);
+  const dy = Math.abs(toY - fromY) * 0.4;
+  _svgPath(`M ${fromX} ${fromY} C ${fromX} ${fromY + dy}, ${toX} ${toY - dy}, ${toX} ${toY}`, color);
+  _svgArrowDown(toX, toY, color);
 }
 
 function _makeDraggable(el, node) {

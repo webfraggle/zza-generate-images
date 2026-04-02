@@ -89,7 +89,7 @@ test('nested loop locks (unsupported)', () => {
   assert.ok(result.reason.toLowerCase().includes('loop'));
 });
 
-test('nodes get auto-positioned in a vertical stack', () => {
+test('nodes get auto-positioned in a horizontal row', () => {
   const layers = [
     { type: 'image', file: 'a.png' },
     { type: 'text', value: 'hi' },
@@ -97,12 +97,12 @@ test('nodes get auto-positioned in a vertical stack', () => {
   ];
   const result = layersToGraph(layers);
   assert.equal(result.ok, true);
-  // Each node should be below the previous one
-  const ys = result.nodes.map(n => n.canvasY);
-  assert.ok(ys[1] > ys[0]);
-  assert.ok(ys[2] > ys[1]);
-  // X should be consistent
-  assert.equal(result.nodes[0].canvasX, result.nodes[1].canvasX);
+  // Each node should be to the right of the previous one
+  const xs = result.nodes.map(n => n.canvasX);
+  assert.ok(xs[1] > xs[0]);
+  assert.ok(xs[2] > xs[1]);
+  // Y should be consistent
+  assert.equal(result.nodes[0].canvasY, result.nodes[1].canvasY);
 });
 
 test('null layer element locks (invalid)', () => {

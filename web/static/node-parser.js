@@ -52,16 +52,16 @@ export function layersToGraph(layers) {
 
   const nodes = [];
   const chain = [];
-  let y = CANVAS_START_Y;
+  let x = CANVAS_START_X;
 
   for (const layer of layers) {
     const err = checkSupported(layer, false);
     if (err) return { ok: false, reason: err };
 
-    const { node, bodyNodes } = layerToNode(layer, CANVAS_START_X, y, newId);
+    const { node, bodyNodes } = layerToNode(layer, x, CANVAS_START_Y, newId);
     nodes.push(node, ...bodyNodes);
     chain.push(node.id);
-    y += nodeHeight(node.type) + NODE_GAP;
+    x += NODE_WIDTH + NODE_GAP;
   }
 
   return { ok: true, nodes, chain };
@@ -138,12 +138,12 @@ function layerToNode(layer, x, y, newId) {
   if (layer.type === 'loop') {
     const bodyNodes = [];
     const bodyChain = [];
-    let bodyX = x + NODE_WIDTH + 30;
+    let bodyY = y + nodeHeight('loop') + NODE_GAP;
     for (const bodyLayer of (layer.layers || [])) {
-      const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, bodyX, y, newId);
+      const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, x, bodyY, newId);
       bodyNodes.push(bodyNode, ...nested);
       bodyChain.push(bodyNode.id);
-      bodyX += NODE_WIDTH + 30;
+      bodyY += nodeHeight(bodyNode.type) + NODE_GAP;
     }
     return {
       node: { id: newId(), type: 'loop', canvasX: x, canvasY: y, data, bodyChain },
@@ -165,12 +165,12 @@ function blockLayerToNode(layer, kind, x, y, newId) {
 
   const bodyNodes = [];
   const bodyChain = [];
-  let bodyX = x + NODE_WIDTH + 30;
+  let bodyY = y + nodeHeight('block') + NODE_GAP;
   for (const bodyLayer of (layer.layers || [])) {
-    const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, bodyX, y, newId);
+    const { node: bodyNode, bodyNodes: nested } = layerToNode(bodyLayer, x, bodyY, newId);
     bodyNodes.push(bodyNode, ...nested);
     bodyChain.push(bodyNode.id);
-    bodyX += NODE_WIDTH + 30;
+    bodyY += nodeHeight(bodyNode.type) + NODE_GAP;
   }
 
   return {

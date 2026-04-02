@@ -1134,12 +1134,12 @@ body.admin-page { background: var(--bg); }
   cursor: pointer;
 }
 
-/* Port circles */
+/* Port circles — main chain nodes: left (in) / right (out) */
 .ne-port-out,
 .ne-port-in {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translateY(-50%);
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -1148,8 +1148,8 @@ body.admin-page { background: var(--bg); }
   cursor: crosshair;
   z-index: 10;
 }
-.ne-port-in  { top: -6px; }
-.ne-port-out { bottom: -6px; }
+.ne-port-in  { left: -6px; }
+.ne-port-out { right: -6px; }
 .ne-node--body .ne-port-in,
 .ne-node--body .ne-port-out { display: none; }
 
