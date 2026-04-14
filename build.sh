@@ -85,12 +85,11 @@ elif [[ "$DOCKER_PUSH" == "1" ]]; then
     echo "  Image:     $IMAGE:$IMAGE_TAG"
     echo "  Platforms: linux/arm64, linux/amd64"
 
-    if ! docker buildx inspect zza-builder &>/dev/null; then
-        echo "  Creating buildx builder 'zza-builder'..."
-        docker buildx create --name zza-builder --use
-    else
-        docker buildx use zza-builder
-    fi
+    # Always create a fresh builder and remove it when done (prevents lingering
+    # BuildKit containers that hold large RAM caches indefinitely).
+    docker buildx rm --force zza-builder 2>/dev/null || true
+    docker buildx create --name zza-builder --use
+    trap 'docker buildx rm --force zza-builder 2>/dev/null || true' EXIT INT TERM
 
     BUILD_TAGS="--tag $IMAGE:$IMAGE_TAG"
     if [[ "$IMAGE_TAG" != "latest" ]]; then
@@ -111,6 +110,9 @@ elif [[ "$DOCKER_PUSH" == "1" ]]; then
         echo "  FAILED"
         ((failed++))
     fi
+
+    docker buildx rm --force zza-builder 2>/dev/null || true
+    trap - EXIT INT TERM
 else
     # ── Single-arch local load (development) ─────────────────────────────────
     # Detect current machine architecture for the local build.

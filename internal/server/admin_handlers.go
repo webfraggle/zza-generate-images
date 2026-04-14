@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/webfraggle/zza-generate-images/internal/admin"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
@@ -24,6 +25,8 @@ type AdminConfig struct {
 	AdminToken    string // ADMIN_TOKEN env var
 	TOTPSecret    string // TOTP_SECRET env var (Base32)
 	SecureCookies bool   // set true in production (HTTPS); false for localhost dev
+	BaseURL       string // BASE_URL — used to build edit links
+	TokenTTL      time.Duration
 }
 
 // adminState holds dependencies for admin HTTP handlers.
@@ -72,6 +75,8 @@ func (s *Server) RegisterAdminRoutes(db *sql.DB, cfg AdminConfig) {
 	mux.HandleFunc("POST /admin/{name}/save", as.requireSession(as.handleSave))
 	mux.HandleFunc("POST /admin/{name}/upload", as.requireSession(as.handleUpload))
 	mux.HandleFunc("DELETE /admin/{name}/file/{filename}", as.requireSession(as.handleDeleteFile))
+	mux.HandleFunc("POST /admin/{name}/generate-edit-link", as.requireSession(as.handleGenerateEditLink))
+	mux.HandleFunc("POST /admin/{name}/email", as.requireSession(as.handleSetEmail))
 	mux.HandleFunc("DELETE /admin/{name}", as.requireSession(as.handleDeleteTemplate))
 	mux.HandleFunc("GET /admin/{name}", as.requireSession(as.handleAdminEditor))
 	mux.HandleFunc("GET /admin", as.requireSession(as.handleOverview))
@@ -248,6 +253,110 @@ func (as *adminState) handleDeleteTemplate(w http.ResponseWriter, r *http.Reques
 	}
 
 	log.Printf("admin: deleted template %q", name)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ── Generate Edit Link ───────────────────────────────────────────────────────
+
+func (as *adminState) handleGenerateEditLink(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		http.Error(w, "invalid template name", http.StatusBadRequest)
+		return
+	}
+	if as.db == nil {
+		http.Error(w, "database not available", http.StatusInternalServerError)
+		return
+	}
+
+	// Look up or create template record.
+	var templateID int64
+	err := as.db.QueryRow(`SELECT id FROM templates WHERE name = ?`, name).Scan(&templateID)
+	if errors.Is(err, sql.ErrNoRows) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":    false,
+			"error": "Kein Besitzer registriert. Bitte zuerst eine E-Mail zuweisen.",
+		})
+		return
+	}
+	if err != nil {
+		log.Printf("admin: generate-edit-link %q: %v", name, err)
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate token directly (bypass rate limit — admin action).
+	tok, err := editor.GenerateToken()
+	if err != nil {
+		log.Printf("admin: generate token: %v", err)
+		http.Error(w, "token generation failed", http.StatusInternalServerError)
+		return
+	}
+	expiresAt := time.Now().UTC().Add(as.cfg.TokenTTL)
+	if _, err := as.db.Exec(
+		`INSERT INTO edit_tokens (token, template_id, expires_at) VALUES (?, ?, ?)`,
+		tok, templateID, expiresAt,
+	); err != nil {
+		log.Printf("admin: store token %q: %v", name, err)
+		http.Error(w, "could not store token", http.StatusInternalServerError)
+		return
+	}
+
+	link := as.cfg.BaseURL + "/edit/" + tok
+	log.Printf("admin: generated edit link for %q (expires %s)", name, expiresAt.Format(time.RFC3339))
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"ok":   true,
+		"link": link,
+	})
+}
+
+// ── Set Email ────────────────────────────────────────────────────────────────
+
+func (as *adminState) handleSetEmail(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		http.Error(w, "invalid template name", http.StatusBadRequest)
+		return
+	}
+	if as.db == nil {
+		http.Error(w, "database not available", http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" {
+		http.Error(w, "email required", http.StatusBadRequest)
+		return
+	}
+
+	// Upsert: insert or update the email for this template.
+	res, err := as.db.Exec(`UPDATE templates SET email = ? WHERE name = ?`, email, name)
+	if err != nil {
+		log.Printf("admin: set email %q: %v", name, err)
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		// No existing record — create one.
+		if _, err := as.db.Exec(`INSERT INTO templates (name, email) VALUES (?, ?)`, name, email); err != nil {
+			log.Printf("admin: insert template %q: %v", name, err)
+			http.Error(w, "database error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	log.Printf("admin: set email for %q to %q", name, email)
 	w.WriteHeader(http.StatusNoContent)
 }
 
