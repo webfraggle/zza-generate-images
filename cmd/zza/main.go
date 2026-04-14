@@ -100,6 +100,8 @@ func serveCmd() *cobra.Command {
 				AdminToken:    cfg.AdminToken,
 				TOTPSecret:    cfg.TOTPSecret,
 				SecureCookies: cfg.SecureCookies,
+				BaseURL:       cfg.BaseURL,
+				TokenTTL:      time.Duration(cfg.EditTokenTTLHours) * time.Hour,
 			})
 
 			// Register editor routes.

@@ -232,6 +232,7 @@ header {
 .btn-level2:hover { border-color: var(--border-strong); color: var(--ink); }
 
 .btn-sm  { padding: 5px 10px; font-size: .7rem; }
+.btn-xs  { padding: 2px 6px; font-size: .7rem; min-width: auto; }
 .btn-full { width: 100%; padding: 11px; }
 
 .pane-label {
@@ -898,6 +899,39 @@ body.admin-page { background: var(--bg); }
 }
 
 .admin-actions { display: flex; gap: 8px; align-items: center; }
+
+.admin-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.admin-modal-content {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 24px 28px;
+  width: 100%; max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+}
+.admin-modal-content h3 {
+  font-family: var(--font-display);
+  font-size: 1rem; font-weight: 700;
+  margin-bottom: 12px;
+}
+.admin-modal-actions {
+  display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end;
+}
+.admin-input {
+  font-family: var(--font-mono); font-size: .85rem;
+  padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--ink);
+  outline: none;
+}
+.admin-input:focus { border-color: var(--teal); }
+.admin-input-wide { width: 100%; box-sizing: border-box; }
+
+.owner-display { margin-right: 4px; }
 
 /* ── STATS / CACHE ──────────────────────────────────────────────────────────── */
 .stats-card {
