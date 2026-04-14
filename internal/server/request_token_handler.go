@@ -89,6 +89,8 @@ func (es *editorState) handleRequestToken(w http.ResponseWriter, r *http.Request
 	if es.cfg.Mail.Host != "" {
 		if mailErr := editor.SendTokenMail(es.cfg.Mail, email, templateName, tok, es.cfg.TokenTTL); mailErr != nil {
 			log.Printf("request-token: send mail to %q: %v", email, mailErr)
+		} else {
+			log.Printf("request-token: mail sent to %q for %q", email, templateName)
 		}
 	} else {
 		log.Printf("[DEV] edit link for %q: %s/edit/%s", templateName, es.cfg.Mail.BaseURL, tok) //nolint:gosec
