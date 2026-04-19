@@ -1,0 +1,40 @@
+<h2>Wie wird der Node-Editor integriert?</h2>
+<p class="subtitle">Der bestehende Editor hat: Dateiliste | CodeMirror (YAML) | JSON-Input + Vorschau</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Ersetzt den YAML-Editor vollständig</h3>
+      <p>Der Node-Editor <em>ist</em> der Editor. Kein CodeMirror mehr. YAML wird nur noch im Hintergrund generiert und gespeichert. Einfacheres UI, keine Dopplung.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul><li>Klare Oberfläche</li><li>Kein Sync-Problem</li></ul></div>
+        <div class="cons"><h4>Con</h4><ul><li>Fortgeschrittene verlieren direkten YAML-Zugriff</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Tab-Umschalter: Node-Editor ↔ YAML</h3>
+      <p>Zwei Tabs im Code-Bereich: „Nodes" und „YAML". Wechsel synchronisiert bidirektional. Beide Modi bleiben vollständig nutzbar.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul><li>Maximale Flexibilität</li><li>Fortgeschrittene können weiter YAML tippen</li></ul></div>
+        <div class="cons"><h4>Con</h4><ul><li>Bidirektionaler Sync ist komplex</li><li>YAML → Nodes kann bei komplexen Templates fehlschlagen</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Eigene Seite: <code>/edit/{token}/nodes</code></h3>
+      <p>Der Node-Editor ist eine separate Route neben dem bestehenden Editor. Kein Sync nötig — wer Nodes nutzt, speichert von dort. Wer YAML will, nutzt <code>/edit/{token}</code>.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul><li>Keine Interferenz mit bestehendem Editor</li><li>Einfachste Implementierung</li></ul></div>
+        <div class="cons"><h4>Con</h4><ul><li>Zwei Einstiegspunkte können verwirren</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
