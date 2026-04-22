@@ -307,8 +307,10 @@ func TestHandleRender_WithColorPalette(t *testing.T) {
 
 func TestServer_EditorPage_DesktopOnly(t *testing.T) {
 	srv := newTestServer(t)
-	// Without RegisterEditor, /edit/... should fall through to the mux and
-	// therefore 404 (no editor route registered).
+	// Without RegisterEditor, the /edit/ pre-mux dispatch hits the
+	// editorHandler==nil branch in ServeHTTP and returns 404 directly
+	// (it does NOT fall through to the mux, where GET /{template} would
+	// otherwise match and render a detail page).
 	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-096-v1", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)

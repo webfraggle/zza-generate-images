@@ -27,22 +27,16 @@ func NewFSHandlers(templatesDir string, invalidate InvalidateCacheFn) *FSHandler
 	return &FSHandlers{TemplatesDir: templatesDir, Invalidate: invalidate}
 }
 
-// Register attaches all editor routes onto mux. Pattern prefix is /edit/.
-// The EditorPage (GET /edit/{template}) is NOT registered here because it
-// needs access to the parent server's html/template set; the server package
-// registers that route in its own RegisterEditor wiring.
+// Register attaches the five sub-routes (files, file read/write/delete, save,
+// upload) onto mux under the /edit/{template}/ prefix. The editor landing page
+// itself (GET /edit/{template}) is owned by the server package — it needs the
+// shared html/template set and is wired in Server.RegisterEditor.
 func (h *FSHandlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /edit/{template}/files", h.ListFiles)
 	mux.HandleFunc("GET /edit/{template}/file/{filename}", h.GetFile)
 	mux.HandleFunc("POST /edit/{template}/save", h.Save)
 	mux.HandleFunc("POST /edit/{template}/upload", h.Upload)
 	mux.HandleFunc("DELETE /edit/{template}/file/{filename}", h.DeleteFile)
-}
-
-// EditorPage is a placeholder — see Register's doc comment. It only runs
-// when FSHandlers is mounted standalone (in tests without the server wrapper).
-func (h *FSHandlers) EditorPage(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "EditorPage must be wired by the server package", http.StatusNotImplemented)
 }
 
 func (h *FSHandlers) ListFiles(w http.ResponseWriter, r *http.Request) {
