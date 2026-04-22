@@ -33,12 +33,15 @@ func ResolveTemplatesDir(override, exePath string) (string, error) {
 	// Walk up from the executable dir; if any ancestor ends in ".app", place
 	// the templates dir as that ancestor's sibling.
 	if strings.Contains(filepath.ToSlash(exeDir), ".app/Contents/MacOS") {
-		cur := exeDir
-		for cur != string(filepath.Separator) && cur != "." {
+		// Walk up via filepath.Dir until we stop making progress (Dir of a
+		// root path returns itself on both Unix and Windows).
+		for cur := exeDir; ; cur = filepath.Dir(cur) {
 			if strings.HasSuffix(cur, ".app") {
 				return filepath.Join(filepath.Dir(cur), "templates"), nil
 			}
-			cur = filepath.Dir(cur)
+			if parent := filepath.Dir(cur); parent == cur {
+				break
+			}
 		}
 	}
 
