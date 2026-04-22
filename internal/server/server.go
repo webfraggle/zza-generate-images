@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/internal/gallery"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 	"github.com/webfraggle/zza-generate-images/internal/version"
@@ -30,6 +31,7 @@ const maxRequestBodyBytes = 1 << 20 // 1 MiB
 type Server struct {
 	mux           *http.ServeMux
 	staticHandler http.Handler
+	editorHandler http.Handler // set by RegisterEditor; desktop-only
 	rend          *renderer.Renderer
 	cache         *Cache
 	templatesDir  string
@@ -104,6 +106,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.staticHandler.ServeHTTP(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, "/edit/") && s.editorHandler != nil {
+		s.editorHandler.ServeHTTP(w, r)
+		return
+	}
 	if strings.HasSuffix(r.URL.Path, ".zip") && r.Method == http.MethodGet {
 		name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), ".zip")
 		s.handleTemplateZip(w, name)
@@ -120,6 +126,48 @@ func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
 // SetEditorEnabled toggles the Edit-button on the preview page. Desktop sets true.
 // Call once during startup before ServeHTTP — not concurrency-safe.
 func (s *Server) SetEditorEnabled(v bool) { s.editorEnabled = v }
+
+// RegisterEditor attaches an FSHandlers set to this server. The editor page
+// itself is rendered here (to re-use the shared html/template set).
+// Desktop-build calls this; server-build does not.
+func (s *Server) RegisterEditor(h *editor.FSHandlers) {
+	mux := http.NewServeMux()
+	h.Register(mux)
+	// Override the placeholder EditorPage with one that uses our html/template.
+	mux.HandleFunc("GET /edit/{template}", s.handleEditorPage)
+	s.editorHandler = mux
+}
+
+// InvalidateTemplateCache touches template.yaml so the next render recomputes.
+// The existing renderAndServe key includes template.yaml's mod-time, so bumping
+// it invalidates all cached PNGs for the template.
+func (s *Server) InvalidateTemplateCache(name string) {
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		return
+	}
+	p := filepath.Join(s.templatesDir, name, "template.yaml")
+	now := time.Now()
+	_ = os.Chtimes(p, now, now)
+}
+
+type editorPageData struct {
+	TemplateName string
+}
+
+func (s *Server) handleEditorPage(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("template")
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		http.Error(w, "invalid template name", http.StatusBadRequest)
+		return
+	}
+	if err := editor.InitTemplate(s.templatesDir, name); err != nil {
+		log.Printf("editor page: init %q: %v", name, err)
+		http.Error(w, "could not init template", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = s.htmlTmpl.ExecuteTemplate(w, "edit-editor.html", editorPageData{TemplateName: name})
+}
 
 func (s *Server) registerRoutes() {
 	// API
