@@ -1,0 +1,9 @@
+# SSL nur für die index.html (und Root) erzwingen.
+# Subverzeichnisse bleiben über HTTP erreichbar, da sie von Microcontrollern
+# ohne TLS-Support aufgerufen werden.
+RewriteEngine On
+
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+RewriteCond %{REQUEST_URI} ^/(index\.html?)?$
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
