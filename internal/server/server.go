@@ -36,6 +36,7 @@ type Server struct {
 	cache         *Cache
 	templatesDir  string
 	htmlTmpl      *template.Template
+	editorEnabled bool
 }
 
 // New creates and initialises a Server from cfg.
@@ -125,6 +126,9 @@ func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
 	s.cache.StartCleanup(ctx, interval)
 }
 
+// SetEditorEnabled toggles the Edit-button on the preview page. Desktop sets true.
+func (s *Server) SetEditorEnabled(v bool) { s.editorEnabled = v }
+
 func (s *Server) registerRoutes() {
 	// API
 	s.mux.HandleFunc("POST /{template}/render", s.handleRender)
@@ -173,10 +177,11 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 
 // detailData is the view model for the detail/try-it page.
 type detailData struct {
-	Name        string
-	Meta        renderer.Meta
-	DefaultJSON string
-	HasDefault  bool
+	Name          string
+	Meta          renderer.Meta
+	DefaultJSON   string
+	HasDefault    bool
+	EditorEnabled bool
 }
 
 // handleDetail renders the try-it detail page for a single template.
@@ -199,10 +204,11 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d := detailData{
-		Name:        templateName,
-		Meta:        tmpl.Meta,
-		DefaultJSON: string(jsonBytes),
-		HasDefault:  len(jsonBytes) > 0,
+		Name:          templateName,
+		Meta:          tmpl.Meta,
+		DefaultJSON:   string(jsonBytes),
+		HasDefault:    len(jsonBytes) > 0,
+		EditorEnabled: s.editorEnabled,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.htmlTmpl.ExecuteTemplate(w, "detail.html", d); err != nil {

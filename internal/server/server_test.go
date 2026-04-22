@@ -99,6 +99,25 @@ func TestServer_Detail(t *testing.T) {
 	if !strings.Contains(body, "json-input") {
 		t.Error("detail page should contain JSON textarea")
 	}
+	if strings.Contains(body, "Bearbeiten") {
+		t.Error("server build should NOT show edit button")
+	}
+	if !strings.Contains(body, "/sbb-096-v1.zip") {
+		t.Error("detail page should show ZIP download link")
+	}
+}
+
+func TestServer_Detail_EditorEnabled_ShowsEditButton(t *testing.T) {
+	srv := newTestServer(t)
+	srv.SetEditorEnabled(true)
+
+	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if !strings.Contains(rr.Body.String(), `href="/edit/sbb-096-v1"`) {
+		t.Error("desktop build should link to /edit/sbb-096-v1")
+	}
 }
 
 func TestServer_Detail_NotFound(t *testing.T) {
