@@ -1,3 +1,7 @@
+// Package editor provides filesystem operations for template editing:
+// listing, reading, writing, uploading, and deleting files inside a
+// template directory. It is the desktop build's data layer — the server
+// build does not import it.
 package editor
 
 import (

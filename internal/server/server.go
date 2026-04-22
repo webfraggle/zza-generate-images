@@ -84,13 +84,14 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 	return s, nil
 }
 
-// ServeHTTP implements http.Handler.
-// /static/... is dispatched before the mux to avoid routing
-// conflicts with wildcard patterns like "GET /{template}/preview".
+// isRenderRoute reports whether r targets a POST /{template}/render endpoint.
 func isRenderRoute(r *http.Request) bool {
 	return r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/render")
 }
 
+// ServeHTTP implements http.Handler.
+// /static/... and /{template}.zip are dispatched before the mux to avoid
+// routing conflicts with wildcard patterns like "GET /{template}/preview".
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Redirect HTTP → HTTPS for all routes except /render (called by microcontrollers).
 	if r.Header.Get("X-Forwarded-Proto") == "http" && !isRenderRoute(r) {
