@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 	"gopkg.in/yaml.v3"
@@ -102,6 +103,8 @@ func (h *FSHandlers) Save(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse-check YAML before writing (invalid YAML must not clobber the file).
+	// Empty content bypasses the gate on purpose — truncation is a valid edit;
+	// the render pipeline will surface the missing-fields error on next load.
 	if len(req.Content) > 0 && hasYAMLExt(req.Filename) {
 		var probe any
 		if err := yaml.Unmarshal([]byte(req.Content), &probe); err != nil {
@@ -185,11 +188,5 @@ func (h *FSHandlers) requireTemplate(w http.ResponseWriter, r *http.Request) (st
 }
 
 func hasYAMLExt(filename string) bool {
-	if len(filename) >= 5 && filename[len(filename)-5:] == ".yaml" {
-		return true
-	}
-	if len(filename) >= 4 && filename[len(filename)-4:] == ".yml" {
-		return true
-	}
-	return false
+	return strings.HasSuffix(filename, ".yaml") || strings.HasSuffix(filename, ".yml")
 }

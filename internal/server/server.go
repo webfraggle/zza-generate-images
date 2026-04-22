@@ -147,7 +147,9 @@ func (s *Server) InvalidateTemplateCache(name string) {
 	}
 	p := filepath.Join(s.templatesDir, name, "template.yaml")
 	now := time.Now()
-	_ = os.Chtimes(p, now, now)
+	if err := os.Chtimes(p, now, now); err != nil {
+		log.Printf("invalidate cache for %q: %v", name, err)
+	}
 }
 
 type editorPageData struct {
@@ -166,7 +168,9 @@ func (s *Server) handleEditorPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = s.htmlTmpl.ExecuteTemplate(w, "edit-editor.html", editorPageData{TemplateName: name})
+	if err := s.htmlTmpl.ExecuteTemplate(w, "edit-editor.html", editorPageData{TemplateName: name}); err != nil {
+		log.Printf("editor page: execute template: %v", err)
+	}
 }
 
 func (s *Server) registerRoutes() {
