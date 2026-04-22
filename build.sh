@@ -74,7 +74,7 @@ else
 fi
 
 echo ""
-echo "=== Server Docker image (zza) ==="
+echo "=== Server Docker image (zza-server) ==="
 
 if ! command -v docker &>/dev/null; then
     echo "Docker not found — skipping server image build."
