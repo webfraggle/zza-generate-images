@@ -24,7 +24,10 @@
       "Read(//private/tmp/**)",
       "Bash(git mv *)",
       "Bash(git rm *)",
-      "Bash(git show *)"
+      "Bash(git show *)",
+      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images add internal/server/server.go internal/server/server_test.go web/templates/detail.html)",
+      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images commit -m ' *)",
+      "Bash(go vet *)"
     ]
   }
 }

@@ -127,6 +127,7 @@ func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
 }
 
 // SetEditorEnabled toggles the Edit-button on the preview page. Desktop sets true.
+// Call once during startup before ServeHTTP — not concurrency-safe.
 func (s *Server) SetEditorEnabled(v bool) { s.editorEnabled = v }
 
 func (s *Server) registerRoutes() {
