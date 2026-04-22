@@ -11,7 +11,7 @@ export const NODE_TYPES = {
       { name: 'y',      label: 'y',      inputType: 'text', numeric: true },
       { name: 'width',  label: 'width',  inputType: 'text', numeric: true },
       { name: 'height', label: 'height', inputType: 'text', numeric: true },
-      { name: 'rotate', label: 'rotate', inputType: 'text', numeric: true },
+      { name: 'rotate', label: 'rotate', inputType: 'text', numeric: true, filterPipeline: true },
     ],
   },
   rect: {
@@ -22,19 +22,19 @@ export const NODE_TYPES = {
       { name: 'y',      label: 'y',      inputType: 'text', numeric: true },
       { name: 'width',  label: 'width',  inputType: 'text', numeric: true },
       { name: 'height', label: 'height', inputType: 'text', numeric: true },
-      { name: 'color',  label: 'color',  inputType: 'color' },
+      { name: 'color',  label: 'color',  inputType: 'color', fieldIf: true },
     ],
   },
   text: {
     label: 'TEXT',
     color: '#037F8C',
     fields: [
-      { name: 'value',  label: 'value',  inputType: 'text' },
+      { name: 'value',  label: 'value',  inputType: 'text', filterPipeline: true },
       { name: 'x',      label: 'x',      inputType: 'text', numeric: true },
       { name: 'y',      label: 'y',      inputType: 'text', numeric: true },
       { name: 'font',   label: 'font',   inputType: 'dropdown', source: 'fontIds' },
       { name: 'size',   label: 'size',   inputType: 'text', numeric: true },
-      { name: 'color',  label: 'color',  inputType: 'color' },
+      { name: 'color',  label: 'color',  inputType: 'color', fieldIf: true },
       { name: 'align',  label: 'align',  inputType: 'dropdown', options: ['', 'left', 'center', 'right'] },
       { name: 'width',  label: 'width',  inputType: 'text', numeric: true },
       { name: 'height', label: 'height', inputType: 'text', numeric: true },
@@ -62,6 +62,12 @@ export const NODE_TYPES = {
       { name: 'varName',   label: 'var',       inputType: 'text' },
       { name: 'maxItems',  label: 'max_items', inputType: 'text', numeric: true },
     ],
+  },
+  block: {
+    label: 'BLOCK',
+    color: '#FD7014',
+    blockNode: true,
+    fields: [],   // rendered specially in node-editor.js
   },
 };
 

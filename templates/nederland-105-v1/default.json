@@ -2,11 +2,6 @@
     "folgezuege": "Folgezüge",
     "gleis": 6,
     "abschnitt": "A-F",
-    "mirrored": false,
-    "intervalTime": 60,
-    "timeFactor": 10,
-    "stationNr": 8000115,
-    "mode": 1,
     "zug1": {
         "vonnach": "Den Haag",
         "nr": "Sprinter",

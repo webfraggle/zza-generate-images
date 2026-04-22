@@ -187,6 +187,8 @@ func (es *editorState) handleEditSubmit(w http.ResponseWriter, r *http.Request) 
 	if es.cfg.Mail.Host != "" {
 		if mailErr := editor.SendTokenMail(es.cfg.Mail, email, templateName, tok, es.cfg.TokenTTL); mailErr != nil {
 			log.Printf("edit-submit: send mail to %q: %v", email, mailErr)
+		} else {
+			log.Printf("edit-submit: mail sent to %q for %q", email, templateName)
 		}
 	} else {
 		// Development fallback: log the link so it can be used without SMTP.

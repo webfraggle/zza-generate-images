@@ -84,7 +84,7 @@ import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?dep
 import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
 import { indentationMarkers } from 'https://esm.sh/@replit/codemirror-indentation-markers@6.5.3?deps=codemirror@6.0.1';
 import { indentMore, indentLess } from 'https://esm.sh/@codemirror/commands@6.10.3?deps=codemirror@6.0.1';
-import { initCanvas, loadGraph, getGraph, setFileList, setFontIds } from '/static/node-editor.js';
+import { initCanvas, loadGraph, getGraph, setFileList, setFontIds, setTestJson } from '/static/node-editor.js';
 import { graphToLayers } from '/static/node-serializer.js';
 import { layersToGraph } from '/static/node-parser.js';
 import jsYaml from 'https://esm.sh/js-yaml@4.1.0';
@@ -252,7 +252,10 @@ function hideSaveStatus() { saveStatus.hidden = true; }
 // ── Preview ───────────────────────────────────────────────────────────────────
 let previewTimer = null;
 
-jsonInput.addEventListener('input', schedulePreview);
+jsonInput.addEventListener('input', () => {
+  setTestJson(jsonInput.value);
+  schedulePreview();
+});
 
 function schedulePreview() {
   clearTimeout(previewTimer);
@@ -385,6 +388,7 @@ function switchToNodes() {
 
   nodeLock.hidden = true;
   loadGraph({ nodes: result.nodes, chain: result.chain });
+  setTestJson(jsonInput.value);
 }
 
 function switchToYaml() {

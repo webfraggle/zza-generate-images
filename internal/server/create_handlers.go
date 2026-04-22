@@ -225,6 +225,8 @@ func (ch *createHandler) handleCreateSubmit(w http.ResponseWriter, r *http.Reque
 	if ch.cfg.Mail.Host != "" {
 		if mailErr := editor.SendTokenMail(ch.cfg.Mail, email, id, tok, ch.cfg.TokenTTL); mailErr != nil {
 			log.Printf("create-new: send mail to %q: %v", email, mailErr)
+		} else {
+			log.Printf("create-new: mail sent to %q for %q", email, id)
 		}
 	} else {
 		log.Printf("[DEV] edit link for new template %q: %s/edit/%s", id, ch.cfg.Mail.BaseURL, tok) //nolint:gosec

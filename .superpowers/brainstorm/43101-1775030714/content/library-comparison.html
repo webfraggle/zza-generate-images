@@ -1,0 +1,90 @@
+<h2>Rete.js vs Litegraph.js</h2>
+<p class="subtitle">Beide sind Vanilla-JS-kompatibel und framework-unabhängig</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">A — Rete.js v2</div>
+    <div class="mockup-body" style="font-size:13px;padding:12px">
+      <div style="margin-bottom:10px">
+        <span class="label">Lizenz</span> MIT
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Größe</span> ~40 KB (Core), modular
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">GitHub Stars</span> ~10k ⭐
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Letztes Release</span> 2024, aktiv gepflegt
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Vanilla JS</span> Ja — aber API ist klassen-basiert, Plugin-System
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Nodes rendern</span> HTML/DOM — volle CSS-Kontrolle
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Verbindungen</span> SVG-Bezier, typisierte Sockets
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul>
+          <li>Moderne API, TypeScript-first</li>
+          <li>Nodes sind echtes HTML → einfach zu stylen</li>
+          <li>Gute Doku + Beispiele</li>
+          <li>Plugin für Minimap, History, etc.</li>
+        </ul></div>
+        <div class="cons"><h4>Con</h4><ul>
+          <li>v2 bricht mit v1 — wenig Community-Content für v2</li>
+          <li>Etwas verbose Initialisierung</li>
+          <li>Kein CDN-Bundle → braucht Build-Step oder ESM-Import</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">D — Litegraph.js</div>
+    <div class="mockup-body" style="font-size:13px;padding:12px">
+      <div style="margin-bottom:10px">
+        <span class="label">Lizenz</span> MIT
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Größe</span> ~120 KB (alles in einer Datei)
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">GitHub Stars</span> ~5k ⭐ (bekannt durch ComfyUI)
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Letztes Release</span> 2023, wenig aktiv
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Vanilla JS</span> Ja — eine JS-Datei, kein Build nötig
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Nodes rendern</span> Canvas 2D — kein HTML, Custom-Drawing
+      </div>
+      <div style="margin-bottom:10px">
+        <span class="label">Verbindungen</span> Canvas-Bezier, typisierte Slots
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul>
+          <li>Eine Datei, per Script-Tag einbindbar</li>
+          <li>Kein Build-Step nötig</li>
+          <li>Bewährt in ComfyUI (riesige Community)</li>
+          <li>Sehr performant (Canvas, kein DOM)</li>
+        </ul></div>
+        <div class="cons"><h4>Con</h4><ul>
+          <li>Canvas-Rendering → Nodes stylen ist aufwändig</li>
+          <li>Kaum aktive Wartung seit 2023</li>
+          <li>API ist älter, weniger intuitiv</li>
+          <li>Custom-Widgets für Dropdowns etc. komplex</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;padding:12px;background:#1a1a2e;border-radius:8px;border-left:3px solid #7c6af7">
+  <h3 style="margin:0 0 8px 0">Meine Empfehlung: Rete.js</h3>
+  <p style="margin:0;font-size:13px">Für dieses Projekt sind die Nodes HTML-DOM — das macht Formularfelder (Farb-Picker, Dropdowns, Text-Inputs) in den Nodes trivial. Litegraph zeichnet alles auf Canvas, was für interaktive Inputs in Nodes viel Aufwand bedeutet. Rete.js passt besser zum bestehenden Vanilla-JS + CSS Ansatz. Der fehlende Build-Step lässt sich mit esm.sh lösen (wie CodeMirror bereits eingebunden ist).</p>
+</div>

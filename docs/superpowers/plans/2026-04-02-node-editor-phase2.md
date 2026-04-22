@@ -1,6 +1,6 @@
 # Node-Editor Phase 2 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Erweitert den Node-Editor um Layer if-Badge, Feld-if-Chips, BLOCK-Container-Node und Filter-Pipeline-Chips mit Live-Vorschau.
 
@@ -34,7 +34,7 @@
 
 Kein TDD erforderlich — reine Konfiguration.
 
-- [ ] **Schritt 1: node-types.js aktualisieren**
+- [x] **Schritt 1: node-types.js aktualisieren**
 
 Vollständige neue Datei:
 
@@ -127,7 +127,7 @@ export const YAML_TO_DATA_KEY = Object.freeze(
 );
 ```
 
-- [ ] **Schritt 2: Bestehende Tests prüfen**
+- [x] **Schritt 2: Bestehende Tests prüfen**
 
 ```bash
 node --test web/static/test/node-serializer.test.mjs
@@ -136,7 +136,7 @@ node --test web/static/test/node-parser.test.mjs
 
 Expected: alle Tests grün (node-types.js-Änderungen sind rückwärtskompatibel).
 
-- [ ] **Schritt 3: Commit**
+- [x] **Schritt 3: Commit**
 
 ```bash
 git add web/static/node-types.js
@@ -151,7 +151,7 @@ git commit -m "feat(node-editor): add block type, filterPipeline and fieldIf fla
 - Create: `web/static/node-filters.js`
 - Create: `web/static/test/node-filters.test.mjs`
 
-- [ ] **Schritt 1: Test-Datei schreiben**
+- [x] **Schritt 1: Test-Datei schreiben**
 
 `web/static/test/node-filters.test.mjs`:
 
@@ -252,7 +252,7 @@ describe('formatValueWithFilters', () => {
 });
 ```
 
-- [ ] **Schritt 2: Test ausführen — soll fehlschlagen**
+- [x] **Schritt 2: Test ausführen — soll fehlschlagen**
 
 ```bash
 node --test web/static/test/node-filters.test.mjs
@@ -260,7 +260,7 @@ node --test web/static/test/node-filters.test.mjs
 
 Expected: FAIL mit `Cannot find module '../node-filters.js'`
 
-- [ ] **Schritt 3: Minimale Implementierung in node-filters.js**
+- [x] **Schritt 3: Minimale Implementierung in node-filters.js**
 
 `web/static/node-filters.js` (nur parseValueAndFilters + formatValueWithFilters, Rest folgt in Task 3+4):
 
@@ -335,7 +335,7 @@ export function renderFilterRow(_container, _getBase, _filters, _onChange, _getT
 }
 ```
 
-- [ ] **Schritt 4: Tests ausführen — sollen grün sein**
+- [x] **Schritt 4: Tests ausführen — sollen grün sein**
 
 ```bash
 node --test web/static/test/node-filters.test.mjs
@@ -343,7 +343,7 @@ node --test web/static/test/node-filters.test.mjs
 
 Expected: alle 12 Tests PASS.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add web/static/node-filters.js web/static/test/node-filters.test.mjs
@@ -358,7 +358,7 @@ git commit -m "feat(node-filters): add parseValueAndFilters + formatValueWithFil
 - Modify: `web/static/node-filters.js`
 - Modify: `web/static/test/node-filters.test.mjs`
 
-- [ ] **Schritt 1: Tests für evaluatePreview hinzufügen**
+- [x] **Schritt 1: Tests für evaluatePreview hinzufügen**
 
 Am Ende von `web/static/test/node-filters.test.mjs` anfügen:
 
@@ -460,7 +460,7 @@ describe('evaluatePreview', () => {
 });
 ```
 
-- [ ] **Schritt 2: Tests ausführen — evaluatePreview-Tests sollen fehlschlagen**
+- [x] **Schritt 2: Tests ausführen — evaluatePreview-Tests sollen fehlschlagen**
 
 ```bash
 node --test web/static/test/node-filters.test.mjs
@@ -468,7 +468,7 @@ node --test web/static/test/node-filters.test.mjs
 
 Expected: parse/format-Tests PASS, evaluatePreview-Tests FAIL (`''` statt erwartetem Wert).
 
-- [ ] **Schritt 3: evaluatePreview implementieren**
+- [x] **Schritt 3: evaluatePreview implementieren**
 
 In `web/static/node-filters.js` den Stub `evaluatePreview` ersetzen:
 
@@ -553,7 +553,7 @@ function _applyFilter(value, fn, arg) {
 }
 ```
 
-- [ ] **Schritt 4: Alle Tests ausführen — grün**
+- [x] **Schritt 4: Alle Tests ausführen — grün**
 
 ```bash
 node --test web/static/test/node-filters.test.mjs
@@ -561,7 +561,7 @@ node --test web/static/test/node-filters.test.mjs
 
 Expected: alle Tests PASS.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add web/static/node-filters.js web/static/test/node-filters.test.mjs
@@ -577,7 +577,7 @@ git commit -m "feat(node-filters): add evaluatePreview with full filter implemen
 
 Keine Unit-Tests (DOM). Visuell getestet in Task 8.
 
-- [ ] **Schritt 1: renderFilterRow implementieren**
+- [x] **Schritt 1: renderFilterRow implementieren**
 
 Stub `renderFilterRow` in `web/static/node-filters.js` ersetzen:
 
@@ -735,7 +735,7 @@ export function renderFilterRow(container, getBase, filters, onChange, getTestJs
 }
 ```
 
-- [ ] **Schritt 2: Bestehende Tests noch grün**
+- [x] **Schritt 2: Bestehende Tests noch grün**
 
 ```bash
 node --test web/static/test/node-filters.test.mjs
@@ -743,7 +743,7 @@ node --test web/static/test/node-filters.test.mjs
 
 Expected: alle Tests PASS.
 
-- [ ] **Schritt 3: Commit**
+- [x] **Schritt 3: Commit**
 
 ```bash
 git add web/static/node-filters.js
@@ -758,7 +758,7 @@ git commit -m "feat(node-filters): add renderFilterRow with chip UI, drag-to-reo
 - Modify: `web/static/node-parser.js`
 - Modify: `web/static/test/node-parser.test.mjs`
 
-- [ ] **Schritt 1: Phase-2-Tests zu node-parser.test.mjs hinzufügen**
+- [x] **Schritt 1: Phase-2-Tests zu node-parser.test.mjs hinzufügen**
 
 Am Ende von `web/static/test/node-parser.test.mjs` einfügen:
 
@@ -866,7 +866,7 @@ describe('layersToGraph — BLOCK-Nodes', () => {
 });
 ```
 
-- [ ] **Schritt 2: Tests ausführen — neue Tests sollen fehlschlagen**
+- [x] **Schritt 2: Tests ausführen — neue Tests sollen fehlschlagen**
 
 ```bash
 node --test web/static/test/node-parser.test.mjs
@@ -874,7 +874,7 @@ node --test web/static/test/node-parser.test.mjs
 
 Expected: bestehende Tests PASS, neue Phase-2-Tests FAIL.
 
-- [ ] **Schritt 3: node-parser.js für Phase 2 aktualisieren**
+- [x] **Schritt 3: node-parser.js für Phase 2 aktualisieren**
 
 Vollständige neue `web/static/node-parser.js`:
 
@@ -1055,7 +1055,7 @@ function blockLayerToNode(layer, kind, x, y, newId) {
 }
 ```
 
-- [ ] **Schritt 4: Alle Parser-Tests ausführen — grün**
+- [x] **Schritt 4: Alle Parser-Tests ausführen — grün**
 
 ```bash
 node --test web/static/test/node-parser.test.mjs
@@ -1063,7 +1063,7 @@ node --test web/static/test/node-parser.test.mjs
 
 Expected: alle Tests PASS.
 
-- [ ] **Schritt 5: Commit**
+- [x] **Schritt 5: Commit**
 
 ```bash
 git add web/static/node-parser.js web/static/test/node-parser.test.mjs
@@ -1078,7 +1078,7 @@ git commit -m "feat(node-parser): parse layerIf badges, colorIf, BLOCK nodes and
 - Modify: `web/static/node-serializer.js`
 - Modify: `web/static/test/node-serializer.test.mjs`
 
-- [ ] **Schritt 1: Phase-2-Tests zu node-serializer.test.mjs hinzufügen**
+- [x] **Schritt 1: Phase-2-Tests zu node-serializer.test.mjs hinzufügen**
 
 Am Ende von `web/static/test/node-serializer.test.mjs` einfügen:
 
@@ -1210,7 +1210,7 @@ describe('graphToLayers — BLOCK-Nodes', () => {
 });
 ```
 
-- [ ] **Schritt 2: Tests ausführen — neue Tests sollen fehlschlagen**
+- [x] **Schritt 2: Tests ausführen — neue Tests sollen fehlschlagen**
 
 ```bash
 node --test web/static/test/node-serializer.test.mjs
@@ -1218,7 +1218,7 @@ node --test web/static/test/node-serializer.test.mjs
 
 Expected: bestehende Tests PASS, neue Tests FAIL.
 
-- [ ] **Schritt 3: node-serializer.js für Phase 2 aktualisieren**
+- [x] **Schritt 3: node-serializer.js für Phase 2 aktualisieren**
 
 Vollständige neue `web/static/node-serializer.js`:
 
@@ -1321,7 +1321,7 @@ function blockNodeToLayer(node, nodeById) {
 }
 ```
 
-- [ ] **Schritt 4: Alle Serializer-Tests ausführen — grün**
+- [x] **Schritt 4: Alle Serializer-Tests ausführen — grün**
 
 ```bash
 node --test web/static/test/node-serializer.test.mjs
@@ -1329,7 +1329,7 @@ node --test web/static/test/node-serializer.test.mjs
 
 Expected: alle Tests PASS.
 
-- [ ] **Schritt 5: Auch Parser-Tests noch grün**
+- [x] **Schritt 5: Auch Parser-Tests noch grün**
 
 ```bash
 node --test web/static/test/node-parser.test.mjs
@@ -1337,7 +1337,7 @@ node --test web/static/test/node-parser.test.mjs
 
 Expected: alle Tests PASS.
 
-- [ ] **Schritt 6: Commit**
+- [x] **Schritt 6: Commit**
 
 ```bash
 git add web/static/node-serializer.js web/static/test/node-serializer.test.mjs
@@ -1353,7 +1353,7 @@ git commit -m "feat(node-serializer): serialize layerIf badges, colorIf, BLOCK n
 
 Dieser Task fügt BLOCK-Node-Support hinzu: Kontext-Menü, `_addNode`, `_renderNode` für BLOCK, `_autoLayout` und `_renderConnections`.
 
-- [ ] **Schritt 1: Import node-filters.js, setTestJson-State hinzufügen**
+- [x] **Schritt 1: Import node-filters.js, setTestJson-State hinzufügen**
 
 Ganz oben in `node-editor.js`, nach der bestehenden Import-Zeile:
 
@@ -1378,7 +1378,7 @@ export function setTestJson(str) {
 }
 ```
 
-- [ ] **Schritt 2: Kontext-Menü um BLOCK erweitern**
+- [x] **Schritt 2: Kontext-Menü um BLOCK erweitern**
 
 In `_showContextMenu`, die `groups`-Variable ändern:
 
@@ -1390,7 +1390,7 @@ const groups = [
 ];
 ```
 
-- [ ] **Schritt 3: `_addNode` für BLOCK erweitern**
+- [x] **Schritt 3: `_addNode` für BLOCK erweitern**
 
 In `_addNode` den bestehenden Spread erweitern:
 
@@ -1402,7 +1402,7 @@ const node = {
 };
 ```
 
-- [ ] **Schritt 4: `_renderAll` — Block-Container vor Nodes erstellen**
+- [x] **Schritt 4: `_renderAll` — Block-Container vor Nodes erstellen**
 
 In `_renderAll` nach dem `if (!_graph) return;`-Block, vor dem Nodes-Loop:
 
@@ -1420,7 +1420,7 @@ for (const node of _graph.nodes) {
 }
 ```
 
-- [ ] **Schritt 5: `_autoLayout` — BLOCK-Nodes layouten**
+- [x] **Schritt 5: `_autoLayout` — BLOCK-Nodes layouten**
 
 In `_autoLayout`, nach dem bestehenden `if (node.type === 'loop' ...)` Block einen analogen Block für BLOCK einfügen:
 
@@ -1451,7 +1451,7 @@ if (node.type === 'block' && node.bodyChain?.length) {
 }
 ```
 
-- [ ] **Schritt 6: `_renderConnections` — BLOCK-Body-Verbindungen**
+- [x] **Schritt 6: `_renderConnections` — BLOCK-Body-Verbindungen**
 
 In `_renderConnections`, nach dem Loop-Circuit-Block:
 
@@ -1491,7 +1491,7 @@ function _drawBlockBodyEntry(blockNode, bodyNode) {
 }
 ```
 
-- [ ] **Schritt 7: `_renderNode` für BLOCK-Typ**
+- [x] **Schritt 7: `_renderNode` für BLOCK-Typ**
 
 In `_renderNode`, nach `if (!cfg) return;`, vor dem `el`-Create:
 
@@ -1621,7 +1621,7 @@ function _insertBlockNode(afterId, blockType) {
 }
 ```
 
-- [ ] **Schritt 8: Commit**
+- [x] **Schritt 8: Commit**
 
 ```bash
 git add web/static/node-editor.js
@@ -1635,7 +1635,7 @@ git commit -m "feat(node-editor): add BLOCK node rendering, layout, connections 
 **Files:**
 - Modify: `web/static/node-editor.js`
 
-- [ ] **Schritt 1: `_renderNode` — Layer if-Badge**
+- [x] **Schritt 1: `_renderNode` — Layer if-Badge**
 
 In `_renderNode`, nach dem `header.appendChild(delBtn);` und vor `el.appendChild(header);`, einfügen:
 
@@ -1711,7 +1711,7 @@ function _appendIfBadge(header, nodeEl, node) {
 }
 ```
 
-- [ ] **Schritt 2: `_renderNode` — Feld-if Chips für `color`-Felder**
+- [x] **Schritt 2: `_renderNode` — Feld-if Chips für `color`-Felder**
 
 Im `_renderNode` Field-Loop (`for (const field of cfg.fields) {`), das `if (field.inputType === 'color')` ersetzen:
 
@@ -1808,7 +1808,7 @@ function _buildColorFieldIfWidget(field, node, row) {
 }
 ```
 
-- [ ] **Schritt 3: `_renderNode` — Filter-Pipeline-Chips**
+- [x] **Schritt 3: `_renderNode` — Filter-Pipeline-Chips**
 
 Im Field-Loop (`if (field.inputType === 'text') {`), NACH der input-Erstellung für `filterPipeline`-Felder eine Filter-Zeile hinzufügen. Den kompletten `if (field.inputType === 'text')` Block ersetzen:
 
@@ -1899,7 +1899,7 @@ if (!rowHandled) {
 }
 ```
 
-- [ ] **Schritt 4: Commit**
+- [x] **Schritt 4: Commit**
 
 ```bash
 git add web/static/node-editor.js
@@ -1913,7 +1913,7 @@ git commit -m "feat(node-editor): add layer if-badge, field-if chips and filter 
 **Files:**
 - Modify: `web/templates/edit-editor.html`
 
-- [ ] **Schritt 1: setTestJson importieren**
+- [x] **Schritt 1: setTestJson importieren**
 
 In `edit-editor.html`, die bestehende Import-Zeile:
 
@@ -1927,7 +1927,7 @@ import { initCanvas, loadGraph, getGraph, setFileList, setFontIds } from '/stati
 import { initCanvas, loadGraph, getGraph, setFileList, setFontIds, setTestJson } from '/static/node-editor.js';
 ```
 
-- [ ] **Schritt 2: setTestJson bei JSON-Änderung aufrufen**
+- [x] **Schritt 2: setTestJson bei JSON-Änderung aufrufen**
 
 Direkt nach der bestehenden Zeile `jsonInput.addEventListener('input', schedulePreview);` einfügen:
 
@@ -1947,7 +1947,7 @@ Außerdem: in `switchToNodes()` (in `edit-editor.html`) nach dem `loadGraph(resu
 setTestJson(jsonInput.value);
 ```
 
-- [ ] **Schritt 3: Commit**
+- [x] **Schritt 3: Commit**
 
 ```bash
 git add web/templates/edit-editor.html
@@ -1961,7 +1961,7 @@ git commit -m "feat(editor): wire setTestJson for live filter preview"
 **Files:**
 - Modify: `web/static/app.css`
 
-- [ ] **Schritt 1: Neue CSS-Regeln ans Ende von app.css anfügen**
+- [x] **Schritt 1: Neue CSS-Regeln ans Ende von app.css anfügen**
 
 ```css
 /* ── Node-Editor Phase 2: Layer if-Badge ──────────────────────────────────── */
@@ -2205,7 +2205,7 @@ git commit -m "feat(editor): wire setTestJson for live filter preview"
 }
 ```
 
-- [ ] **Schritt 2: Alle Tests noch grün**
+- [x] **Schritt 2: Alle Tests noch grün**
 
 ```bash
 node --test web/static/test/node-filters.test.mjs
@@ -2215,7 +2215,7 @@ node --test web/static/test/node-serializer.test.mjs
 
 Expected: alle Tests PASS.
 
-- [ ] **Schritt 3: Commit**
+- [x] **Schritt 3: Commit**
 
 ```bash
 git add web/static/app.css
@@ -2226,7 +2226,7 @@ git commit -m "feat(css): add styles for Phase 2 node editor features"
 
 ## Task 11: Branch erstellen und manuell testen
 
-- [ ] **Schritt 1: Branch erstellen (falls noch nicht geschehen)**
+- [x] **Schritt 1: Branch erstellen (falls noch nicht geschehen)**
 
 ```bash
 git checkout -b feature/node-editor-phase2
@@ -2240,7 +2240,7 @@ git checkout -b feature/node-editor-phase2 HEAD
 
 Hinweis: Idealerweise wird der Branch VOR Task 1 erstellt. Falls Tasks 1–10 auf `develop` gelaufen sind, können die Commits mit `git rebase --onto feature/node-editor-phase2` verschoben werden oder der Branch bleibt auf develop (wird später als Feature-Branch gehandhabt).
 
-- [ ] **Schritt 2: Manueller Test — Filter-Pipeline**
+- [x] **Schritt 2: Manueller Test — Filter-Pipeline**
 
 1. Server starten: `./zza --dev` oder `go run ./cmd/zza`
 2. Template `default` im Editor öffnen
@@ -2252,7 +2252,7 @@ Hinweis: Idealerweise wird der Branch VOR Task 1 erstellt. Falls Tasks 1–10 au
 8. Chip auf `[+]` ziehen → Reihenfolge ändert sich
 9. Speichern → YAML hat `{{zug1.vonnach | upper}}`
 
-- [ ] **Schritt 3: Manueller Test — Layer if-Badge**
+- [x] **Schritt 3: Manueller Test — Layer if-Badge**
 
 1. TEXT-Node → `IF`-Button klicken → Badge-Zeile erscheint
 2. Bedingung eingeben: `not(isEmpty(zug1.hinweis))`
@@ -2261,14 +2261,14 @@ Hinweis: Idealerweise wird der Branch VOR Task 1 erstellt. Falls Tasks 1–10 au
 5. Speichern → YAML hat `else: true` auf dem Layer
 6. Auf YAML-Tab zurückwechseln, wieder auf NODES → Badge ist noch vorhanden
 
-- [ ] **Schritt 4: Manueller Test — Feld-if (color)**
+- [x] **Schritt 4: Manueller Test — Feld-if (color)**
 
 1. RECT-Node → `±`-Button neben `color`-Label klicken
 2. Drei Elemente erscheinen: Bedingungsfeld + `dann`-Picker + `sonst`-Picker
 3. Bedingung eingeben, Farben wählen
 4. Speichern → YAML hat `color: {if: ..., then: '#...', else: '#...'}`
 
-- [ ] **Schritt 5: Manueller Test — BLOCK-Node**
+- [x] **Schritt 5: Manueller Test — BLOCK-Node**
 
 1. Rechtsklick auf Canvas → Kategorie LOGIK → BLOCK
 2. BLOCK-IF Node erscheint mit Bedingungsfeld
@@ -2282,9 +2282,9 @@ Hinweis: Idealerweise wird der Branch VOR Task 1 erstellt. Falls Tasks 1–10 au
 
 ## Self-Review Checkliste (nach Implementierung)
 
-- [ ] Alle Unit-Tests grün: `node --test web/static/test/node-*.test.mjs`
-- [ ] Roundtrip parse→serialize für alle 4 Feature-Gruppen getestet
-- [ ] Bestehende Phase-1-Templates (ohne Phase-2-Features) laden noch fehlerfrei
-- [ ] `setTestJson` wird in `edit-editor.html` bei initialem Laden UND auf jsonInput-Input aufgerufen
-- [ ] Block-Container hat korrekte z-index-Sortierung (hinter Nodes)
-- [ ] Filter-Chip-Drag funktioniert ohne Events auf anderen Elementen zu stören
+- [x] Alle Unit-Tests grün: `node --test web/static/test/node-*.test.mjs`
+- [x] Roundtrip parse→serialize für alle 4 Feature-Gruppen getestet
+- [x] Bestehende Phase-1-Templates (ohne Phase-2-Features) laden noch fehlerfrei
+- [x] `setTestJson` wird in `edit-editor.html` bei initialem Laden UND auf jsonInput-Input aufgerufen
+- [x] Block-Container hat korrekte z-index-Sortierung (hinter Nodes)
+- [x] Filter-Chip-Drag funktioniert ohne Events auf anderen Elementen zu stören

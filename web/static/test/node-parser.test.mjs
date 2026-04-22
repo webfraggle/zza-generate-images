@@ -61,18 +61,21 @@ test('loop layer with body layers', () => {
   assert.deepEqual(loopNode.bodyChain, [textNode.id]);
 });
 
-test('layer with if: locks (unsupported)', () => {
+test('layer with if: → layerIfType="if" (Phase 2)', () => {
   const layers = [{ type: 'rect', if: 'greaterThan(abw, 0)', x: '0', y: '0' }];
   const result = layersToGraph(layers);
-  assert.equal(result.ok, false);
-  assert.ok(result.reason.includes('if'));
+  assert.equal(result.ok, true);
+  assert.equal(result.nodes[0].layerIfType, 'if');
+  assert.equal(result.nodes[0].layerIfCond, 'greaterThan(abw, 0)');
 });
 
-test('layer with conditional field value locks (unsupported)', () => {
+test('layer with conditional field value → colorIf (Phase 2)', () => {
   const layers = [{ type: 'rect', color: { if: 'equals(x,1)', then: '#F00', else: '#0F0' } }];
   const result = layersToGraph(layers);
-  assert.equal(result.ok, false);
-  assert.ok(result.reason.includes('if'));
+  assert.equal(result.ok, true);
+  assert.equal(result.nodes[0].data.colorIf, 'equals(x,1)');
+  assert.equal(result.nodes[0].data.colorThen, '#F00');
+  assert.equal(result.nodes[0].data.colorElse, '#0F0');
 });
 
 test('nested loop locks (unsupported)', () => {
@@ -86,7 +89,7 @@ test('nested loop locks (unsupported)', () => {
   assert.ok(result.reason.toLowerCase().includes('loop'));
 });
 
-test('nodes get auto-positioned in a vertical stack', () => {
+test('nodes get auto-positioned in a horizontal row', () => {
   const layers = [
     { type: 'image', file: 'a.png' },
     { type: 'text', value: 'hi' },
@@ -94,12 +97,12 @@ test('nodes get auto-positioned in a vertical stack', () => {
   ];
   const result = layersToGraph(layers);
   assert.equal(result.ok, true);
-  // Each node should be below the previous one
-  const ys = result.nodes.map(n => n.canvasY);
-  assert.ok(ys[1] > ys[0]);
-  assert.ok(ys[2] > ys[1]);
-  // X should be consistent
-  assert.equal(result.nodes[0].canvasX, result.nodes[1].canvasX);
+  // Each node should be to the right of the previous one
+  const xs = result.nodes.map(n => n.canvasX);
+  assert.ok(xs[1] > xs[0]);
+  assert.ok(xs[2] > xs[1]);
+  // Y should be consistent
+  assert.equal(result.nodes[0].canvasY, result.nodes[1].canvasY);
 });
 
 test('null layer element locks (invalid)', () => {
@@ -112,4 +115,106 @@ test('unknown layer type locks', () => {
   const result = layersToGraph([{ type: 'gradient', x: '0' }]);
   assert.equal(result.ok, false);
   assert.ok(result.reason.includes('gradient') || result.reason.toLowerCase().includes('unknown'));
+});
+import { describe, it } from 'node:test';
+
+describe('layersToGraph — Layer if-Badge', () => {
+  it('layer mit if: → node.layerIfType="if", node.layerIfCond', () => {
+    const r = layersToGraph([{ type: 'text', if: 'not(isEmpty(zug1.hinweis))', value: '{{zug1.hinweis}}' }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].layerIfType, 'if');
+    assert.equal(r.nodes[0].layerIfCond, 'not(isEmpty(zug1.hinweis))');
+  });
+
+  it('layer mit elif: → node.layerIfType="elif"', () => {
+    const r = layersToGraph([{ type: 'image', elif: "startsWith(nr,'IC')", file: 'ic.png' }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].layerIfType, 'elif');
+    assert.equal(r.nodes[0].layerIfCond, "startsWith(nr,'IC')");
+  });
+
+  it('layer mit else: true → layerIfType="else", layerIfCond=""', () => {
+    const r = layersToGraph([{ type: 'text', else: true, value: '{{nr}}' }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].layerIfType, 'else');
+    assert.equal(r.nodes[0].layerIfCond, '');
+  });
+});
+
+describe('layersToGraph — Feld-if (colorIf)', () => {
+  it('color als if/then/else-Objekt → data.colorIf/Then/Else', () => {
+    const r = layersToGraph([{
+      type: 'rect',
+      color: { if: 'greaterThan(zug1.abw,0)', then: '#FF4444', else: '#FFFFFF' },
+    }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].data.colorIf,   'greaterThan(zug1.abw,0)');
+    assert.equal(r.nodes[0].data.colorThen,  '#FF4444');
+    assert.equal(r.nodes[0].data.colorElse,  '#FFFFFF');
+  });
+});
+
+describe('layersToGraph — Filter-Pipeline', () => {
+  it("value mit Filtern → data.value = base, data.value_filters", () => {
+    const r = layersToGraph([{ type: 'text', value: "{{zug1.hinweis | strip('*') | upper}}" }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].data.value, '{{zug1.hinweis}}');
+    assert.deepEqual(r.nodes[0].data.value_filters, [
+      { fn: 'strip', arg: "'*'" },
+      { fn: 'upper', arg: null },
+    ]);
+  });
+
+  it('rotate mit mul-Filter', () => {
+    const r = layersToGraph([{ type: 'image', file: 'bg.png', rotate: '{{now.minute | mul(6)}}' }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].data.rotate, '{{now.minute}}');
+    assert.deepEqual(r.nodes[0].data.rotate_filters, [{ fn: 'mul', arg: '6' }]);
+  });
+});
+
+describe('layersToGraph — BLOCK-Nodes', () => {
+  it("if+layers → node.type='block', blockType='if'", () => {
+    const r = layersToGraph([{
+      if: "startsWith(nr,'ICN')",
+      layers: [{ type: 'image', file: 'icn.png' }],
+    }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].type, 'block');
+    assert.equal(r.nodes[0].blockType, 'if');
+    assert.equal(r.nodes[0].blockCond, "startsWith(nr,'ICN')");
+    assert.equal(r.nodes[0].bodyChain.length, 1);
+  });
+
+  it("elif-Block → blockType='elif'", () => {
+    const r = layersToGraph([{
+      elif: "startsWith(nr,'IC')",
+      layers: [{ type: 'image', file: 'ic.png' }],
+    }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].blockType, 'elif');
+    assert.equal(r.nodes[0].blockCond, "startsWith(nr,'IC')");
+  });
+
+  it("else-Block → blockType='else', blockCond=''", () => {
+    const r = layersToGraph([{ else: true, layers: [{ type: 'text', value: '{{nr}}' }] }]);
+    assert.ok(r.ok);
+    assert.equal(r.nodes[0].blockType, 'else');
+    assert.equal(r.nodes[0].blockCond, '');
+  });
+
+  it('vollständige if/elif/else-Kette mit regulärem Layer danach', () => {
+    const r = layersToGraph([
+      { if: "startsWith(nr,'ICN')", layers: [{ type: 'image', file: 'icn.png' }] },
+      { elif: "startsWith(nr,'IC')",  layers: [{ type: 'image', file: 'ic.png' }] },
+      { else: true,                   layers: [{ type: 'text', value: '{{nr}}' }] },
+      { type: 'text', value: '{{zeit}}' },
+    ]);
+    assert.ok(r.ok);
+    assert.equal(r.chain.length, 4);
+    assert.ok(r.nodes.some(n => n.blockType === 'if'));
+    assert.ok(r.nodes.some(n => n.blockType === 'elif'));
+    assert.ok(r.nodes.some(n => n.blockType === 'else'));
+    assert.ok(r.nodes.some(n => n.type === 'text' && !n.blockType));
+  });
 });
