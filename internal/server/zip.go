@@ -14,8 +14,9 @@ import (
 
 // handleTemplateZip streams the template directory (template.yaml + default.json
 // + all asset files) as a ZIP archive. Directories are not recursed.
-func (s *Server) handleTemplateZip(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("template")
+// The caller has already extracted the template name from the URL; passing it
+// explicitly avoids the awkward r.Clone/SetPathValue dance in ServeHTTP.
+func (s *Server) handleTemplateZip(w http.ResponseWriter, name string) {
 	if err := renderer.ValidateTemplateName(name); err != nil {
 		http.Error(w, "invalid template name", http.StatusBadRequest)
 		return
@@ -34,11 +35,16 @@ func (s *Server) handleTemplateZip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// safe: ValidateTemplateName restricts the charset, so filename needs no quote-escape.
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, name))
 
 	zw := zip.NewWriter(w)
-	defer zw.Close()
+	defer func() {
+		if err := zw.Close(); err != nil {
+			log.Printf("zip: close writer %q: %v", name, err)
+		}
+	}()
 
 	for _, e := range entries {
 		if e.IsDir() {
