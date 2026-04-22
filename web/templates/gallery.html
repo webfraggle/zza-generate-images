@@ -12,12 +12,10 @@
     <span class="brand">Anzeigen-Generator</span>
     <nav class="header-nav">
       <a href="/" class="nav-link active">Galerie</a>
-      <a href="/create-new" class="nav-link">+ Neues Template</a>
-      <a href="/admin" class="nav-link muted">Admin</a>
     </nav>
   </header>
   <main class="gallery">
-    {{range .}}
+    {{range .Templates}}
     <a class="card" href="/{{.Name}}">
       <div class="card-preview">
         {{if .HasDefault}}

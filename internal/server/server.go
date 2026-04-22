@@ -209,6 +209,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "ok")
 }
 
+// galleryData is the view model for the gallery overview page.
+type galleryData struct {
+	Templates     []gallery.TemplateInfo
+	EditorEnabled bool
+}
+
 // handleGallery renders the template gallery overview page.
 func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	infos, err := gallery.ListTemplates(s.templatesDir)
@@ -218,7 +224,8 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.htmlTmpl.ExecuteTemplate(w, "gallery.html", infos); err != nil {
+	if err := s.htmlTmpl.ExecuteTemplate(w, "gallery.html",
+		galleryData{Templates: infos, EditorEnabled: s.editorEnabled}); err != nil {
 		log.Printf("gallery: execute template: %v", err)
 	}
 }
