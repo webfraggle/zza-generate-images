@@ -38,13 +38,13 @@ ok=0
 failed=0
 skipped=0
 
-echo "=== Desktop CLI (zza-desktop) ==="
+echo "=== Desktop CLI (zza) ==="
 
 # ── macOS ARM64 ───────────────────────────────────────────────────────────────
 echo "Building macOS ARM64 (Apple Silicon)..."
 if CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" \
-    -o "$OUTDIR/zza-desktop-macos-arm64" ./cmd/zza-desktop; then
-    echo "  → $OUTDIR/zza-desktop-macos-arm64"
+    -o "$OUTDIR/zza-macos-arm64" ./cmd/zza; then
+    echo "  → $OUTDIR/zza-macos-arm64"
     ((ok++))
 else
     echo "  FAILED"
@@ -54,8 +54,8 @@ fi
 # ── macOS AMD64 ───────────────────────────────────────────────────────────────
 echo "Building macOS AMD64 (Intel)..."
 if CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" \
-    -o "$OUTDIR/zza-desktop-macos-x64" ./cmd/zza-desktop; then
-    echo "  → $OUTDIR/zza-desktop-macos-x64"
+    -o "$OUTDIR/zza-macos-x64" ./cmd/zza; then
+    echo "  → $OUTDIR/zza-macos-x64"
     ((ok++))
 else
     echo "  FAILED"
@@ -65,8 +65,8 @@ fi
 # ── Windows AMD64 ─────────────────────────────────────────────────────────────
 echo "Building Windows AMD64..."
 if CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" \
-    -o "$OUTDIR/zza-desktop.exe" ./cmd/zza-desktop; then
-    echo "  → $OUTDIR/zza-desktop.exe"
+    -o "$OUTDIR/zza.exe" ./cmd/zza; then
+    echo "  → $OUTDIR/zza.exe"
     ((ok++))
 else
     echo "  FAILED"

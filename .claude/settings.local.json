@@ -16,7 +16,14 @@
       "Bash(grep -E \"\\\\.\\(html|css|js|go\\)$\")",
       "Bash(git merge *)",
       "Bash(git checkout *)",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images log --oneline -20)",
+      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images log --all --oneline -30)",
+      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images log --oneline --since=\"7 days ago\")",
+      "Bash(tee /tmp/zza-baseline-tests.log)",
+      "Read(//private/tmp/**)",
+      "Bash(git mv *)",
+      "Bash(git rm *)"
     ]
   }
 }
