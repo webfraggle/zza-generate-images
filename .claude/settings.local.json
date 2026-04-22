@@ -23,7 +23,8 @@
       "Bash(tee /tmp/zza-baseline-tests.log)",
       "Read(//private/tmp/**)",
       "Bash(git mv *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git show *)"
     ]
   }
 }

@@ -2,10 +2,10 @@
 set -euo pipefail
 # Build script for zza-generate-images
 #
-# Desktop CLI (zza-desktop):
+# Desktop build (zza):
 #   macOS ARM64, macOS AMD64, Windows AMD64 — pure Go cross-compile, no Docker needed.
 #
-# Server Docker image (zza):
+# Server Docker image (zza-server):
 #   Local:  single-arch for the current machine (--load into local Docker daemon)
 #   Release: multi-arch linux/arm64 + linux/amd64 pushed to a registry
 #
