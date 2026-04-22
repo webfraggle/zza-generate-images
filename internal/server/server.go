@@ -112,6 +112,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.adminHandler.ServeHTTP(w, r)
 		return
 	}
+	if strings.HasSuffix(r.URL.Path, ".zip") && r.Method == http.MethodGet {
+		name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), ".zip")
+		r2 := r.Clone(r.Context())
+		r2.SetPathValue("template", name)
+		s.handleTemplateZip(w, r2)
+		return
+	}
 	s.mux.ServeHTTP(w, r)
 }
 
