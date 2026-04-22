@@ -13,4 +13,5 @@ dist/
 .env
 .env.local
 !.env.example
-Update-Server.md.superpowers/
+Update-Server.md
+.superpowers/

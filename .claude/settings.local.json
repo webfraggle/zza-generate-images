@@ -14,30 +14,9 @@
       "Bash(wc:*)",
       "Bash(go version:*)",
       "Bash(grep -E \"\\\\.\\(html|css|js|go\\)$\")",
-      "Bash(go vet:*)",
-      "Bash(git stash:*)",
-      "Bash(grep:*)",
-      "Bash(git checkout:*)",
-      "Bash(node --test web/static/test/node-serializer.test.mjs)",
-      "Bash(node --check /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/web/static/node-editor.js)",
-      "Bash(node --test web/static/test/node-parser.test.mjs)",
-      "Bash(ls internal/renderer/quantize*.go)",
-      "Bash(git pull:*)",
-      "Bash(git merge:*)",
-      "Bash(git branch:*)",
-      "Bash(git check-ignore:*)",
-      "Bash(git worktree:*)",
-      "Bash(node --test web/static/test/node-filters.test.mjs)",
-      "Bash(node --test web/static/test/node-serializer.test.mjs web/static/test/node-parser.test.mjs web/static/test/node-filters.test.mjs)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/.worktrees/node-editor-phase2 checkout -- web/static/node-editor.js)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/.worktrees/node-editor-phase2 merge feature/node-editor-horizontal)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/.worktrees/node-editor-phase2 checkout --theirs web/static/test/node-serializer.test.mjs)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/.worktrees/node-editor-phase2 add web/static/test/node-serializer.test.mjs)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/.worktrees/node-editor-phase2 commit -m ':*)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/.worktrees/node-editor-phase2 add docs/superpowers/plans/2026-04-02-node-editor-phase2-manual-tests.md)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images branch -D feature/node-editor-horizontal)",
-      "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images log --oneline feature/node-editor-phase2 -8)",
-      "Bash(docker buildx rm:*)"
+      "Bash(git merge *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)"
     ]
   }
 }
