@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/web"
 )
 
@@ -301,5 +302,37 @@ func TestHandleRender_WithColorPalette(t *testing.T) {
 	b := rr.Body.Bytes()
 	if len(b) < 8 || b[0] != 0x89 || b[1] != 0x50 || b[2] != 0x4E || b[3] != 0x47 {
 		t.Error("response body is not a valid PNG")
+	}
+}
+
+func TestServer_EditorPage_DesktopOnly(t *testing.T) {
+	srv := newTestServer(t)
+	// Without RegisterEditor, /edit/... should fall through to the mux and
+	// therefore 404 (no editor route registered).
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-096-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("server build /edit should 404, got %d", rr.Code)
+	}
+}
+
+func TestServer_EditorPage_WithEditor_Renders(t *testing.T) {
+	srv := newTestServer(t)
+	tdir := filepath.Join("..", "..", "templates")
+	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache))
+
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-096-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("got %d, body: %s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "sbb-096-v1") {
+		t.Error("editor page should include template name")
+	}
+	if !strings.Contains(body, "'sbb-096-v1'") {
+		t.Error("editor page JS should reference TEMPLATE = 'sbb-096-v1'")
 	}
 }

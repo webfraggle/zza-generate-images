@@ -30,9 +30,8 @@ func NewFSHandlers(templatesDir string, invalidate InvalidateCacheFn) *FSHandler
 // Register attaches all editor routes onto mux. Pattern prefix is /edit/.
 // The EditorPage (GET /edit/{template}) is NOT registered here because it
 // needs access to the parent server's html/template set; the server package
-// overrides that route in its own RegisterEditor wiring.
+// registers that route in its own RegisterEditor wiring.
 func (h *FSHandlers) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /edit/{template}", h.EditorPage)
 	mux.HandleFunc("GET /edit/{template}/files", h.ListFiles)
 	mux.HandleFunc("GET /edit/{template}/file/{filename}", h.GetFile)
 	mux.HandleFunc("POST /edit/{template}/save", h.Save)

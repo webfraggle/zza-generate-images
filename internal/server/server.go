@@ -106,7 +106,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.staticHandler.ServeHTTP(w, r)
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/edit/") && s.editorHandler != nil {
+	if strings.HasPrefix(r.URL.Path, "/edit/") {
+		if s.editorHandler == nil {
+			http.NotFound(w, r)
+			return
+		}
 		s.editorHandler.ServeHTTP(w, r)
 		return
 	}

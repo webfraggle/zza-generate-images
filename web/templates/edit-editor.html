@@ -90,7 +90,6 @@ import { layersToGraph } from '/static/node-parser.js';
 import jsYaml from 'https://esm.sh/js-yaml@4.1.0';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const TOKEN    = '{{.Token}}';
 const TEMPLATE = '{{.TemplateName}}';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -135,7 +134,7 @@ function formatSize(bytes) {
 
 // ── File list ─────────────────────────────────────────────────────────────────
 async function loadFiles() {
-  const res = await fetch(`/edit/${TOKEN}/files`);
+  const res = await fetch(`/edit/${TEMPLATE}/files`);
   if (!res.ok) {
     fileList.innerHTML = '<li class="file-item" style="color:var(--red)">Fehler beim Laden</li>';
     return;
@@ -168,7 +167,7 @@ async function loadFiles() {
 
 // ── Open file in editor ───────────────────────────────────────────────────────
 async function openFile(name) {
-  const res = await fetch(`/edit/${TOKEN}/file/${encodeURIComponent(name)}`);
+  const res = await fetch(`/edit/${TEMPLATE}/file/${encodeURIComponent(name)}`);
   if (!res.ok) { showSaveStatus('Datei konnte nicht geladen werden.', true); return; }
   const content = await res.text();
 
@@ -228,7 +227,7 @@ async function saveFile() {
     switchToYaml();
   }
   const content = cmView.state.doc.toString();
-  const res = await fetch(`/edit/${TOKEN}/save`, {
+  const res = await fetch(`/edit/${TEMPLATE}/save`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ filename: currentFile, content }),
@@ -308,7 +307,7 @@ uploadInput.addEventListener('change', async e => {
   const fd = new FormData();
   fd.append('file', file);
 
-  const res = await fetch(`/edit/${TOKEN}/upload`, { method: 'POST', body: fd });
+  const res = await fetch(`/edit/${TEMPLATE}/upload`, { method: 'POST', body: fd });
   if (res.ok) {
     showUploadStatus('Hochgeladen ✓', false);
     setTimeout(hideUploadStatus, 2500);
@@ -329,7 +328,7 @@ function hideUploadStatus() { uploadStatus.hidden = true; }
 // ── Delete ────────────────────────────────────────────────────────────────────
 async function deleteFile(name) {
   if (!confirm(`"${name}" wirklich löschen?`)) return;
-  const res = await fetch(`/edit/${TOKEN}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  const res = await fetch(`/edit/${TEMPLATE}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
   if (res.ok) {
     if (currentFile === name) openFile('template.yaml');
     await loadFiles();
@@ -431,7 +430,7 @@ async function init() {
 
   // Pre-fill JSON from default.json.
   try {
-    const res = await fetch(`/edit/${TOKEN}/file/default.json`);
+    const res = await fetch(`/edit/${TEMPLATE}/file/default.json`);
     if (res.ok) {
       jsonInput.value = await res.text();
       schedulePreview();
