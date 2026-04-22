@@ -22,8 +22,9 @@ Zwei Build-Artefakte aus derselben Codebase:
 
 ### Routen
 - `GET /` — Galerie (Template-Liste mit Thumbnails)
-- `GET /{template}` — Preview-Seite mit Meta-Info, Live-JSON-Editor, Render-URL, PNG-Download. **Kein Edit-Button.**
+- `GET /{template}` — Preview-Seite mit Meta-Info, Live-JSON-Editor, Render-URL, PNG-Download, **ZIP-Download-Button**. **Kein Edit-Button.**
 - `POST /{template}/render` — JSON → PNG, die einzige Route ohne HTTPS-Redirect (Microcontroller ohne TLS)
+- `GET /{template}.zip` — streamt das Template-Verzeichnis als ZIP (Endnutzer kann's lokal im Editor öffnen und anpassen)
 - `GET /health` — Health-Check
 
 ### Config (Umgebungsvariablen)
@@ -50,7 +51,7 @@ zza version
 - `GET /edit/{template}` — YAML-Editor + Node-Editor + Live-Preview. **Kein Auth-Check.**
 - `POST /edit/{template}/save` — speichert `template.yaml` zurück aufs Dateisystem, invalidiert Render-Cache
 - Weitere Editor-Endpunkte (Asset-Upload, Template anlegen, etc.) — alle ohne Token-Flow
-- Preview-Seite zeigt **Edit-Button**, der auf `/edit/{template}` verlinkt.
+- Preview-Seite zeigt **Edit-Button** (zusätzlich zum ZIP-Download-Button), der auf `/edit/{template}` verlinkt.
 
 ### HTTPS-Redirect
 Die HTTPS-Redirect-Middleware aus `internal/server/` wird im Desktop-Build nicht angewickelt — Desktop läuft auf `127.0.0.1` ohne Reverse-Proxy, ein Redirect-Pfad ergibt dort keinen Sinn.
@@ -121,7 +122,10 @@ POST /edit/{template}/save
 ```
 
 ### Template-Sharing (außerhalb der App)
-User zippt `templates/mein-template/` manuell und schickt's per E-Mail an Admin. Admin entpackt nach Prüfung in Server-`TEMPLATES_DIR` und deployt per Docker-Compose-Reload. Ein Export-Button in der GUI ist explizit YAGNI.
+User zippt `templates/mein-template/` manuell (oder nutzt den ZIP-Download-Button auf der Preview-Seite als Startpunkt) und schickt's per E-Mail an Admin. Admin entpackt nach Prüfung in Server-`TEMPLATES_DIR` und deployt per Docker-Compose-Reload.
+
+### ZIP-Download (beide Builds)
+Route `GET /{template}.zip` streamt das komplette Template-Verzeichnis als ZIP (`template.yaml` + `default.json` + alle Assets/Fonts). Kein Cache nötig — die ZIP wird on-the-fly gestreamt; Request-Volumen ist niedrig. Implementierung in `internal/server/` als Handler, shared von beiden Builds.
 
 ## Fehlerbehandlung
 
@@ -157,7 +161,7 @@ Kein Code-Signing im MVP (Null-Budget-Option). User klicken die Erst-Start-Warnd
 
 **ZIP-Inhalt (Desktop):**
 - Binary (bzw. `.app`-Bundle auf macOS)
-- `templates/default/` als Starter
+- **Kompletter `templates/`-Ordner** (alle kuratierten Templates aus dem Repo, nicht nur `default/`)
 - `README.txt` mit:
   - Erst-Start-Anleitung auf Windows ("Weitere Informationen → Trotzdem ausführen")
   - Erst-Start-Anleitung auf macOS (Rechtsklick → Öffnen)
