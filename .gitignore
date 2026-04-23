@@ -6,8 +6,12 @@ node_modules
 # Build output
 dist/
 /zza
+/zza-server
 /zza-desktop
 /zza-desktop.exe
+# Wails build artefacts
+cmd/zza/build/
+frontend/
 
 # Secrets — never commit real env files
 .env
