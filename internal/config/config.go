@@ -13,7 +13,6 @@ type Config struct {
 	CacheDir         string
 	CacheMaxAgeHours int
 	CacheMaxSizeMB   int64
-	BaseURL          string
 }
 
 // Load reads configuration from environment variables and applies defaults.
@@ -23,7 +22,6 @@ type Config struct {
 //	CACHE_DIR            default "./cache"
 //	CACHE_MAX_AGE_HOURS  default 24
 //	CACHE_MAX_SIZE_MB    default 500
-//	BASE_URL             default "http://localhost:8080"
 func Load() *Config {
 	return &Config{
 		Port:             envStr("PORT", "8080"),
@@ -31,7 +29,6 @@ func Load() *Config {
 		CacheDir:         envStr("CACHE_DIR", "./cache"),
 		CacheMaxAgeHours: envInt("CACHE_MAX_AGE_HOURS", 24),
 		CacheMaxSizeMB:   int64(envInt("CACHE_MAX_SIZE_MB", 500)),
-		BaseURL:          envStr("BASE_URL", "http://localhost:8080"),
 	}
 }
 

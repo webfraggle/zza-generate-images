@@ -87,7 +87,11 @@ Alle Routen außer `POST /{template}/render` werden per 301 auf HTTPS umgeleitet
 
 ## Konfiguration (Umgebungsvariablen)
 
-`PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`, `DB_PATH`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EDIT_TOKEN_TTL_HOURS`, `ADMIN_TOKEN`, `TOTP_SECRET`, `BASE_URL`, `SECURE_COOKIES`
+Nur im Server-Build relevant: `PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`.
+
+Der Desktop-Build (`cmd/zza`) liest keine Env-Vars; Konfiguration via CLI-Flags (`--templates-dir`, `--port`).
+
+_Entfernt im Dual-Build-Refactor (2026-04-23):_ `DB_PATH`, `SMTP_*`, `EDIT_TOKEN_TTL_HOURS`, `ADMIN_TOKEN`, `TOTP_SECRET`, `BASE_URL`, `SECURE_COOKIES` — SMTP-Auth, SQLite-DB und Admin-Bereich wurden aus dem Server-Build gezogen; Editor läuft nur noch in der Desktop-App ohne Auth.
 
 ## Legacy-Referenz
 

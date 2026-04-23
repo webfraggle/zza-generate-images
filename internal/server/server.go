@@ -131,13 +131,13 @@ func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
 // Call once during startup before ServeHTTP — not concurrency-safe.
 func (s *Server) SetEditorEnabled(v bool) { s.editorEnabled = v }
 
-// RegisterEditor attaches an FSHandlers set to this server. The editor page
-// itself is rendered here (to re-use the shared html/template set).
-// Desktop-build calls this; server-build does not.
+// RegisterEditor attaches an FSHandlers set to this server and wires the
+// editor landing page on top (owned by the server package so it can reuse
+// the shared html/template set). Desktop-build calls this once at startup;
+// server-build does not. Not concurrency-safe — call before ServeHTTP.
 func (s *Server) RegisterEditor(h *editor.FSHandlers) {
 	mux := http.NewServeMux()
 	h.Register(mux)
-	// Override the placeholder EditorPage with one that uses our html/template.
 	mux.HandleFunc("GET /edit/{template}", s.handleEditorPage)
 	s.editorHandler = mux
 }

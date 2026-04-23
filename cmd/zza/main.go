@@ -95,8 +95,8 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 	log.Printf("templates: %s", tdir)
 
 	cfg := &config.Config{
-		// Port + BaseURL are unused in desktop builds — the listener is opened
-		// by desktop.RunGUI/RunServerOnly, which binds its own address.
+		// Port is unused here — the listener is opened by desktop.RunGUI or
+		// desktop.RunServerOnly with an address chosen at the call site.
 		TemplatesDir:     tdir,
 		CacheDir:         cacheDirFor(),
 		CacheMaxAgeHours: 24,

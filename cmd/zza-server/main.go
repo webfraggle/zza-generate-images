@@ -53,8 +53,7 @@ func serveCmd() *cobra.Command {
   TEMPLATES_DIR           (default: ./templates)
   CACHE_DIR               (default: ./cache)
   CACHE_MAX_AGE_HOURS     (default: 24)
-  CACHE_MAX_SIZE_MB       (default: 500)
-  BASE_URL                (default: http://localhost:8080)`,
+  CACHE_MAX_SIZE_MB       (default: 500)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Load()
 			if err := config.ValidatePort(cfg.Port); err != nil {
