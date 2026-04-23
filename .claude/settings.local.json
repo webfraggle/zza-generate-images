@@ -71,7 +71,8 @@
       "Bash(curl -s -o /dev/null -w \"edit/sbb-096-v1=%{http_code}\\\\n\" http://localhost:18089/edit/sbb-096-v1)",
       "Bash(unzip -q zza-macos-arm64.zip -d /tmp/zip-check-arm64)",
       "Bash(unzip -q zza-macos-intel.zip -d /tmp/zip-check-intel)",
-      "Bash(unzip -q zza-windows-x64.zip -d /tmp/zip-check-win)"
+      "Bash(unzip -q zza-windows-x64.zip -d /tmp/zip-check-win)",
+      "Bash(docker rmi *)"
     ]
   }
 }

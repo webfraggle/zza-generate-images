@@ -14,13 +14,13 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache tzdata \
     && adduser -D -u 1000 zza
 
 WORKDIR /app
 COPY --from=builder /app/zza-server .
 
-RUN mkdir -p /data/cache /data/db /data/templates \
+RUN mkdir -p /data/cache /data/templates \
     && chown -R zza:zza /data
 
 USER zza
