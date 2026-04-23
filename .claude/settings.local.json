@@ -50,7 +50,28 @@
       "Bash(/tmp/zza serve *)",
       "Bash(curl -s -o /dev/null -w \"health=%{http_code} /edit/default=\" http://localhost:18088/health)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18088/edit/default)",
-      "Bash(pkill -f '/tmp/zza serve')"
+      "Bash(pkill -f '/tmp/zza serve')",
+      "Bash(./build.sh *)",
+      "Bash(bash -c 'set -euo pipefail; ok=0; \\(\\(ok++\\)\\); echo \"ok=$ok\"')",
+      "Bash(echo \"exit: $?\")",
+      "Bash(bash -c 'set -euo pipefail; ok=0; failed=0; skipped=0 *)",
+      "Bash(bash -x build.sh)",
+      "Bash(/bin/bash --version)",
+      "Bash(bash --version)",
+      "Bash(/bin/bash -c ' *)",
+      "Bash(bash build.sh)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(unzip -l /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/dist/release/zza-macos-arm64.zip)",
+      "Bash(mkdir -p /tmp/zza-release-test)",
+      "Bash(unzip -oq /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/dist/release/zza-macos-arm64.zip)",
+      "Bash(pkill -f '/tmp/zza-release-test/zza.app')",
+      "Bash(/tmp/zza-release-test/zza.app/Contents/MacOS/zza serve *)",
+      "Bash(curl -s -o /dev/null -w \"health=%{http_code}\\\\n\" http://localhost:18089/health)",
+      "Bash(curl -s -o /dev/null -w \"edit/sbb-096-v1=%{http_code}\\\\n\" http://localhost:18089/edit/sbb-096-v1)",
+      "Bash(unzip -q zza-macos-arm64.zip -d /tmp/zip-check-arm64)",
+      "Bash(unzip -q zza-macos-intel.zip -d /tmp/zip-check-intel)",
+      "Bash(unzip -q zza-windows-x64.zip -d /tmp/zip-check-win)"
     ]
   }
 }

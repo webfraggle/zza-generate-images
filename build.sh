@@ -3,7 +3,7 @@ set -euo pipefail
 # Build script for zza-generate-images
 #
 # Desktop build (zza):
-#   macOS ARM64, macOS AMD64, Windows AMD64 — pure Go cross-compile, no Docker needed.
+#   macOS ARM64, macOS AMD64, Windows AMD64 — Wails cross-compile (CGO), no Docker needed.
 #
 # Server Docker image (zza-server):
 #   Local:  single-arch for the current machine (--load into local Docker daemon)
@@ -50,6 +50,9 @@ build_desktop() {
     echo "Building $wails_platform..."
 
     # Wails requires CGO; Windows cross-compile needs mingw-w64.
+    # env_prefix is intentionally unquoted below so env receives each KEY=VAL
+    # as a separate argument; quoting it would make env treat the whole string
+    # as a single arg and fail.
     local env_prefix=""
     if [[ "$target_os" == "windows" ]]; then
         env_prefix="CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++"
