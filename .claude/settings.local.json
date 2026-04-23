@@ -32,7 +32,25 @@
       "Bash(git *)",
       "Bash(grep -cE '\\\\$\\\\{TEMPLATE\\\\}' web/templates/edit-editor.html)",
       "Bash(go get *)",
-      "Bash(go list *)"
+      "Bash(go list *)",
+      "Bash(PORT=18080 TEMPLATES_DIR=/Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images/templates /tmp/zza-server serve)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18080/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18080/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18080/sbb-096-v1)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{content_type}\\\\n\" http://localhost:18080/sbb-096-v1.zip)",
+      "Bash(rm -rf /tmp/zza-smoketest)",
+      "Bash(mkdir -p /tmp/zza-smoketest cp /tmp/zza /tmp/zza-smoketest/ /tmp/zza-smoketest/zza serve --port 18081)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18081/health echo \"gallery:\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18081/ echo \"edit default:\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18081/edit/default echo \"list files:\")",
+      "Bash(pkill -f '/tmp/zza-smoketest/zza')",
+      "Bash(/tmp/zza-smoketest/zza version *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(xargs ls *)",
+      "Bash(/tmp/zza serve *)",
+      "Bash(curl -s -o /dev/null -w \"health=%{http_code} /edit/default=\" http://localhost:18088/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:18088/edit/default)",
+      "Bash(pkill -f '/tmp/zza serve')"
     ]
   }
 }

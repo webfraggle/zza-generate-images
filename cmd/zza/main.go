@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/webfraggle/zza-generate-images/internal/cli"
@@ -15,8 +16,6 @@ import (
 	"github.com/webfraggle/zza-generate-images/web"
 )
 
-var templatesDirFlag string
-
 func main() {
 	if err := rootCmd().Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -25,17 +24,19 @@ func main() {
 }
 
 func rootCmd() *cobra.Command {
+	// Each command binds its own --templates-dir flag. Persistent flags on root
+	// would silently collide with cli.RenderCmd's own flag of the same name.
+	var templatesDir string
 	root := &cobra.Command{
 		Use:   "zza",
 		Short: "Zugzielanzeiger desktop — editor + preview + render",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Default: open GUI.
-			return runGUI(templatesDirFlag)
+			return runGUI(templatesDir)
 		},
 	}
-	root.PersistentFlags().StringVar(&templatesDirFlag, "templates-dir", "",
+	root.Flags().StringVar(&templatesDir, "templates-dir", "",
 		"path to templates directory (defaults to sibling of executable)")
-	root.AddCommand(cli.RenderCmd())
+	root.AddCommand(cli.RenderCmd()) // render has its own --templates-dir (default ./templates)
 	root.AddCommand(serveCmd())
 	root.AddCommand(versionCmd())
 	return root
@@ -52,12 +53,12 @@ func versionCmd() *cobra.Command {
 }
 
 func serveCmd() *cobra.Command {
-	var port string
+	var port, templatesDir string
 	c := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the editor+preview server without opening a window",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			handler, err := buildHandler(templatesDirFlag)
+			handler, err := buildHandler(templatesDir)
 			if err != nil {
 				return err
 			}
@@ -65,6 +66,8 @@ func serveCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&port, "port", "8080", "TCP port to listen on")
+	c.Flags().StringVar(&templatesDir, "templates-dir", "",
+		"path to templates directory (defaults to sibling of executable)")
 	return c
 }
 
@@ -92,12 +95,12 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 	log.Printf("templates: %s", tdir)
 
 	cfg := &config.Config{
-		Port:             "0",
+		// Port + BaseURL are unused in desktop builds — the listener is opened
+		// by desktop.RunGUI/RunServerOnly, which binds its own address.
 		TemplatesDir:     tdir,
 		CacheDir:         cacheDirFor(),
 		CacheMaxAgeHours: 24,
 		CacheMaxSizeMB:   500,
-		BaseURL:          "http://127.0.0.1",
 	}
 	srv, err := server.New(cfg, web.FS)
 	if err != nil {
@@ -111,7 +114,7 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 // cacheDirFor returns a user-specific cache directory for desktop runs.
 func cacheDirFor() string {
 	if u, err := os.UserCacheDir(); err == nil {
-		return u + string(os.PathSeparator) + "zza"
+		return filepath.Join(u, "zza")
 	}
 	return "./cache"
 }
