@@ -47,7 +47,10 @@ func (s *Server) handleTemplateZip(w http.ResponseWriter, name string) {
 	}()
 
 	for _, e := range entries {
-		if e.IsDir() {
+		// Skip everything that is not a regular file — directories are
+		// excluded by spec (flat-only), and symlinks are excluded for safety
+		// so the ZIP can't leak files outside the template directory.
+		if !e.Type().IsRegular() {
 			continue
 		}
 		if err := addFileToZip(zw, dir, e.Name()); err != nil {
