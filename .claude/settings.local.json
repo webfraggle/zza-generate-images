@@ -30,7 +30,9 @@
       "Bash(go vet *)",
       "Bash(git -C /Users/christoph/Documents/_Projects/Zugzielanzeiger/zza-generate-images show b82dd2e -- internal/server/server.go)",
       "Bash(git *)",
-      "Bash(grep -cE '\\\\$\\\\{TEMPLATE\\\\}' web/templates/edit-editor.html)"
+      "Bash(grep -cE '\\\\$\\\\{TEMPLATE\\\\}' web/templates/edit-editor.html)",
+      "Bash(go get *)",
+      "Bash(go list *)"
     ]
   }
 }

@@ -41,10 +41,15 @@ func RunBrowser(handler http.Handler) error {
 	if err != nil {
 		return fmt.Errorf("desktop: listen: %w", err)
 	}
+	defer listener.Close()
+
 	port := listener.Addr().(*net.TCPAddr).Port
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
 	log.Printf("zza editor running at %s (close terminal to quit)", url)
 
+	// Launch the browser in a goroutine. The listener is already bound, so
+	// any incoming connection is queued by the kernel until http.Serve starts
+	// accepting on the next line.
 	go openInBrowser(url)
 	return http.Serve(listener, handler)
 }
