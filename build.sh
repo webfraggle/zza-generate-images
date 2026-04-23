@@ -94,18 +94,18 @@ build_desktop() {
 Zugzielanzeiger Desktop
 =======================
 
-First run:
-  macOS   — right-click zza.app → "Öffnen" (bypasses Gatekeeper on unsigned apps)
-  Windows — on the SmartScreen warning: "Weitere Informationen" → "Trotzdem ausführen"
+Erster Start:
+  macOS   — Rechtsklick auf zza.app → "Öffnen" (umgeht den Gatekeeper bei unsignierten Apps)
+  Windows — bei der SmartScreen-Warnung: "Weitere Informationen" → "Trotzdem ausführen"
 
-The "templates" folder next to this binary holds all your template directories.
-Edit templates via the built-in web editor (opens automatically when you launch zza).
+Der Ordner "templates" neben dieser Anwendung enthält alle Template-Verzeichnisse.
+Templates werden über den integrierten Web-Editor bearbeitet (öffnet sich automatisch beim Start).
 
-Command-line:
-  zza                 — open the GUI (default)
-  zza serve --port N  — run the local server without a window
-  zza render -t NAME -i in.json -o out.png  — render to PNG
-  zza version         — print the version
+Kommandozeile:
+  zza                 — startet die GUI (Standard)
+  zza serve --port N  — startet nur den lokalen Server, ohne Fenster
+  zza render -t NAME -i in.json -o out.png  — rendert ein Template als PNG
+  zza version         — gibt die Version aus
 EOF
 
     # Zip the staging dir (contents, not the dir itself).
