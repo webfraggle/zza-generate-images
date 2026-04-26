@@ -172,5 +172,8 @@
 
   </script>
   <span class="app-version">{{appVersion}}</span>
+  {{if not .EditorEnabled}}
+  <a class="footer-legal" href="https://www.modellbahn-displays.de/impressum-datenschutz-bildgenerator" target="_blank" rel="noopener">Impressum, Datenschutz &amp; Nutzungsbedingungen</a>
+  {{end}}
 </body>
 </html>

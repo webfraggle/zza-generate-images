@@ -52,6 +52,17 @@ button { font-family: inherit; }
   z-index: 9999;
 }
 
+.footer-legal {
+  position: fixed;
+  bottom: 8px;
+  right: 10px;
+  font-size: .75rem;
+  color: rgba(255,255,255,.45);
+  text-decoration: none;
+  z-index: 9999;
+}
+.footer-legal:hover { color: rgba(255,255,255,.8); }
+
 /* ── HEADER ─────────────────────────────────────────────────────────────────── */
 header {
   background: var(--surface);
