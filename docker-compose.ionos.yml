@@ -1,5 +1,5 @@
 services:
-  zza:
+  zza-server:
     image: ghcr.io/webfraggle/zza-generate-images:latest
     env_file:
       - .env
@@ -7,12 +7,10 @@ services:
       PORT: "8080"
       TEMPLATES_DIR: /data/templates
       CACHE_DIR: /data/cache
-      DB_PATH: /data/db/zza.db
       TZ: Europe/Berlin
     volumes:
       - ./templates:/data/templates
       - cache_data:/data/cache
-      - db_data:/data/db
     labels:
       - "traefik.enable=true"
       # HTTP — Microcontroller-kompatibel, kein Redirect
@@ -43,4 +41,3 @@ networks:
 
 volumes:
   cache_data:
-  db_data:
