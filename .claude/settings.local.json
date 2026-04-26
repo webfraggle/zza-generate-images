@@ -76,7 +76,8 @@
       "Bash(grep -E \"^\\(zza|zza-server|zza\\\\.db\\)$\")",
       "Bash(sqlite3 zza.db \".tables\")",
       "Bash(sqlite3 zza.db \"SELECT 'templates='||COUNT\\(*\\) FROM templates; SELECT 'edit_tokens='||COUNT\\(*\\) FROM edit_tokens;\")",
-      "Bash(sqlite3 zza.db \"SELECT substr\\(email,1,3\\)||'...' FROM templates LIMIT 3\")"
+      "Bash(sqlite3 zza.db \"SELECT substr\\(email,1,3\\)||'...' FROM templates LIMIT 3\")",
+      "Bash(unzip -p dist/release/zza-macos-arm64.zip README.txt)"
     ]
   }
 }
