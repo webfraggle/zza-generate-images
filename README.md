@@ -87,9 +87,11 @@ Pusht ein Multi-Arch-Image (`linux/arm64`+`linux/amd64`) mit Versions-Tag (aus `
 
 Voraussetzung: Traefik läuft bereits (via modellbahn-api).
 
+Update auf neue Image-Version:
+
 ```bash
-docker compose -f docker-compose.ionos.yml pull
-docker compose -f docker-compose.ionos.yml up -d
+ssh -l root -p 2847 87.106.149.199 \
+  "cd ~/zza-generate-images && docker compose pull && docker compose up -d"
 ```
 
 Templates liegen als Bind Mount unter `./templates/` und bleiben bei Updates erhalten. Cache liegt im Named Volume `cache_data` und kann jederzeit weggeworfen werden.

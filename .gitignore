@@ -7,8 +7,6 @@ node_modules
 dist/
 /zza
 /zza-server
-/zza-desktop
-/zza-desktop.exe
 # Wails build artefacts
 cmd/zza/build/
 frontend/
@@ -17,5 +15,4 @@ frontend/
 .env
 .env.local
 !.env.example
-Update-Server.md
 .superpowers/
