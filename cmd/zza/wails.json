@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "zza",
+  "outputfilename": "zza",
+  "wailsjsdir": "../../frontend",
+  "author": {
+    "name": "webfraggle"
+  },
+  "info": {
+    "productName": "Zugzielanzeiger",
+    "productVersion": "0.0.0"
+  }
+}

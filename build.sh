@@ -2,10 +2,10 @@
 set -euo pipefail
 # Build script for zza-generate-images
 #
-# Desktop CLI (zza-desktop):
-#   macOS ARM64, macOS AMD64, Windows AMD64 — pure Go cross-compile, no Docker needed.
+# Desktop build (zza):
+#   macOS ARM64, macOS AMD64, Windows AMD64 — Wails cross-compile (CGO), no Docker needed.
 #
-# Server Docker image (zza):
+# Server Docker image (zza-server):
 #   Local:  single-arch for the current machine (--load into local Docker daemon)
 #   Release: multi-arch linux/arm64 + linux/amd64 pushed to a registry
 #
@@ -38,47 +38,93 @@ ok=0
 failed=0
 skipped=0
 
-echo "=== Desktop CLI (zza-desktop) ==="
+echo "=== Desktop build (zza) ==="
 
-# ── macOS ARM64 ───────────────────────────────────────────────────────────────
-echo "Building macOS ARM64 (Apple Silicon)..."
-if CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS" \
-    -o "$OUTDIR/zza-desktop-macos-arm64" ./cmd/zza-desktop; then
-    echo "  → $OUTDIR/zza-desktop-macos-arm64"
-    ((ok++))
-else
-    echo "  FAILED"
-    ((failed++))
-fi
+REPO_ROOT="$(pwd)"
+RELEASE_DIR="$OUTDIR/release"
+mkdir -p "$RELEASE_DIR"
 
-# ── macOS AMD64 ───────────────────────────────────────────────────────────────
-echo "Building macOS AMD64 (Intel)..."
-if CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" \
-    -o "$OUTDIR/zza-desktop-macos-x64" ./cmd/zza-desktop; then
-    echo "  → $OUTDIR/zza-desktop-macos-x64"
-    ((ok++))
-else
-    echo "  FAILED"
-    ((failed++))
-fi
+build_desktop() {
+    local target_os="$1" target_arch="$2" zip_name="$3"
+    local wails_platform="${target_os}/${target_arch}"
+    echo "Building $wails_platform..."
 
-# ── Windows AMD64 ─────────────────────────────────────────────────────────────
-echo "Building Windows AMD64..."
-if CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" \
-    -o "$OUTDIR/zza-desktop.exe" ./cmd/zza-desktop; then
-    echo "  → $OUTDIR/zza-desktop.exe"
-    ((ok++))
-else
-    echo "  FAILED"
-    ((failed++))
-fi
+    # Wails requires CGO; Windows cross-compile needs mingw-w64.
+    # env_prefix is intentionally unquoted below so env receives each KEY=VAL
+    # as a separate argument; quoting it would make env treat the whole string
+    # as a single arg and fail.
+    local env_prefix=""
+    if [[ "$target_os" == "windows" ]]; then
+        env_prefix="CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++"
+    fi
+
+    # wails build must run from the package directory (where wails.json + main.go live).
+    # -s skips the frontend build step (no Wails JS in this project — we embed our own web).
+    if ! (cd "$REPO_ROOT/cmd/zza" && env $env_prefix wails build \
+            -platform "$wails_platform" \
+            -ldflags "$LDFLAGS" \
+            -clean -trimpath -s) \
+            >"$REPO_ROOT/$OUTDIR/wails-${target_os}-${target_arch}.log" 2>&1; then
+        echo "  FAILED (see $OUTDIR/wails-${target_os}-${target_arch}.log)"
+        failed=$((failed+1))
+        return
+    fi
+
+    # Wails outputs to build/bin/ relative to wails.json (cmd/zza/).
+    local build_dir="$REPO_ROOT/cmd/zza/build/bin"
+    local staging="$REPO_ROOT/$OUTDIR/stage-${target_os}-${target_arch}"
+    rm -rf "$staging"
+    mkdir -p "$staging"
+
+    # Copy binary / .app bundle
+    case "$target_os" in
+        darwin)
+            cp -R "$build_dir/zza.app" "$staging/"
+            ;;
+        windows)
+            cp "$build_dir/zza.exe" "$staging/"
+            ;;
+    esac
+
+    # Copy the full curated templates folder (spec: Desktop ZIP ships all templates).
+    cp -R "$REPO_ROOT/templates" "$staging/templates"
+
+    # README with first-run instructions.
+    cat > "$staging/README.txt" <<'EOF'
+Zugzielanzeiger Desktop
+=======================
+
+Erster Start:
+  macOS   — Rechtsklick auf zza.app → "Öffnen" (umgeht den Gatekeeper bei unsignierten Apps)
+  Windows — bei der SmartScreen-Warnung: "Weitere Informationen" → "Trotzdem ausführen"
+
+Der Ordner "templates" neben dieser Anwendung enthält alle Template-Verzeichnisse.
+Templates werden über den integrierten Web-Editor bearbeitet (öffnet sich automatisch beim Start).
+
+Kommandozeile:
+  zza                 — startet die GUI (Standard)
+  zza serve --port N  — startet nur den lokalen Server, ohne Fenster
+  zza render -t NAME -i in.json -o out.png  — rendert ein Template als PNG
+  zza version         — gibt die Version aus
+EOF
+
+    # Zip the staging dir (contents, not the dir itself).
+    (cd "$staging" && zip -rq "../release/$zip_name" .)
+    rm -rf "$staging"
+    echo "  → $RELEASE_DIR/$zip_name"
+    ok=$((ok+1))
+}
+
+build_desktop darwin  arm64 "zza-macos-arm64.zip"
+build_desktop darwin  amd64 "zza-macos-intel.zip"
+build_desktop windows amd64 "zza-windows-x64.zip"
 
 echo ""
-echo "=== Server Docker image (zza) ==="
+echo "=== Server Docker image (zza-server) ==="
 
 if ! command -v docker &>/dev/null; then
     echo "Docker not found — skipping server image build."
-    ((skipped++))
+    skipped=$((skipped+1))
 elif [[ "$DOCKER_PUSH" == "1" ]]; then
     # ── Multi-arch push (release) ─────────────────────────────────────────────
     echo "Building multi-arch image and pushing to registry..."
@@ -105,10 +151,10 @@ elif [[ "$DOCKER_PUSH" == "1" ]]; then
         .; then
         echo "  → pushed $IMAGE:$IMAGE_TAG"
         [[ "$IMAGE_TAG" != "latest" ]] && echo "  → pushed $IMAGE:latest"
-        ((ok++))
+        ok=$((ok+1))
     else
         echo "  FAILED"
-        ((failed++))
+        failed=$((failed+1))
     fi
 
     docker buildx rm --force zza-builder 2>/dev/null || true
@@ -133,10 +179,10 @@ else
         .; then
         echo "  → $IMAGE:$IMAGE_TAG (loaded into local Docker)"
         echo "  Tip: DOCKER_PUSH=1 ./build.sh  to build multi-arch and push to registry."
-        ((ok++))
+        ok=$((ok+1))
     else
         echo "  FAILED"
-        ((failed++))
+        failed=$((failed+1))
     fi
 fi
 

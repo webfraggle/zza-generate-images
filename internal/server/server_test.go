@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/web"
 )
 
@@ -98,6 +99,25 @@ func TestServer_Detail(t *testing.T) {
 	}
 	if !strings.Contains(body, "json-input") {
 		t.Error("detail page should contain JSON textarea")
+	}
+	if strings.Contains(body, "Bearbeiten") {
+		t.Error("server build should NOT show edit button")
+	}
+	if !strings.Contains(body, "/sbb-096-v1.zip") {
+		t.Error("detail page should show ZIP download link")
+	}
+}
+
+func TestServer_Detail_EditorEnabled_ShowsEditButton(t *testing.T) {
+	srv := newTestServer(t)
+	srv.SetEditorEnabled(true)
+
+	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if !strings.Contains(rr.Body.String(), `href="/edit/sbb-096-v1"`) {
+		t.Error("desktop build should link to /edit/sbb-096-v1")
 	}
 }
 
@@ -243,41 +263,6 @@ func TestServer_Render_CacheHit(t *testing.T) {
 	}
 }
 
-func TestCheckOrigin(t *testing.T) {
-	base := "https://example.com"
-
-	cases := []struct {
-		name   string
-		origin string
-		refer  string
-		want   bool
-	}{
-		{"origin matches", base, "", true},
-		{"origin matches with path", base + "/foo", "", true},
-		{"origin mismatch", "https://evil.com", "", false},
-		{"no headers", "", "", true},
-		{"referer matches", "", base + "/create-new", true},
-		{"referer mismatch", "", "https://evil.com/csrf", false},
-		{"origin takes precedence over referer", base, "https://evil.com/csrf", true},
-		{"origin mismatch ignores referer", "https://evil.com", base + "/foo", false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/", nil)
-			if tc.origin != "" {
-				r.Header.Set("Origin", tc.origin)
-			}
-			if tc.refer != "" {
-				r.Header.Set("Referer", tc.refer)
-			}
-			if got := checkOrigin(r, base); got != tc.want {
-				t.Errorf("checkOrigin = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestHandleRender_WithColorPalette(t *testing.T) {
 	// Own TemplatesDir with a mini-template that sets colors: 2.
 	templatesDir := t.TempDir()
@@ -317,5 +302,39 @@ func TestHandleRender_WithColorPalette(t *testing.T) {
 	b := rr.Body.Bytes()
 	if len(b) < 8 || b[0] != 0x89 || b[1] != 0x50 || b[2] != 0x4E || b[3] != 0x47 {
 		t.Error("response body is not a valid PNG")
+	}
+}
+
+func TestServer_EditorPage_DesktopOnly(t *testing.T) {
+	srv := newTestServer(t)
+	// Without RegisterEditor, the /edit/ pre-mux dispatch hits the
+	// editorHandler==nil branch in ServeHTTP and returns 404 directly
+	// (it does NOT fall through to the mux, where GET /{template} would
+	// otherwise match and render a detail page).
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-096-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("server build /edit should 404, got %d", rr.Code)
+	}
+}
+
+func TestServer_EditorPage_WithEditor_Renders(t *testing.T) {
+	srv := newTestServer(t)
+	tdir := filepath.Join("..", "..", "templates")
+	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache))
+
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-096-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("got %d, body: %s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "sbb-096-v1") {
+		t.Error("editor page should include template name")
+	}
+	if !strings.Contains(body, "'sbb-096-v1'") {
+		t.Error("editor page JS should reference TEMPLATE = 'sbb-096-v1'")
 	}
 }

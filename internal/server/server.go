@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/internal/gallery"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 	"github.com/webfraggle/zza-generate-images/internal/version"
@@ -30,12 +31,12 @@ const maxRequestBodyBytes = 1 << 20 // 1 MiB
 type Server struct {
 	mux           *http.ServeMux
 	staticHandler http.Handler
-	editorHandler http.Handler // handles /edit/{token} routes to avoid mux conflicts
-	adminHandler  http.Handler // handles /admin/... routes to avoid mux conflicts
+	editorHandler http.Handler // set by RegisterEditor; desktop-only
 	rend          *renderer.Renderer
 	cache         *Cache
 	templatesDir  string
 	htmlTmpl      *template.Template
+	editorEnabled bool
 }
 
 // New creates and initialises a Server from cfg.
@@ -85,13 +86,14 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 	return s, nil
 }
 
-// ServeHTTP implements http.Handler.
-// /static/... and /edit/... are dispatched before the mux to avoid routing
-// conflicts with wildcard patterns like "GET /{template}/preview".
+// isRenderRoute reports whether r targets a POST /{template}/render endpoint.
 func isRenderRoute(r *http.Request) bool {
 	return r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/render")
 }
 
+// ServeHTTP implements http.Handler.
+// /static/... and /{template}.zip are dispatched before the mux to avoid
+// routing conflicts with wildcard patterns like "GET /{template}/preview".
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Redirect HTTP → HTTPS for all routes except /render (called by microcontrollers).
 	if r.Header.Get("X-Forwarded-Proto") == "http" && !isRenderRoute(r) {
@@ -104,12 +106,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.staticHandler.ServeHTTP(w, r)
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/edit/") && s.editorHandler != nil {
+	if strings.HasPrefix(r.URL.Path, "/edit/") {
+		if s.editorHandler == nil {
+			http.NotFound(w, r)
+			return
+		}
 		s.editorHandler.ServeHTTP(w, r)
 		return
 	}
-	if (r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin/")) && s.adminHandler != nil {
-		s.adminHandler.ServeHTTP(w, r)
+	if strings.HasSuffix(r.URL.Path, ".zip") && r.Method == http.MethodGet {
+		name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), ".zip")
+		s.handleTemplateZip(w, name)
 		return
 	}
 	s.mux.ServeHTTP(w, r)
@@ -118,6 +125,56 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // StartCleanup delegates to the cache's cleanup goroutine.
 func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
 	s.cache.StartCleanup(ctx, interval)
+}
+
+// SetEditorEnabled toggles the Edit-button on the preview page. Desktop sets true.
+// Call once during startup before ServeHTTP — not concurrency-safe.
+func (s *Server) SetEditorEnabled(v bool) { s.editorEnabled = v }
+
+// RegisterEditor attaches an FSHandlers set to this server and wires the
+// editor landing page on top (owned by the server package so it can reuse
+// the shared html/template set). Desktop-build calls this once at startup;
+// server-build does not. Not concurrency-safe — call before ServeHTTP.
+func (s *Server) RegisterEditor(h *editor.FSHandlers) {
+	mux := http.NewServeMux()
+	h.Register(mux)
+	mux.HandleFunc("GET /edit/{template}", s.handleEditorPage)
+	s.editorHandler = mux
+}
+
+// InvalidateTemplateCache touches template.yaml so the next render recomputes.
+// The existing renderAndServe key includes template.yaml's mod-time, so bumping
+// it invalidates all cached PNGs for the template.
+func (s *Server) InvalidateTemplateCache(name string) {
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		return
+	}
+	p := filepath.Join(s.templatesDir, name, "template.yaml")
+	now := time.Now()
+	if err := os.Chtimes(p, now, now); err != nil {
+		log.Printf("invalidate cache for %q: %v", name, err)
+	}
+}
+
+type editorPageData struct {
+	TemplateName string
+}
+
+func (s *Server) handleEditorPage(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("template")
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		http.Error(w, "invalid template name", http.StatusBadRequest)
+		return
+	}
+	if err := editor.InitTemplate(s.templatesDir, name); err != nil {
+		log.Printf("editor page: init %q: %v", name, err)
+		http.Error(w, "could not init template", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.htmlTmpl.ExecuteTemplate(w, "edit-editor.html", editorPageData{TemplateName: name}); err != nil {
+		log.Printf("editor page: execute template: %v", err)
+	}
 }
 
 func (s *Server) registerRoutes() {
@@ -152,6 +209,12 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "ok")
 }
 
+// galleryData is the view model for the gallery overview page.
+type galleryData struct {
+	Templates     []gallery.TemplateInfo
+	EditorEnabled bool
+}
+
 // handleGallery renders the template gallery overview page.
 func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 	infos, err := gallery.ListTemplates(s.templatesDir)
@@ -161,17 +224,19 @@ func (s *Server) handleGallery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.htmlTmpl.ExecuteTemplate(w, "gallery.html", infos); err != nil {
+	if err := s.htmlTmpl.ExecuteTemplate(w, "gallery.html",
+		galleryData{Templates: infos, EditorEnabled: s.editorEnabled}); err != nil {
 		log.Printf("gallery: execute template: %v", err)
 	}
 }
 
 // detailData is the view model for the detail/try-it page.
 type detailData struct {
-	Name        string
-	Meta        renderer.Meta
-	DefaultJSON string
-	HasDefault  bool
+	Name          string
+	Meta          renderer.Meta
+	DefaultJSON   string
+	HasDefault    bool
+	EditorEnabled bool
 }
 
 // handleDetail renders the try-it detail page for a single template.
@@ -194,10 +259,11 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d := detailData{
-		Name:        templateName,
-		Meta:        tmpl.Meta,
-		DefaultJSON: string(jsonBytes),
-		HasDefault:  len(jsonBytes) > 0,
+		Name:          templateName,
+		Meta:          tmpl.Meta,
+		DefaultJSON:   string(jsonBytes),
+		HasDefault:    len(jsonBytes) > 0,
+		EditorEnabled: s.editorEnabled,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.htmlTmpl.ExecuteTemplate(w, "detail.html", d); err != nil {

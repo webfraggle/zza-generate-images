@@ -2,48 +2,28 @@
 
 Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht geplant.
 
----
+## Editor (Desktop)
 
-## Editor
-
-<!-- Ideen für den Template-Editor -->
-- Nodebasierter Editor → Design-Spec: `docs/superpowers/specs/2026-04-01-node-editor-design.md`
-- `YAML_FIELD_MAP` und `YAML_TO_DATA_KEY` aus `NODE_TYPES.fields` ableiten statt manuell pflegen (Wartungsfalle: Feld in NODE_TYPES ergänzen ≠ automatisch in YAML_FIELD_MAP) — erfordert `yamlKey`-Property in field-Defs oder Label-Konvention für `copy`-Labels (`src_w` vs `src_width`)
-- `edit-editor.html` und `admin-editor.html` konsolidieren — ~96 % Code-Duplikat; Unterschied ist nur Header-Text und API-Basis-URL (`/edit/${TOKEN}/…` vs. `/admin/${TEMPLATE}/…`). Ansätze: gemeinsames JS-Modul (`editor.js`) oder ein einzelnes Go-Template mit `{{if .IsAdmin}}`.
-
----
+- `YAML_FIELD_MAP` und `YAML_TO_DATA_KEY` aus `NODE_TYPES.fields` ableiten statt manuell pflegen (Wartungsfalle: Feld in NODE_TYPES ergänzen ≠ automatisch in YAML_FIELD_MAP). Erfordert `yamlKey`-Property in field-Defs oder Label-Konvention für `copy`-Labels (`src_w` vs. `src_width`).
 
 ## Renderer / Templates
 
-<!-- Ideen für neue Layer-Typen, YAML-Syntax, Filter, etc. -->
-- Animierte Gifs
+- Animierte GIFs
 - `and()`/`or()` Funktionen im Evaluator — mehrere Bedingungen in einem `if:` verknüpfen, z.B. `if: "and(not(isEmpty(zug1.via)), isEmpty(zug1.hinweis))"`. Workaround heute: verschachtelte Block-Nodes.
-
----
-
-## Server / API
-
-<!-- Ideen für neue Endpunkte, Caching, Performance etc. -->
-
----
 
 ## Galerie / UI
 
-<!-- Ideen für die öffentliche Galerie und den Ausprobiermodus -->
-- Skalierung der Bilder sauber 1x oder 2x (Detail-Seite zeigt aktuell 1:1 ohne Zoom)
-- Preview YAML
-- Download des gesamten Themes (als ZIP)
+- Skalierung der Bilder sauber 1×/2× (Detail-Seite zeigt aktuell 1:1 ohne Zoom).
+- Preview YAML in der Detail-Seite anzeigen.
 
----
+## Sicherheit / Härtung
 
-## Deployment / Infrastruktur
+- YAML-Alias-Bombe-Schutz im Editor-Save (`gopkg.in/yaml.v3` ohne `SetMaxAliasCount`-Härtung). Body ist auf 1 MiB begrenzt; weitere Mitigation falls jemals Multi-Tenant.
+- CORS im Desktop-Build einschränken statt Wildcard `*` auf `/render`.
 
-<!-- Ideen für Docker, CI/CD, Monitoring etc. -->
+## Erledigt (Dual-Build, April 2026)
 
----
-
-## Sonstiges
-
-<!-- Alles was nicht passt -->
-
-- UI in Exe mit Webview
+- ✅ ZIP-Download des kompletten Templates (`GET /{template}.zip`)
+- ✅ UI in Exe mit WebView (Wails-v2-Bootstrap + Browser-Fallback)
+- ✅ Server-Entschlackung: kein Auth, kein SMTP, kein SQLite, kein Admin
+- ✅ Editor-Konsolidierung: `admin-editor.html` ist gelöscht, einziger Editor ist `edit-editor.html`

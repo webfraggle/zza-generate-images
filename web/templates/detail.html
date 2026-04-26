@@ -12,7 +12,7 @@
     <span class="brand">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</span>
     <nav class="header-nav">
       <a href="/" class="nav-link">Galerie</a>
-      <a href="/{{.Name}}/edit" class="nav-link active">Vorschau</a>
+      <a href="/{{.Name}}" class="nav-link active">Vorschau</a>
     </nav>
   </header>
   <main class="editor">
@@ -50,7 +50,10 @@
           </div>
         </div>
         <div class="info-right">
-          <button id="owner-edit-btn" class="btn btn-level2">Edit durch Besitzer</button>
+          {{if .EditorEnabled}}
+          <a href="/edit/{{.Name}}" class="btn btn-level2">Bearbeiten</a>
+          {{end}}
+          <a href="/{{.Name}}.zip" class="btn btn-level2" download>Als ZIP</a>
           <button id="download-btn" class="btn btn-primary" disabled>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="vertical-align:-2px;margin-right:6px"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>PNG herunterladen
           </button>
@@ -58,24 +61,6 @@
       </div>
     </div>
   </main>
-  <div id="edit-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-panel">
-      <button class="modal-close" id="modal-close" aria-label="Schließen">&#x00D7;</button>
-      <h2 class="modal-title" id="modal-title">Edit-Link anfordern</h2>
-      <p class="modal-desc">Gib deine E-Mail-Adresse ein. Wir schicken dir einen neuen Editier-Link.</p>
-      <div id="modal-form">
-        <div class="modal-form-group">
-          <label for="modal-email">E-Mail-Adresse</label>
-          <input type="email" id="modal-email" autocomplete="email" placeholder="name@example.com">
-        </div>
-        <div id="modal-error" class="modal-error"></div>
-        <button type="button" id="modal-submit" class="btn btn-primary btn-full" style="margin-top:12px">Senden</button>
-      </div>
-      <div id="modal-success" class="modal-success" style="display:none">
-        Wir haben dir einen Link an deine E-Mail geschickt.
-      </div>
-    </div>
-  </div>
   <script>
     const templateName = "{{.Name}}";
     const textarea    = document.getElementById("json-input");
@@ -185,79 +170,10 @@
     });
     {{end}}
 
-    // ── OWNER EDIT MODAL ────────────────────────────────────────────────────
-    (function () {
-      const overlay    = document.getElementById('edit-modal');
-      const closeBtn   = document.getElementById('modal-close');
-      const submitBtn  = document.getElementById('modal-submit');
-      const emailInput = document.getElementById('modal-email');
-      const errorEl    = document.getElementById('modal-error');
-      const formEl     = document.getElementById('modal-form');
-      const successEl  = document.getElementById('modal-success');
-      const openBtn    = document.getElementById('owner-edit-btn');
-
-      function openModal() {
-        emailInput.value      = '';
-        errorEl.textContent   = '';
-        formEl.style.display  = '';
-        successEl.style.display = 'none';
-        submitBtn.disabled    = false;
-        submitBtn.textContent = 'Senden';
-        overlay.classList.add('is-open');
-        emailInput.focus();
-      }
-
-      function closeModal() {
-        overlay.classList.remove('is-open');
-        openBtn.focus();
-      }
-
-      openBtn.addEventListener('click', openModal);
-      closeBtn.addEventListener('click', closeModal);
-      overlay.addEventListener('click', function (e) {
-        if (e.target === overlay) { closeModal(); }
-      });
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { closeModal(); }
-      });
-
-      submitBtn.addEventListener('click', async function () {
-        errorEl.textContent = '';
-        const email = emailInput.value.trim();
-        if (!email) {
-          errorEl.textContent = 'Bitte gib deine E-Mail-Adresse ein.';
-          return;
-        }
-        if (!emailInput.validity.valid) {
-          errorEl.textContent = 'Bitte gib eine gültige E-Mail-Adresse ein.';
-          return;
-        }
-        submitBtn.disabled    = true;
-        submitBtn.textContent = 'Wird gesendet\u2026';
-
-        try {
-          const resp = await fetch('/' + templateName + '/request-token', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body:    'email=' + encodeURIComponent(email),
-          });
-          const data = await resp.json();
-          if (data.ok) {
-            formEl.style.display    = 'none';
-            successEl.style.display = '';
-          } else {
-            errorEl.textContent   = data.error || 'Unbekannter Fehler.';
-            submitBtn.disabled    = false;
-            submitBtn.textContent = 'Senden';
-          }
-        } catch (e) {
-          errorEl.textContent   = 'Netzwerkfehler: ' + e.message;
-          submitBtn.disabled    = false;
-          submitBtn.textContent = 'Senden';
-        }
-      });
-    }());
   </script>
   <span class="app-version">{{appVersion}}</span>
+  {{if not .EditorEnabled}}
+  <a class="footer-legal" href="https://www.modellbahn-displays.de/impressum-datenschutz-bildgenerator" target="_blank" rel="noopener">Impressum, Datenschutz &amp; Nutzungsbedingungen</a>
+  {{end}}
 </body>
 </html>
