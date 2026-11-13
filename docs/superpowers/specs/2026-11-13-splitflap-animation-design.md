@@ -37,15 +37,23 @@ Randbedingung des Einsatzes: Das Display kennt beim Wechsel **nur die Daten des 
 
 ## 5. Template-Format: neuer Layer-Typ `splitflap` **[P]**
 
-Ein `splitflap`-Layer beschreibt eine oder mehrere gleichartige **Klappenmodule**. Ein Modul ist ein Rechteck mit horizontaler Teilung auf halber Höhe; sein Inhalt wird durch Kind-Layer gezeichnet, die den aktuellen Wert über eine Variable bekommen (wie bei `loop`).
+Ein `splitflap`-Layer beschreibt eine oder mehrere gleichartige **Klappenmodule**. Ein Modul ist ein Rechteck mit horizontaler Teilung (Scharnier); sein Inhalt wird durch Kind-Layer gezeichnet, die den aktuellen Wert über eine Variable bekommen (wie bei `loop`).
+
+Grundsätze (aus dem Spec-Check, **[P]**):
+
+- **Modul = ganze physische Klappe.** Das Rechteck deckt das komplette Blatt ab, wie es im Hintergrundbild gezeichnet ist, nicht nur die Fläche um die Schrift. Die Teilung liegt auf dem Scharnier des Overlays; liegt das nicht auf halber Höhe, setzt `split_y` (relativ zum Modul, Default `height/2`) die Linie.
+- **Blatt-Hintergrund = Leinwand-Schnappschuss.** An der Stelle des Layers in der Zeichenreihenfolge wird der Leinwandinhalt unter dem Modulrechteck als Blatt-Hintergrund genommen; jeder Wert wird darauf gezeichnet. Ein Blatt ist damit deckend, beim Umklappen scheint nichts vom Nachbarwert durch.
+- **Feste Beschriftung auf einer Klappe** (z. B. „Abfahrt" neben der Stunde) ist ein konstanter Kind-Layer und klappt mit.
+- `splitflap`-Module dürfen sich nicht gegenseitig überlappen (Template-Fehler).
 
 ```yaml
 # Zielzeile: 13 Einzelklappen
 - type: splitflap
-  x: 54            # linke obere Ecke des ersten Moduls
-  y: 91
-  width: 11        # Modulgröße
-  height: 18
+  x: 54            # linke obere Ecke des ersten Moduls (Werte beispielhaft)
+  y: 82
+  width: 12        # Modulgröße = ganzes Blatt
+  height: 29
+  split_y: 14      # Scharnier, relativ zum Modul
   cells: 13        # Anzahl Module nebeneinander (Default 1)
   pitch: 14        # Abstand Modul zu Modul in x (Default = width)
   value: "{{zug1.vonnach | upper}}"
@@ -56,10 +64,11 @@ Ein `splitflap`-Layer beschreibt eine oder mehrere gleichartige **Klappenmodule*
     - type: text
       value: "{{ch}}"
       x: 5
-      y: 14
+      y: 23
       valign: baseline
       align: center
-      font: nimbus
+      scale_x: 0.5
+      font: bold
       size: 16
       color: "#3a3c3b"
 
@@ -84,7 +93,7 @@ Regeln:
 
 - **Standbild:** Im PNG-Render (und im letzten GIF-Frame) zeichnet jedes Modul seine Kind-Layer mit dem Zielwert. Ein `splitflap`-Layer ist also auch ohne Animation sinnvoll (Einzelzeichen-Raster). Bei `split: chars` werden überzählige Zeichen abgeschnitten, fehlende Module sind leer (Wert `""`/Leerzeichen).
 - Kind-Layer dürfen `text`, `image`, `rect` und Block-Nodes (if/elif/else) sein; keine `loop`, `copy` oder verschachtelten `splitflap`. Die Variable `var` ist in Werten **und** Bedingungen nutzbar.
-- Zeichnung der Kind-Layer ist auf das Modulrechteck geclippt.
+- Zeichnung der Kind-Layer ist auf das Modulrechteck geclippt; Kind-Koordinaten sind relativ zum Modul (anders als bei `loop`).
 - Optionale Timing-Felder pro Layer: `flip_frames` (Frames pro Umklappen, Default 2), `min_flips`, `max_flips` (Defaults siehe 6).
 - `splitflap` darf in Block-Nodes stehen, nicht in `loop`.
 - Alle übrigen Layer (auch `copy`) verhalten sich pro Frame wie heute. Dadurch übernehmen die drei `copy`-Layer des Faltblatt-Templates die Animation automatisch in die untere Bildhälfte, und `fg.png` liegt als Overlay über den Klappen.
@@ -103,8 +112,9 @@ meta:
 ### Ergänzungen am bestehenden Format (nötig für die Layout-Korrektur) **[P]**
 
 - `text`: `valign: baseline` — `y` ist die Grundlinie (so rechnet das Legacy-PHP; ohne `height`).
-- `text`: `scale_x` (Float, Default 1) — horizontale Streckung; das Legacy zeichnet die Stunde doppelt breit.
-- `text`: einzeilige Element-Einpassung für die Via-Zeile: Wert an einem Trenner teilen, Elemente mit festem Abstand nebeneinander setzen, Elemente, die nicht mehr in `max_width` passen, weglassen — Verhalten exakt wie die Via-Schleife in `legacy/faltblatt-105-v1/index.php`. Feldnamen-Vorschlag: `fit_items: {split_by: "-", gap: 2}`.
+- `text`: `scale_x` (Float, Default 1) — horizontale Skalierung der Schrift. Das Legacy staucht fast alle Texte auf halbe Breite (`xFactor 0.5` ⇒ `scale_x: 0.5`); nur Stunde und Minute haben natürliche Breite. Ausrichtung und Einpassung rechnen mit der skalierten Breite. Ohne `scale_x` bleibt der bisherige Zeichenpfad bitgleich.
+- Legacy-Schriftgrößen sind pt bei 96 DPI, hier px: Legacy-Wert × 4/3.
+- `text`: einzeilige Element-Einpassung für die Via-Zeile: Wert an einem Trenner teilen, Elemente mit festem Abstand nebeneinander setzen, Elemente, die nicht mehr in `max_width` passen, weglassen — Verhalten exakt wie die Via-Schleife in `legacy/faltblatt-105-v1/index.php` (Element wird gezeichnet, wenn `xpos + Breite < x + max_width`; `xpos` rückt auch bei ausgelassenen Elementen um `Breite + gap` weiter). Feldnamen-Vorschlag: `fit_items: {split_by: "-", gap: 2}`.
 - Filter, um einen Wert an einem Trenner zu teilen und den Teil davor/danach zu nehmen (für Stunde/Minute aus `13:30`). Benennung nach vorhandener Filter-Konvention **[B]**.
 - `ice.png` aus `legacy/` ins Template übernehmen; Zugart-Erkennung unabhängig von Groß/Kleinschreibung, `ice` vor `ic`.
 
@@ -130,7 +140,9 @@ Feinschliff des Aussehens (Abdunklung, Stauchung, optionales Überblenden für B
 - Die Animation endet ein Frame nach dem Stopp des letzten Moduls; dieses letzte Frame ist das Standbild.
 - GIF spielt **einmal** (keine Loop-Extension); letztes Frame bekommt eine lange Anzeigedauer (1 s) für Player, die trotzdem schleifen.
 
-Für `faltblatt-105-v1` animiert sind: Zielzeile (13 Zeichenklappen), Zugart, Via, Stunde, Minute. **Nicht** animiert: „Gleis" + Gleisnummer und „Abfahrt" (feste Beschriftung der Anlage). **[P]**
+Für `faltblatt-105-v1` animiert sind: Zielzeile (13 Zeichenklappen), Zugart, Via, die Klappe „Abfahrt + Stunde" (als Ganzes, „Abfahrt" steht auf jedem Blatt) und Minute. **Nicht** animiert: „Gleis" + Gleisnummer (festes Schild) und die leere Tafel oben rechts. `fg.png` rückt in der Layer-Reihenfolge hinter alle Texte/Klappen, direkt vor die `copy`-Layer. **[P]**
+
+**Determinismus und `now`:** Der Zeitpunkt für `{{now.*}}` wird einmal pro Animation eingefroren. Templates, deren Werte von `now` abhängen, liefern naturgemäß zeitabhängige Ausgaben; die Zusage „gleiche Eingabe ⇒ bytegleiches GIF" gilt für Templates ohne `now`.
 
 ## 7. Ausgabe und Schnittstellen
 
@@ -145,7 +157,7 @@ Für `faltblatt-105-v1` animiert sind: Zielzeile (13 Zeichenklappen), Zugart, Vi
 - `POST /{template}/render?format=gif` und `GET /{template}/preview?format=gif` → `Content-Type: image/gif`. Ohne `format` oder mit `format=png`: PNG wie bisher. Anderer Wert: 400.
 - Die Ausnahme vom HTTPS-Redirect für `POST …/render` gilt unverändert auch mit Query.
 - Cache: Format geht in den Schlüssel ein, Datei-Endung `.gif`. Bestehende PNG-Cache-Schlüssel bleiben gültig.
-- Kostenbegrenzung: max. 125 Frames; max. 64 Module pro Template; max. 64 `reel`-Einträge pro Layer; identische Modulinhalte werden nur einmal gerendert. Überschreitung = Template-Fehler (422). Ob zusätzlich eine Begrenzung gleichzeitiger GIF-Renders nötig ist, entscheidet das Security-Review.
+- Kostenbegrenzung: max. 125 Frames; max. 64 Module pro Template; max. 64 `reel`-Einträge pro Layer; identische Modulinhalte werden nur einmal gerendert. Überschreitung = Template-Fehler (422). Gleichzeitige GIF-Renders sind auf 2 begrenzt (weitere warten).
 
 **CLI (Desktop):** `zza render … -o bild.gif` wählt GIF über die Endung; zusätzlich `--format png|gif`.
 
