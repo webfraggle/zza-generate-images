@@ -307,7 +307,7 @@ layers:
     else: true
     value: "{{zug2.nr}}"
     x: 121
-    y: 65
+    y: 63
     font: regular
     size: 12
     color: "#ffffff"
@@ -317,7 +317,7 @@ layers:
   - type: text
     value: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"
     x: 238
-    y: 73
+    y: 62
     align: right
     # …
 
