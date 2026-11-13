@@ -102,8 +102,6 @@ func TestEncodeGIF_Structure(t *testing.T) {
 	}
 }
 
-// Uses the default 256-color palette: Quantize (median cut) only reproduces a
-// few-colour image exactly when its palette budget is well above the colour count.
 func TestEncodeGIF_Reconstructs(t *testing.T) {
 	cols := []color.NRGBA{{255, 0, 0, 255}, {0, 255, 0, 255}, {0, 0, 255, 255}, {255, 255, 0, 255}}
 	var frames []*image.NRGBA
@@ -113,7 +111,7 @@ func TestEncodeGIF_Reconstructs(t *testing.T) {
 		draw.Draw(img, image.Rect(20-i, 10, 24, 16), &image.Uniform{C: gifWhite}, image.Point{}, draw.Src)
 		frames = append(frames, img)
 	}
-	g := encodeAndDecode(t, &Animation{FPS: 10, Frames: frames}, 0)
+	g := encodeAndDecode(t, &Animation{FPS: 10, Frames: frames}, 16)
 	rec := reconstruct(g)
 	if len(rec) != len(frames) {
 		t.Fatalf("got %d frames, want %d", len(rec), len(frames))
@@ -204,14 +202,17 @@ func TestEncodeGIF_Errors(t *testing.T) {
 		"zero fps":     {Frames: []*image.NRGBA{f}},
 		"nil frame":    {FPS: 10, Frames: []*image.NRGBA{f, nil}},
 		"size differs": {FPS: 10, Frames: []*image.NRGBA{f, gifSolid(5, 4, gifBlack)}},
+		"min not zero": {FPS: 10, Frames: []*image.NRGBA{image.NewNRGBA(image.Rect(1, 1, 5, 5))}},
 	}
 	for name, a := range cases {
 		if err := EncodeGIF(&bytes.Buffer{}, a, 0); err == nil {
 			t.Errorf("%s: expected error", name)
 		}
 	}
-	if err := EncodeGIF(&bytes.Buffer{}, &Animation{FPS: 10, Frames: []*image.NRGBA{f}}, 1); err == nil {
-		t.Error("colors=1: expected error")
+	for _, c := range []int{1, 257, -1} {
+		if err := EncodeGIF(&bytes.Buffer{}, &Animation{FPS: 10, Frames: []*image.NRGBA{f}}, c); err == nil {
+			t.Errorf("colors=%d: expected error", c)
+		}
 	}
 }
 
@@ -228,7 +229,40 @@ func TestEncodeGIF_TransparentInput(t *testing.T) {
 			}
 		}
 	}
-	if g.Image[0].Palette == nil {
-		t.Fatal("no palette")
+	rec := reconstruct(g)
+	want := gifSquare(8, 8, 2, 2, 3, gifBlack, gifWhite) // alpha is dropped, RGB kept
+	if !samePixels(rec[len(rec)-1], want) {
+		t.Error("last composited frame != palette-mapped last input frame")
+	}
+}
+
+// More distinct colours than the palette budget forces the Quantize fallback.
+func TestEncodeGIF_QuantizeFallback(t *testing.T) {
+	mk := func(shift int) *image.NRGBA {
+		img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
+		for y := 0; y < 16; y++ {
+			for x := 0; x < 16; x++ {
+				img.SetNRGBA(x, y, color.NRGBA{uint8(x*16 + shift), uint8(y * 16), uint8(x * y), 255})
+			}
+		}
+		return img
+	}
+	anim := &Animation{FPS: 10, Frames: []*image.NRGBA{mk(0), mk(3), mk(7)}}
+	var a, b bytes.Buffer
+	if err := EncodeGIF(&a, anim, 8); err != nil {
+		t.Fatal(err)
+	}
+	if err := EncodeGIF(&b, anim, 8); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a.Bytes(), b.Bytes()) {
+		t.Error("not deterministic")
+	}
+	g, err := gif.DecodeAll(&a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(g.Image[0].Palette); n > 8 {
+		t.Errorf("palette len %d > 8", n)
 	}
 }

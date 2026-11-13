@@ -7,6 +7,7 @@ import (
 	"image/draw"
 	"image/gif"
 	"io"
+	"sort"
 )
 
 const (
@@ -50,6 +51,9 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 	if bounds.Empty() {
 		return fmt.Errorf("renderer: EncodeGIF: frames are empty")
 	}
+	if bounds.Min != (image.Point{}) {
+		return fmt.Errorf("renderer: EncodeGIF: frame bounds %v must start at (0,0)", bounds)
+	}
 
 	pal := gifPalette(anim.Frames, colors)
 	lookup := make(map[color.NRGBA]uint8) // only used for lookups, never iterated
@@ -65,7 +69,7 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 		cur := image.NewPaletted(bounds, pal)
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				c := f.NRGBAAt(x, y)
+				c := opaque(f.NRGBAAt(x, y))
 				idx, ok := lookup[c]
 				if !ok {
 					idx = uint8(pal.Index(c))
@@ -101,9 +105,61 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 	return nil
 }
 
-// gifPalette quantizes a side-by-side mosaic of sample frames (first, last and
-// up to six evenly spaced in between) into the global palette.
+// opaque drops the alpha channel: GIF palettes here are always opaque and
+// Quantize ignores alpha as well.
+func opaque(c color.NRGBA) color.NRGBA {
+	c.A = 255
+	return c
+}
+
+// distinctColors returns the distinct (opaque) colours over all frames sorted
+// by R,G,B, or ok=false as soon as there are more than limit of them.
+func distinctColors(frames []*image.NRGBA, limit int) (cols []color.NRGBA, ok bool) {
+	seen := make(map[color.NRGBA]struct{}) // collection only, never iterated
+	for _, f := range frames {
+		b := f.Bounds()
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				c := opaque(f.NRGBAAt(x, y))
+				if _, dup := seen[c]; dup {
+					continue
+				}
+				seen[c] = struct{}{}
+				cols = append(cols, c)
+				if len(cols) > limit {
+					return nil, false
+				}
+			}
+		}
+	}
+	sort.Slice(cols, func(i, j int) bool {
+		a, b := cols[i], cols[j]
+		if a.R != b.R {
+			return a.R < b.R
+		}
+		if a.G != b.G {
+			return a.G < b.G
+		}
+		return a.B < b.B
+	})
+	return cols, true
+}
+
+// gifPalette returns the global palette. If all frames together use at most
+// colors distinct colours, exactly those are used. Otherwise a side-by-side
+// mosaic of sample frames (first, last and up to six evenly spaced in between)
+// is quantized.
 func gifPalette(frames []*image.NRGBA, colors int) color.Palette {
+	if cols, ok := distinctColors(frames, colors); ok {
+		pal := make(color.Palette, len(cols))
+		for i, c := range cols {
+			pal[i] = c
+		}
+		for len(pal) < 2 {
+			pal = append(pal, color.NRGBA{A: 255})
+		}
+		return pal
+	}
 	n := len(frames)
 	idxs := []int{0}
 	if n > 1 {
