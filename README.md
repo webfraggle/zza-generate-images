@@ -25,6 +25,12 @@ go run ./cmd/zza render \
 open /tmp/out.png
 ```
 
+Dasselbe als animiertes GIF (Faltblatt-Animation; das Format folgt der Endung von `-o` oder `--format png|gif`):
+
+```bash
+go run ./cmd/zza render -t faltblatt-105-v1 -i templates/faltblatt-105-v1/default.json -o /tmp/out.gif
+```
+
 Server lokal starten:
 
 ```bash
@@ -39,6 +45,23 @@ go run ./cmd/zza
 # oder ohne Fenster, nur Server:
 go run ./cmd/zza serve --port 18081
 ```
+
+## API
+
+```bash
+# PNG (Standard)
+curl -X POST http://localhost:18080/sbb-096-v1/render -H 'Content-Type: application/json' --data-binary @templates/sbb-096-v1/default.json -o out.png
+
+# Animiertes GIF (Faltblatt-Animation)
+curl -X POST 'http://localhost:18080/faltblatt-105-v1/render?format=gif' -H 'Content-Type: application/json' --data-binary @templates/faltblatt-105-v1/default.json -o out.gif
+```
+
+- `POST /{template}/render` und `GET /{template}/preview` akzeptieren `?format=png|gif`. Ohne Angabe oder mit `png` kommt ein PNG wie bisher; jeder andere Wert ergibt 400.
+- `format=gif` liefert `Content-Type: image/gif`. Das GIF spielt einmal ab und endet auf dem Standbild (identisch zum PNG). Templates ohne `splitflap`-Layer ergeben ein GIF mit einem Frame.
+- Gleiche Eingabe ergibt ein bytegleiches GIF (Ausnahme: Templates mit `{{now.*}}`). PNG und GIF werden getrennt gecacht (`X-Cache: HIT|MISS`).
+- Es laufen höchstens 2 GIF-Renders gleichzeitig, weitere warten. Template-Fehler (z.B. Limits überschritten) ergeben 422.
+- `POST …/render` bleibt auch mit `?format=gif` vom HTTPS-Redirect ausgenommen (Microcontroller ohne TLS).
+- Format des GIFs und Template-Syntax: `docs/yaml-template-spec.md` (`type: splitflap`, „GIF-Ausgabe").
 
 ## Tests
 
@@ -107,6 +130,8 @@ Nach `./build.sh` die ZIPs aus `dist/release/` als GitHub-Release hochladen — 
 | `docs/superpowers/specs/2026-04-22-dual-build-architecture-design.md` | Design-Spec für die Trennung Server/Desktop |
 | `docs/superpowers/plans/2026-04-22-dual-build-architecture.md` | Implementierungsplan mit allen Tasks |
 | `docs/superpowers/plans/2026-04-22-dual-build-architecture-manual-tests.md` | Manueller Test-Plan vor jedem Release |
-| `docs/yaml-template-spec.md` | YAML-Template-Format |
+| `docs/superpowers/specs/2026-11-13-splitflap-animation-design.md` | Design-Spec der Faltblatt-Animation (GIF) |
+| `docs/superpowers/plans/2026-11-13-splitflap-animation-manual-tests.md` | Manueller Test-Plan der Faltblatt-Animation |
+| `docs/yaml-template-spec.md` | YAML-Template-Format (inkl. `splitflap`, GIF-Ausgabe) |
 | `docs/user-guide-templates.md` | User-Guide Template-Erstellung |
 | `CLAUDE.md` | Hinweise für Claude Code beim Arbeiten am Repo |

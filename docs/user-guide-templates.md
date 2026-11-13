@@ -221,10 +221,14 @@ Gibt Text auf dem Bild aus. Der Text kann feste Werte oder Zugdaten enthalten (s
 | `size` | Schriftgröße in Punkten — Kommazahlen erlaubt, z.B. `8.2` |
 | `color` | Textfarbe als Hex-Wert |
 | `align` | Horizontale Ausrichtung: `left` (Standard), `center`, `right` |
-| `valign` | Vertikale Ausrichtung: `top` (Standard), `middle`, `bottom` — benötigt `height` |
+| `valign` | Vertikale Ausrichtung: `top` (Standard), `middle`, `bottom` — benötigt `height`; `baseline` — `y` ist die Grundlinie der Schrift |
+| `scale_x` | optional — horizontale Skalierung, z.B. `0.5` = halbe Breite |
+| `fit_items` | optional — Wert an `split_by` teilen und die Elemente einzeilig nebeneinander setzen; was nicht mehr in `max_width` passt, entfällt (z.B. Via-Stationen) |
 | `width` | optional — Boxbreite in Pixeln für Ausrichtung und Zeilenumbruch |
 | `height` | optional — Boxhöhe in Pixeln für vertikale Ausrichtung |
 | `max_width` | optional — maximale Breite für Zeilenumbruch (alternativ zu `width`) |
+
+**Alte PHP-Themes portieren:** Schriftgröße = Legacy-Größe × 16/9, das Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`), Legacy-`xFactor 0.5` ist `scale_x: 0.5`.
 
 **Horizontale Ausrichtung:**
 
@@ -260,6 +264,67 @@ Mit `width` wird eine Box aufgespannt und der Text darin ausgerichtet:
   size: 12
   color: "#FFFFFF"
 ```
+
+---
+
+### type: splitflap — Faltblatt-Klappen
+
+Bildet die Klappen einer mechanischen Faltblattanzeige nach. Ohne Animation zeigt jede Klappe einfach ihren Wert; als **GIF** (`?format=gif`) klappen alle Klappen nacheinander auf den neuen Text. Alle Felder stehen in der [YAML-Spezifikation](yaml-template-spec.md#type-splitflap), das fertige Beispiel ist `templates/faltblatt-105-v1/template.yaml`.
+
+#### Faltblatt-Animation bauen
+
+1. **Hintergrund zuerst.** Zeichne das Hintergrundbild mit den leeren Klappen als ersten Layer. Jede Klappe nimmt davon einen Ausschnitt als Blatt-Hintergrund — alles, was *vor* dem `splitflap`-Layer gezeichnet wird, gehört zum Blatt.
+2. **Modul = ganze Klappe.** `x`, `y`, `width`, `height` umfassen das komplette Blatt, wie es im Hintergrund gezeichnet ist, nicht nur die Fläche um die Schrift. Feste Beschriftung auf der Klappe (z.B. „Abfahrt" neben der Stunde) kommt als konstanter Kind-Layer hinein und klappt mit.
+3. **`split_y` aufs Scharnier.** Liegt der Scharnierstrich nicht auf halber Höhe, gib die Linie mit `split_y` an (relativ zur Oberkante des Moduls).
+4. **Kind-Layer relativ zum Modul.** Text und Bilder in `layers:` haben Koordinaten relativ zur linken oberen Ecke des Moduls. Der aktuelle Wert steht in der Variable aus `var` (`{{ch}}`, `{{hour}}`, …).
+5. **Einzelzeichen-Zeile:** `cells: 13`, `pitch` = Abstand von Klappe zu Klappe, `split: chars` (Pflicht bei `cells > 1`) und ein `reel` mit den Zeichen, durch die die Klappen blättern.
+6. **Ganze Tafel:** ohne `split` und `cells` blättert die Klappe als Ganzes durch die Einträge des `reel` (z.B. `["rb", "re", "ic", "ice", ""]` für die Zugart).
+7. **Overlay nach den Klappen.** Rahmen, Scharniere und Schattierung (z.B. `fg.png`) kommen **nach** allen `splitflap`-Layern. `copy`-Layer danach (obere Hälfte auf die untere spiegeln) folgen der Animation automatisch.
+8. **Nicht überlappen, nicht auf Bewegtes legen.** Module dürfen sich nicht überlappen, und eine Klappe darf nicht auf etwas liegen, das sich pro Frame selbst ändert.
+
+```yaml
+meta:
+  animation:
+    fps: 20          # 5–25, Standard 20
+    duration: 2.5    # maximale Laufzeit in Sekunden, 0.5–5, Standard 2.5
+
+layers:
+  - type: image
+    file: bg.png
+  - type: splitflap
+    x: 54
+    y: 82
+    width: 11
+    height: 30
+    split_y: 14
+    cells: 13
+    pitch: 14
+    split: chars
+    value: "{{zug1.vonnach | upper}}"
+    reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ-."
+    var: ch
+    layers:
+      - type: text
+        value: "{{ch}}"
+        x: 5
+        y: 23
+        valign: baseline
+        align: center
+        font: bold
+        size: 21.33
+        color: "#3a3c3b"
+  - type: image          # Overlay NACH den Klappen
+    file: fg.png
+```
+
+**Gut zu wissen**
+
+- Der Zielwert muss nicht im `reel` stehen; er wird am Ende trotzdem angezeigt (freier Via-Text, ungewöhnliche Zeichen). Zeichen außerhalb des `reel` werden einfach so gezeichnet.
+- `min_flips`, `max_flips` und `flip_frames` steuern, wie lange und wie schnell eine Klappe rattert. Ohne Angabe: mindestens 4 Schritte, höchstens so viele, wie in `duration` passen.
+- **Determinismus:** Gleiches Template + gleiche Daten ergibt immer dasselbe GIF (bytegleich), die Klappen stoppen aber zu unterschiedlichen Zeiten. Das gilt nicht für Templates, die `{{now.*}}` verwenden — die Uhrzeit wird einmal pro Animation eingefroren, ändert sich aber von Aufruf zu Aufruf.
+- Das GIF spielt einmal ab und bleibt auf dem letzten Frame stehen. Dieses Bild ist identisch mit dem normalen PNG der gleichen Daten. Das erste Frame zeigt die Klappen bereits in Bewegung, weil das Display vorher das Standbild des alten Zugs zeigt.
+- Ein Template ohne `splitflap`-Layer liefert bei `?format=gif` ein GIF mit nur einem Frame.
+- Grenzen: max. 64 Klappen pro Template, max. 64 `reel`-Einträge pro Layer, max. 125 Frames, Frames × Breite × Höhe ≤ 32.000.000 Pixel.
 
 ---
 
@@ -410,6 +475,8 @@ Mehrere Filter können hintereinandergeschaltet werden.
 | `stripBetween('{','}')` | Bereich entfernen | `{{x \| stripBetween('{','}')}}` | `Halt {x} ok` → `Halt  ok` |
 | `prefix('text')` | Präfix hinzufügen | `{{v \| prefix('+')}}` | `5` → `+5` |
 | `suffix(' min')` | Suffix hinzufügen | `{{v \| suffix(' min')}}` | `5` → `5 min` |
+| `before(':')` | Teil vor dem ersten Trenner | `{{zug1.zeit \| before(':')}}` | `13:30` → `13` |
+| `after(':')` | Teil nach dem ersten Trenner | `{{zug1.zeit \| after(':')}}` | `13:30` → `30` |
 
 **Beispiel mit Verkettung:**
 ```yaml
