@@ -93,7 +93,7 @@ func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, 
 		}
 	}
 
-	eval := NewEvaluator(data) // one evaluator, one `now`, for all frames
+	eval := r.newEvaluator(tmpl, data) // one evaluator, one `now`, for all frames
 	imgCache := make(map[string]image.Image)
 	newCtx := func(anim *animState) *renderCtx {
 		rc := newRenderCtx(tmpl, eval) // fresh maxLayers counter per frame

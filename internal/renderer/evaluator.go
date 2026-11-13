@@ -21,9 +21,16 @@ type Evaluator struct {
 	now     time.Time      // captured once at creation for consistent {{now.*}} values
 }
 
-// NewEvaluator creates a new Evaluator with the given data map.
+// NewEvaluator creates a new Evaluator with the given data map. It uses
+// time.Now in the local zone; the renderer uses newEvaluator (template time
+// zone, injectable clock).
 func NewEvaluator(data map[string]interface{}) *Evaluator {
-	return &Evaluator{data: data, now: time.Now()}
+	return newEvaluatorAt(data, time.Now())
+}
+
+// newEvaluatorAt creates an Evaluator with a fixed `now`.
+func newEvaluatorAt(data map[string]interface{}, now time.Time) *Evaluator {
+	return &Evaluator{data: data, now: now}
 }
 
 // withLoopVars returns a new Evaluator with additional loop-scope variables.

@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 // Template holds the parsed YAML template data.
 type Template struct {
-	Meta   Meta      `yaml:"meta"`
-	Fonts  []FontDef `yaml:"fonts"`
-	Layers []Layer   `yaml:"layers"`
-	Dir    string    // Absolute path to the template directory (not from YAML)
+	Meta   Meta           `yaml:"meta"`
+	Fonts  []FontDef      `yaml:"fonts"`
+	Layers []Layer        `yaml:"layers"`
+	Dir    string         // Absolute path to the template directory (not from YAML)
+	loc    *time.Location // resolved meta.timezone, set by LoadTemplate
 }
 
 // Meta holds the template metadata.
@@ -26,6 +28,7 @@ type Meta struct {
 	Instructions string        `yaml:"instructions"`
 	Canvas       Canvas        `yaml:"canvas"`
 	Animation    AnimationMeta `yaml:"animation"`
+	Timezone     string        `yaml:"timezone"` // IANA name; "" = Europe/Berlin
 }
 
 // AnimationMeta holds the animation settings of a template (GIF output).

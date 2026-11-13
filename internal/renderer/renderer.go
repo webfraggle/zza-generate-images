@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	xdraw "golang.org/x/image/draw"
@@ -29,6 +30,20 @@ type Renderer struct {
 	TemplatesDir string
 	fontMu       sync.RWMutex
 	fontCache    map[string]*opentype.Font // key: absolute file path; guarded by fontMu
+	nowFunc      func() time.Time          // injectable clock for tests; nil = time.Now
+}
+
+func (r *Renderer) clock() time.Time {
+	if r.nowFunc != nil {
+		return r.nowFunc()
+	}
+	return time.Now()
+}
+
+// newEvaluator creates an Evaluator whose `now` is the renderer clock in the
+// template's time zone.
+func (r *Renderer) newEvaluator(tmpl *Template, data map[string]interface{}) *Evaluator {
+	return newEvaluatorAt(data, r.clock().In(tmpl.location()))
 }
 
 // New creates a new Renderer with the given templates directory.
@@ -68,6 +83,12 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 	if _, _, err := tmpl.Meta.Animation.resolve(); err != nil {
 		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
 	}
+
+	loc, err := loadTimezone(tmpl.Meta.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("renderer: LoadTemplate: invalid meta.timezone %q: %w", tmpl.Meta.Timezone, err)
+	}
+	tmpl.loc = loc
 
 	return &tmpl, nil
 }
@@ -195,7 +216,7 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 	if err := checkCanvas(tmpl.Meta.Canvas); err != nil {
 		return nil, fmt.Errorf("renderer: Render: %w", err)
 	}
-	img, err := r.renderFrame(newRenderCtx(tmpl, NewEvaluator(data)))
+	img, err := r.renderFrame(newRenderCtx(tmpl, r.newEvaluator(tmpl, data)))
 	if err != nil {
 		return nil, fmt.Errorf("renderer: Render: %w", err)
 	}
@@ -333,6 +354,14 @@ func rotateImageCW(src image.Image, deg float64) *image.NRGBA {
 	// Bounding box of the rotated image.
 	newW := int(math.Ceil(srcW*math.Abs(cosT) + srcH*math.Abs(sinT)))
 	newH := int(math.Ceil(srcW*math.Abs(sinT) + srcH*math.Abs(cosT)))
+	// Keep the size difference even so the rotation axis lands exactly on the
+	// pixel grid after renderImage's integer centring (x - Dx/2).
+	if (newW-bounds.Dx())%2 != 0 {
+		newW++
+	}
+	if (newH-bounds.Dy())%2 != 0 {
+		newH++
+	}
 
 	dst := image.NewNRGBA(image.Rect(0, 0, newW, newH))
 
