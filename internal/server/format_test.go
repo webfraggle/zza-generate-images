@@ -8,8 +8,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/web"
@@ -282,5 +284,48 @@ func TestEditor_AnimatedControls(t *testing.T) {
 		if strings.Contains(plain, id) {
 			t.Errorf("plain editor page contains %s", id)
 		}
+	}
+}
+
+// A request that waited for a render slot must serve the GIF another request
+// cached in the meantime instead of rendering it again.
+func TestRender_GIF_CacheRecheckAfterWait(t *testing.T) {
+	srv := newFlapServer(t)
+	for i := 0; i < cap(srv.gifSem); i++ {
+		srv.gifSem <- struct{}{}
+	}
+	done := make(chan *httptest.ResponseRecorder)
+	go func() { done <- doRender(srv, "/t/render?format=gif", `{}`, nil) }()
+	time.Sleep(100 * time.Millisecond) // let the request reach the semaphore
+
+	info, err := os.Stat(filepath.Join(srv.templatesDir, "t", "template.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := srv.cache.Key("t", append([]byte(`{}`), strconv.AppendInt(nil, info.ModTime().UnixNano(), 10)...))
+	if err := srv.cache.SetExt(key, formatGIF, []byte("SENTINEL")); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < cap(srv.gifSem); i++ {
+		<-srv.gifSem
+	}
+	rr := <-done
+	if rr.Code != 200 || rr.Header().Get("X-Cache") != "HIT" || rr.Body.String() != "SENTINEL" {
+		t.Errorf("got %d, X-Cache %q, %d bytes; want the cached entry as HIT", rr.Code, rr.Header().Get("X-Cache"), rr.Body.Len())
+	}
+}
+
+func TestRender_GIF_WaitTimeout(t *testing.T) {
+	srv := newFlapServer(t)
+	srv.gifWaitTimeout = 20 * time.Millisecond
+	for i := 0; i < cap(srv.gifSem); i++ {
+		srv.gifSem <- struct{}{}
+	}
+	rr := doRender(srv, "/t/render?format=gif", `{}`, nil)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("got %d, want 503", rr.Code)
+	}
+	if rr.Header().Get("Retry-After") == "" {
+		t.Error("503 without Retry-After")
 	}
 }

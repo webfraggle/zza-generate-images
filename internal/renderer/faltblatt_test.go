@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,7 +40,7 @@ func faltblattCellRect(i int) image.Rectangle {
 	return image.Rect(54+14*i, 82, 65+14*i, 112)
 }
 
-func loadFaltblatt(t *testing.T) (*Renderer, *Template) {
+func loadFaltblatt(t testing.TB) (*Renderer, *Template) {
 	t.Helper()
 	tmpl, err := LoadTemplate(faltblattTemplatesDir, faltblattName)
 	if err != nil {
@@ -49,7 +50,7 @@ func loadFaltblatt(t *testing.T) (*Renderer, *Template) {
 }
 
 // faltblattDefault returns default.json as raw bytes and decoded data.
-func faltblattDefault(t *testing.T) ([]byte, map[string]interface{}) {
+func faltblattDefault(t testing.TB) ([]byte, map[string]interface{}) {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(faltblattTemplatesDir, faltblattName, "default.json"))
 	if err != nil {
@@ -360,11 +361,22 @@ func TestFaltblatt_Animation(t *testing.T) {
 	if buf.Len() > 400*1024 {
 		t.Errorf("GIF is %d bytes, want ≤ 400 KB", buf.Len())
 	}
-	if testing.Short() {
-		t.Log("skipping timing check in short mode")
-		return
-	}
-	if elapsed >= time.Second {
-		t.Errorf("render+encode took %v, want < 1 s", elapsed)
+}
+
+// BenchmarkFaltblatt_GIF measures one GIF cache miss (target: well below 1 s).
+// A wall-clock assertion in the test above would fail under -race and on a
+// loaded machine.
+func BenchmarkFaltblatt_GIF(b *testing.B) {
+	r, tmpl := loadFaltblatt(b)
+	body, data := faltblattDefault(b)
+	seed := AnimationSeed(faltblattName, body)
+	for i := 0; i < b.N; i++ {
+		anim, err := r.RenderAnimation(tmpl, data, seed)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := EncodeGIF(io.Discard, anim, tmpl.Meta.Canvas.Colors); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

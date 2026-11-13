@@ -3,7 +3,11 @@ package renderer
 import (
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 
 	"golang.org/x/image/font"
@@ -226,6 +230,83 @@ func TestFilter_BeforeAfter(t *testing.T) {
 		e := fixedEval(map[string]interface{}{"t": c.val})
 		if got := e.Interpolate(c.tpl); got != c.want {
 			t.Errorf("%s with %q = %q, want %q", c.tpl, c.val, got, c.want)
+		}
+	}
+}
+
+// A very long request value on a scale_x layer must not allocate memory in
+// proportion to its length (the offscreen line used to be as wide as the text).
+func TestText_ScaleX_LongTextBoundedMemory(t *testing.T) {
+	long := strings.Repeat("W", 20000)
+	for _, align := range []string{"", "right", "center"} {
+		l := Layer{Value: StringOrCond{raw: long}, Size: 20, X: IntOrExpr{val: 100}, Y: IntOrExpr{val: 10},
+			Align: align, ScaleX: 0.5}
+		r := New(textExtFontDir)
+		tmpl := textExtTemplate(l)
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		img := mustRender(t, r, tmpl, nil)
+		runtime.ReadMemStats(&after)
+		if mb := (after.TotalAlloc - before.TotalAlloc) >> 20; mb > 32 {
+			t.Errorf("align %q: render allocated %d MB, want ≤ 32", align, mb)
+		}
+		b := inkBounds(img)
+		wantMin, wantMax := 0, 200 // right/center: text covers the whole canvas width
+		switch align {
+		case "":
+			wantMin = 100
+		case "right":
+			wantMax = 100
+		}
+		if b.Min.X > wantMin+4 || b.Min.X < wantMin-1 || b.Max.X < wantMax-4 || b.Max.X > wantMax+1 {
+			t.Errorf("align %q: ink x range [%d,%d), want about [%d,%d)", align, b.Min.X, b.Max.X, wantMin, wantMax)
+		}
+	}
+}
+
+// Clipping an over-long scaled line must not move the visible glyphs.
+func TestText_ScaleX_ClippedMatchesUnclipped(t *testing.T) {
+	// 60 glyphs: natural width far beyond the 200px canvas, so the clip path runs.
+	text := strings.Repeat("HI", 30)
+	l := Layer{Value: StringOrCond{raw: text}, Size: 20, X: IntOrExpr{val: 10}, Y: IntOrExpr{val: 10}, ScaleX: 0.9}
+	got := renderTextLayer(t, l)
+
+	// Reference: the same line drawn on a canvas wide enough to skip clipping.
+	wide := textExtTemplate(l)
+	wide.Meta.Canvas.Width = 2000
+	ref := mustRender(t, New(textExtFontDir), wide, nil)
+
+	// Compare the ink per column. The resampled width is rounded up to whole
+	// pixels, so the shorter run drifts by a fraction of a pixel; a glyph that
+	// moved by a pixel or more would change a column by far more than 5 rows.
+	for x := 0; x < 190; x++ { // stay clear of the right canvas edge
+		a, b := 0, 0
+		for y := 0; y < 80; y++ {
+			a += int(got.NRGBAAt(x, y).A)
+			b += int(ref.NRGBAAt(x, y).A)
+		}
+		if d := (a - b) / 255; d > 5 || d < -5 {
+			t.Errorf("column %d: ink %d vs %d rows (clipped vs unclipped)", x, a/255, b/255)
+		}
+	}
+}
+
+func TestLoadTemplate_ScaleXValidation(t *testing.T) {
+	for _, tc := range []struct {
+		val string
+		ok  bool
+	}{{"0.5", true}, {"1", true}, {"8", true}, {".inf", false}, {".nan", false}, {"-1", false}, {"0.001", false}, {"100", false}} {
+		dir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(dir, "t"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		y := "meta:\n  canvas: {width: 20, height: 10}\nlayers:\n  - type: loop\n    layers:\n      - type: text\n        value: x\n        scale_x: " + tc.val + "\n"
+		if err := os.WriteFile(filepath.Join(dir, "t", "template.yaml"), []byte(y), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := LoadTemplate(dir, "t")
+		if (err == nil) != tc.ok {
+			t.Errorf("scale_x %s: err = %v, want ok=%v", tc.val, err, tc.ok)
 		}
 	}
 }

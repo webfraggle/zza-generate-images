@@ -187,7 +187,7 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
 
 **`valign: baseline`** — `y` ist die Grundlinie der ersten Zeile (so rechnet das Legacy-PHP), nicht die Oberkante. `height` wird dabei nicht gebraucht.
 
-**`scale_x`** — Skaliert die Schrift horizontal (`0.5` = halbe Breite, `1` oder weglassen = unverändert, Werte `<= 0` werden ignoriert). Ausrichtung, `width`, `max_width` und Zeilenumbruch rechnen mit der skalierten Breite. Das Legacy-Theme staucht fast alle Texte mit `xFactor 0.5`; das entspricht `scale_x: 0.5`.
+**`scale_x`** — Skaliert die Schrift horizontal (`0.5` = halbe Breite, `1` oder weglassen = unverändert). Erlaubt sind `0.05` bis `8`; andere Werte (auch negative, `.inf`, `.nan`) lehnt das Laden des Templates ab. Text, der skaliert weit über die Leinwand hinausragt, wird nur im sichtbaren Bereich gezeichnet. Ausrichtung, `width`, `max_width` und Zeilenumbruch rechnen mit der skalierten Breite. Das Legacy-Theme staucht fast alle Texte mit `xFactor 0.5`; das entspricht `scale_x: 0.5`.
 
 **`fit_items`** — Setzt den Wert einzeilig und linksbündig in Elemente: Der Wert wird an `split_by` geteilt (Elemente werden getrimmt, leere entfallen) und die Elemente werden mit `gap` Pixeln Abstand nebeneinander gesetzt. Ein Element wird nur gezeichnet, wenn `xpos + Breite < max_width` gilt; `xpos` rückt auch für ausgelassene Elemente um `Breite + gap` weiter — wie die Via-Schleife im Legacy-PHP. Ohne `max_width` (oder mit `0`) wird nichts weggelassen. Zeilenumbruch und `align` gelten in diesem Modus nicht.
 

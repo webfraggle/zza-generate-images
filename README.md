@@ -59,7 +59,7 @@ curl -X POST 'http://localhost:18080/faltblatt-105-v1/render?format=gif' -H 'Con
 - `POST /{template}/render` und `GET /{template}/preview` akzeptieren `?format=png|gif`. Ohne Angabe oder mit `png` kommt ein PNG wie bisher; jeder andere Wert ergibt 400.
 - `format=gif` liefert `Content-Type: image/gif`. Das GIF spielt einmal ab und endet auf dem Standbild (identisch zum PNG). Templates ohne `splitflap`-Layer ergeben ein GIF mit einem Frame.
 - Gleiches Template und exakt gleicher Request-Body (Bytes) ergeben ein bytegleiches GIF (Ausnahme: Templates mit `{{now.*}}`). PNG und GIF werden getrennt gecacht (`X-Cache: HIT|MISS`).
-- Es laufen höchstens 2 GIF-Renders gleichzeitig, weitere warten. Template-Fehler (z.B. Limits überschritten) ergeben 422.
+- Es laufen höchstens 2 GIF-Renders gleichzeitig, weitere warten bis zu 15 s und bekommen danach `503` mit `Retry-After`. Template-Fehler (z.B. Limits überschritten) ergeben 422.
 - `POST …/render` bleibt auch mit `?format=gif` vom HTTPS-Redirect ausgenommen (Microcontroller ohne TLS).
 - Format des GIFs und Template-Syntax: `docs/yaml-template-spec.md` (`type: splitflap`, „GIF-Ausgabe").
 

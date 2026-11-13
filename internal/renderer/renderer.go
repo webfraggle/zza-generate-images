@@ -13,12 +13,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
+	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/f64"
 	"golang.org/x/image/math/fixed"
-	xdraw "golang.org/x/image/draw"
 	"gopkg.in/yaml.v3"
 )
 
@@ -72,9 +73,9 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 }
 
 const (
-	maxCanvasDimension = 16384 // pixels — prevents OOM via malicious templates
-	maxLayers          = 256   // total rendered layer limit (across all block nesting) — prevents CPU exhaustion
-	maxBlockDepth      = 16    // maximum block-node nesting depth — prevents stack overflow
+	maxCanvasDimension = 16384            // pixels — prevents OOM via malicious templates
+	maxLayers          = 256              // total rendered layer limit (across all block nesting) — prevents CPU exhaustion
+	maxBlockDepth      = 16               // maximum block-node nesting depth — prevents stack overflow
 	maxFontFileBytes   = 50 * 1024 * 1024 // 50 MB
 )
 
@@ -525,13 +526,20 @@ func drawTextLine(dst *image.NRGBA, face font.Face, line string, x, baselineY in
 		return
 	}
 
-	w := measureText(face, line)
-	if w <= 0 {
-		return
-	}
 	m := face.Metrics()
 	ascent, descent := m.Ascent.Round(), m.Descent.Round()
 	pad := ascent // generous margin for overhanging glyph parts
+	w := measureText(face, line)
+	// The offscreen line and the resampler's buffer grow with the text width, and
+	// the text can come from the request. A line far wider than the canvas is
+	// therefore cut down to the glyphs that can reach the canvas.
+	if b := dst.Bounds(); float64(w+2*pad)*scale > float64(2*b.Dx()+4*pad) {
+		line, x = visibleRun(face, line, x, scale, b.Min.X-2*pad, b.Max.X+2*pad)
+		w = measureText(face, line)
+	}
+	if w <= 0 {
+		return
+	}
 	off := image.NewNRGBA(image.Rect(0, 0, w+2*pad, ascent+descent+2*pad))
 	d := &font.Drawer{
 		Dst:  off,
@@ -546,6 +554,40 @@ func drawTextLine(dst *image.NRGBA, face font.Face, line string, x, baselineY in
 	dy := baselineY - (pad + ascent)
 	rect := image.Rect(dx, dy, dx+dw, dy+off.Bounds().Dy())
 	xdraw.CatmullRom.Scale(dst, rect, off, off.Bounds(), xdraw.Over, nil)
+}
+
+// visibleRun returns the part of line whose glyphs, drawn from x and scaled
+// horizontally by scale, can overlap [minX, maxX), and the x at which that part
+// starts. Advances and kerning are accumulated as font.MeasureString does.
+func visibleRun(face font.Face, line string, x int, scale float64, minX, maxX int) (string, int) {
+	pos := func(adv fixed.Int26_6) float64 { return float64(x) + float64(adv)/64*scale }
+	var adv, startAdv fixed.Int26_6
+	start, end := -1, 0
+	prev := rune(-1)
+	for i, r := range line {
+		if prev >= 0 {
+			adv += face.Kern(prev, r)
+		}
+		left := adv
+		if a, ok := face.GlyphAdvance(r); ok {
+			adv += a
+		}
+		prev = r
+		if pos(adv) < float64(minX) {
+			continue // entirely left of the visible range
+		}
+		if pos(left) >= float64(maxX) {
+			break // this and all following glyphs are right of it
+		}
+		if start < 0 {
+			start, startAdv = i, left
+		}
+		end = i + utf8.RuneLen(r)
+	}
+	if start < 0 {
+		return "", x
+	}
+	return line[start:end], int(math.Round(pos(startAdv)))
 }
 
 // fitItems implements the legacy "via" rule. widths are the item widths; item i
@@ -669,8 +711,8 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 }
 
 const (
-	defaultMaxLoopItems  = 20
-	maxLoopItemsHardCap  = 200 // upper bound regardless of max_items in YAML — prevents CPU/memory exhaustion
+	defaultMaxLoopItems = 20
+	maxLoopItemsHardCap = 200 // upper bound regardless of max_items in YAML — prevents CPU/memory exhaustion
 )
 
 // renderLoop iterates over a split string and renders sub-layers for each item.
@@ -738,7 +780,7 @@ func wrapText(face font.Face, text string, maxWidth int) []string {
 	// Split into space-separated words, then further split each word at hyphens
 	// so that e.g. "Sennhof-Kyburg" can break after the hyphen.
 	type token struct {
-		text     string
+		text        string
 		spaceBefore bool
 	}
 	var tokens []token

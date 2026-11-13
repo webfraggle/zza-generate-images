@@ -50,23 +50,23 @@ type FontDef struct {
 
 // Layer represents a single rendering layer.
 type Layer struct {
-	Type     string       `yaml:"type"`
-	If       string       `yaml:"if"`
-	Elif     string       `yaml:"elif"` // continues an if-chain at layer level
-	Else     ElseMarker   `yaml:"else"` // else: true — renders when preceding if/elif chain was not satisfied
-	X        IntOrExpr    `yaml:"x"`
-	Y        IntOrExpr    `yaml:"y"`
-	Width    IntOrExpr    `yaml:"width"`
-	Height   IntOrExpr    `yaml:"height"`
-	File     string       `yaml:"file"`
-	Color    StringOrCond `yaml:"color"`
-	Value    StringOrCond `yaml:"value"`
-	Font     string       `yaml:"font"`
-	Size     float64      `yaml:"size"`
-	Align      string    `yaml:"align"`       // left (default) | center | right
-	Valign     string    `yaml:"valign"`      // top (default) | middle | bottom — needs height; baseline — first-line baseline = y
-	MaxWidth   IntOrExpr `yaml:"max_width"`
-	LineHeight float64   `yaml:"line_height"` // multiplier relative to font height; 0/1 = default
+	Type       string       `yaml:"type"`
+	If         string       `yaml:"if"`
+	Elif       string       `yaml:"elif"` // continues an if-chain at layer level
+	Else       ElseMarker   `yaml:"else"` // else: true — renders when preceding if/elif chain was not satisfied
+	X          IntOrExpr    `yaml:"x"`
+	Y          IntOrExpr    `yaml:"y"`
+	Width      IntOrExpr    `yaml:"width"`
+	Height     IntOrExpr    `yaml:"height"`
+	File       string       `yaml:"file"`
+	Color      StringOrCond `yaml:"color"`
+	Value      StringOrCond `yaml:"value"`
+	Font       string       `yaml:"font"`
+	Size       float64      `yaml:"size"`
+	Align      string       `yaml:"align"`  // left (default) | center | right
+	Valign     string       `yaml:"valign"` // top (default) | middle | bottom — needs height; baseline — first-line baseline = y
+	MaxWidth   IntOrExpr    `yaml:"max_width"`
+	LineHeight float64      `yaml:"line_height"` // multiplier relative to font height; 0/1 = default
 	// type: text — optional horizontal scaling (applied only when > 0 and != 1)
 	ScaleX float64 `yaml:"scale_x"`
 	// type: text — optional single-line item fitting (legacy "via" behaviour)
@@ -155,6 +155,12 @@ type FitItems struct {
 // It handles the `else:` key specially: yaml.v3 does not call custom unmarshalers
 // for null nodes, so we scan the raw mapping node to detect a bare `else:` (null)
 // and treat it as true.
+// Allowed range of a text layer's scale_x (0 = unset).
+const (
+	minScaleX = 0.05
+	maxScaleX = 8.0
+)
+
 func (l *Layer) UnmarshalYAML(value *yaml.Node) error {
 	// layerAlias breaks the recursion that would occur if Layer implemented
 	// UnmarshalYAML and we decoded into a Layer directly.
@@ -164,6 +170,11 @@ func (l *Layer) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	*l = Layer(alias)
+
+	// scale_x sizes an offscreen buffer; reject NaN, Inf and absurd factors.
+	if s := l.ScaleX; s != 0 && !(s >= minScaleX && s <= maxScaleX) {
+		return fmt.Errorf("line %d: scale_x must be between %g and %g (got %v)", value.Line, minScaleX, maxScaleX, s)
+	}
 
 	// Scan the raw mapping for the "else" key and set ElseMarker correctly
 	// when the value is a null node (bare `else:` with no value).

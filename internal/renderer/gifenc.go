@@ -23,7 +23,7 @@ const (
 //
 // All frames share one global colour table and no local tables. If all frames
 // together use at most that many distinct colours, exactly those form the
-// palette; otherwise a mosaic of sample frames is quantized with Quantize.
+// palette; otherwise a mosaic of sample frames is reduced with median cut.
 // Frame 0 is stored in full. Later frames are delta rectangles (DisposalNone)
 // covering the bounding box of changed pixels; inside it, pixels equal to the
 // previous composited frame are written as the transparent index, which
@@ -202,7 +202,15 @@ func gifPalette(frames []*image.NRGBA, colors int) color.Palette {
 		draw.Draw(mosaic, dst, frames[fi], b.Min, draw.Src)
 	}
 
-	pal = Quantize(mosaic, realColors).Palette
+	// medianCut directly: Quantize would also map every mosaic pixel onto the
+	// palette, which costs far more than the palette itself and is discarded.
+	pixels := make([]color.NRGBA, 0, len(mosaic.Pix)/4)
+	for i := 0; i+3 < len(mosaic.Pix); i += 4 {
+		pixels = append(pixels, color.NRGBA{R: mosaic.Pix[i], G: mosaic.Pix[i+1], B: mosaic.Pix[i+2], A: mosaic.Pix[i+3]})
+	}
+	for _, c := range medianCut(pixels, realColors) {
+		pal = append(pal, c)
+	}
 	return append(pal, color.NRGBA{})
 }
 

@@ -31,6 +31,10 @@ const maxRequestBodyBytes = 1 << 20 // 1 MiB
 // are far more expensive than PNG renders.
 const maxConcurrentGIFRenders = 2
 
+// defaultGIFWaitTimeout is how long a GIF cache miss waits for a render slot
+// before it is answered with 503 and Retry-After.
+const defaultGIFWaitTimeout = 15 * time.Second
+
 // Output formats selectable with the "format" query parameter.
 const (
 	formatPNG = "png"
@@ -39,15 +43,16 @@ const (
 
 // Server handles HTTP requests for the ZZA image renderer.
 type Server struct {
-	mux           *http.ServeMux
-	staticHandler http.Handler
-	editorHandler http.Handler // set by RegisterEditor; desktop-only
-	rend          *renderer.Renderer
-	cache         *Cache
-	gifSem        chan struct{} // limits concurrent GIF renders
-	templatesDir  string
-	htmlTmpl      *template.Template
-	editorEnabled bool
+	mux            *http.ServeMux
+	staticHandler  http.Handler
+	editorHandler  http.Handler // set by RegisterEditor; desktop-only
+	rend           *renderer.Renderer
+	cache          *Cache
+	gifSem         chan struct{} // limits concurrent GIF renders
+	gifWaitTimeout time.Duration // max wait for a slot in gifSem
+	templatesDir   string
+	htmlTmpl       *template.Template
+	editorEnabled  bool
 }
 
 // New creates and initialises a Server from cfg.
@@ -86,13 +91,14 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 	}
 
 	s := &Server{
-		mux:           http.NewServeMux(),
-		staticHandler: http.StripPrefix("/static/", http.FileServerFS(staticFS)),
-		rend:          renderer.New(cfg.TemplatesDir),
-		cache:         cache,
-		gifSem:        make(chan struct{}, maxConcurrentGIFRenders),
-		templatesDir:  cfg.TemplatesDir,
-		htmlTmpl:      tmpl,
+		mux:            http.NewServeMux(),
+		staticHandler:  http.StripPrefix("/static/", http.FileServerFS(staticFS)),
+		rend:           renderer.New(cfg.TemplatesDir),
+		cache:          cache,
+		gifSem:         make(chan struct{}, maxConcurrentGIFRenders),
+		gifWaitTimeout: defaultGIFWaitTimeout,
+		templatesDir:   cfg.TemplatesDir,
+		htmlTmpl:       tmpl,
 	}
 	s.registerRoutes()
 	return s, nil
@@ -367,7 +373,8 @@ func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
 // templates without splitflap layers). format must be formatPNG or formatGIF.
 // It checks and populates the cache automatically; both formats share one
 // cache key and differ in file extension. GIF cache misses wait for a slot
-// in gifSem (503 if ctx ends while waiting); cache hits never wait.
+// in gifSem (503 if ctx ends or the wait times out) and then check the cache
+// again; cache hits never wait.
 func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, templateName string, body []byte, format string) {
 	// Cache lookup.
 	// Note: there is no lock between Get and Set, so concurrent requests with
@@ -383,11 +390,7 @@ func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, temp
 	}
 	key := s.cache.Key(templateName, append(body, modStamp...))
 	if cached, hit := s.cache.GetExt(key, format); hit {
-		w.Header().Set("Content-Type", "image/"+format)
-		w.Header().Set("Content-Length", strconv.Itoa(len(cached)))
-		w.Header().Set("X-Cache", "HIT")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(cached)
+		writeImage(w, format, "HIT", cached)
 		return
 	}
 
@@ -446,13 +449,37 @@ func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, temp
 	_, _ = w.Write(pngBytes)
 }
 
+// writeImage writes data as an image response; format is formatPNG or formatGIF,
+// which are also the MIME subtypes.
+func writeImage(w http.ResponseWriter, format, cacheState string, data []byte) {
+	w.Header().Set("Content-Type", "image/"+format)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("X-Cache", cacheState)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 // renderGIF renders the animation of tmpl, caches it under key and writes it.
 func (s *Server) renderGIF(ctx context.Context, w http.ResponseWriter, templateName string, body []byte, key string, tmpl *renderer.Template, data map[string]interface{}) {
+	wait := time.NewTimer(s.gifWaitTimeout)
+	defer wait.Stop()
 	select {
 	case s.gifSem <- struct{}{}:
 		defer func() { <-s.gifSem }()
 	case <-ctx.Done():
 		http.Error(w, "request cancelled while waiting for render slot", http.StatusServiceUnavailable)
+		return
+	case <-wait.C:
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "all render slots busy, try again", http.StatusServiceUnavailable)
+		return
+	}
+	if ctx.Err() != nil {
+		return // client gone: do not spend the slot on it
+	}
+	// Another request may have rendered the same GIF while this one waited.
+	if cached, hit := s.cache.GetExt(key, formatGIF); hit {
+		writeImage(w, formatGIF, "HIT", cached)
 		return
 	}
 
@@ -474,9 +501,5 @@ func (s *Server) renderGIF(ctx context.Context, w http.ResponseWriter, templateN
 		log.Printf("cache: set %q: %v", key, err)
 	}
 
-	w.Header().Set("Content-Type", "image/gif")
-	w.Header().Set("Content-Length", strconv.Itoa(len(gifBytes)))
-	w.Header().Set("X-Cache", "MISS")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(gifBytes)
+	writeImage(w, formatGIF, "MISS", gifBytes)
 }

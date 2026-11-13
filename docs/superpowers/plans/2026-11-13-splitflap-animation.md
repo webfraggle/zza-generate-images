@@ -248,7 +248,7 @@ Modulrechtecke = ganze Klappen aus `bg.png`, `split_y` auf den Scharnierstrichen
   - Detailseite: Standard bleibt Standbild in den zwei Canvas-Hälften. „Animation abspielen" (`play-anim-btn`) rendert die aktuellen JSON-Daten mit `?format=gif` und zeigt das GIF in derselben Zwei-Hälften-Geometrie (zwei Elemente mit demselben Blob-URL, obere/untere Hälfte per CSS beschnitten); erneuter Klick lädt neu (neuer Blob-URL ⇒ Neustart). JSON-Änderung schaltet zurück aufs Standbild. `download-gif-btn` speichert `<name>.gif`; der bestehende Button bleibt PNG. Blob-URLs freigeben.
   - Editor: Auswahl `preview-mode` (Standbild | Animation) neben der Vorschau; bei „Animation" ruft `renderPreview()` `?format=gif` ab; Knopf „Erneut abspielen"; Größenanzeige bleibt.
   - Galerie unverändert.
-- [ ] **Step 4:** `go test ./...` → PASS; vorhandene JS-Tests (`node --test web/static/test/`) → PASS. Server lokal starten (`go run ./cmd/zza-server serve` mit `PORT=18080 CACHE_DIR=<scratch>/cache`), mit `curl` prüfen, dass Detailseite und `preview?format=gif` 200 liefern; Server beenden.
+- [ ] **Step 4:** `go test ./...` → PASS; vorhandene JS-Tests (`node --test web/static/test/*.mjs`) → PASS. Server lokal starten (`go run ./cmd/zza-server serve` mit `PORT=18080 CACHE_DIR=<scratch>/cache`), mit `curl` prüfen, dass Detailseite und `preview?format=gif` 200 liefern; Server beenden.
 - [ ] **Step 5:** Commit `feat(web): animation preview and GIF download`.
 
 ---
