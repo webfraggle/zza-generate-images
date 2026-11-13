@@ -63,6 +63,15 @@
     </div>
     <div class="right-section preview-section">
       <span class="pane-label">Vorschau</span>
+      {{if .Animated}}
+      <div class="preview-controls">
+        <select id="preview-mode" aria-label="Vorschau-Modus">
+          <option value="still" selected>Standbild</option>
+          <option value="anim">Animation</option>
+        </select>
+        <button id="replay-btn" class="btn btn-sm btn-level2" type="button" hidden>Erneut abspielen</button>
+      </div>
+      {{end}}
       <div id="preview-wrap" class="preview-wrap">
         <div id="spinner" class="spinner" hidden></div>
         <img id="preview-img" alt="" hidden>
@@ -256,6 +265,21 @@ jsonInput.addEventListener('input', () => {
   schedulePreview();
 });
 
+// Preview mode ("still" | "anim"), kept in memory only. The controls exist
+// only for templates with splitflap layers.
+let previewMode = 'still';
+const modeSelect = document.getElementById('preview-mode');
+const replayBtn  = document.getElementById('replay-btn');
+if (modeSelect) {
+  modeSelect.addEventListener('change', () => {
+    previewMode = modeSelect.value;
+    replayBtn.hidden = previewMode !== 'anim';
+    renderPreview();
+  });
+  // A fresh fetch yields a fresh blob URL, which restarts the GIF.
+  replayBtn.addEventListener('click', () => renderPreview());
+}
+
 function schedulePreview() {
   clearTimeout(previewTimer);
   previewTimer = setTimeout(renderPreview, 600);
@@ -272,7 +296,7 @@ async function renderPreview() {
   renderErr.hidden    = true;
 
   try {
-    const res = await fetch(`/${TEMPLATE}/render`, {
+    const res = await fetch(`/${TEMPLATE}/render` + (previewMode === 'anim' ? '?format=gif' : ''), {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body,

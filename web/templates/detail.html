@@ -30,6 +30,13 @@
           <div class="canvas-divider"></div>
           <div class="canvas-frame"><canvas id="canvas-bottom"></canvas></div>
         </div>
+        {{if .Animated}}
+        <div class="preview-halves" id="anim-halves" style="display:none">
+          <div class="canvas-frame"><div class="anim-clip" id="anim-clip-top"><img id="anim-img-top" alt=""></div></div>
+          <div class="canvas-divider"></div>
+          <div class="canvas-frame"><div class="anim-clip" id="anim-clip-bottom"><img id="anim-img-bottom" alt=""></div></div>
+        </div>
+        {{end}}
       </div>
       <div class="template-info">
         <div class="info-left">
@@ -57,6 +64,10 @@
           <button id="download-btn" class="btn btn-primary" disabled>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="vertical-align:-2px;margin-right:6px"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>PNG herunterladen
           </button>
+          {{if .Animated}}
+          <button id="play-anim-btn" class="btn btn-level2">Animation abspielen</button>
+          <button id="download-gif-btn" class="btn btn-level2">GIF herunterladen</button>
+          {{end}}
         </div>
       </div>
     </div>
@@ -72,7 +83,13 @@
     const renderUrlEl = document.getElementById("render-url");
     const copyBtn     = document.getElementById("copy-url-btn");
     const downloadBtn = document.getElementById("download-btn");
+    // Animation controls exist only for templates with splitflap layers.
+    const playBtn     = document.getElementById("play-anim-btn");
+    const gifBtn      = document.getElementById("download-gif-btn");
+    const animHalves  = document.getElementById("anim-halves");
     let currentURL    = null;
+    let gifURL        = null;   // blob URL of the GIF currently shown
+    let gifGen        = 0;      // bumped on every JSON edit/still render; stale GIF responses are dropped
     let currentBlob   = null;
     let debounce;
 
@@ -119,7 +136,110 @@
       img.src = src;
     }
 
+    // Fetches the GIF for the current JSON. Returns a Blob, or null after
+    // showing the error (invalid JSON, HTTP error, network error).
+    async function fetchGif() {
+      let body;
+      try {
+        body = JSON.stringify(JSON.parse(textarea.value));
+        errorMsg.textContent = "";
+      } catch (e) {
+        errorMsg.textContent = "Ungültiges JSON: " + e.message;
+        return null;
+      }
+      try {
+        const resp = await fetch("/" + templateName + "/render?format=gif", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: body,
+        });
+        if (!resp.ok) {
+          errorMsg.textContent = "Fehler " + resp.status + ": " + (await resp.text()).trim();
+          return null;
+        }
+        return await resp.blob();
+      } catch (e) {
+        errorMsg.textContent = "Netzwerkfehler: " + e.message;
+        return null;
+      }
+    }
+
+    function setGifButtonsDisabled(v) {
+      if (playBtn) playBtn.disabled = v;
+      if (gifBtn)  gifBtn.disabled  = v;
+    }
+
+    // Back to the still image in the canvases; releases the GIF blob URL.
+    function showStill() {
+      gifGen++;
+      if (!animHalves) return;
+      animHalves.style.display = "none";
+      if (currentURL) halves.style.display = "flex";
+      if (gifURL) { URL.revokeObjectURL(gifURL); gifURL = null; }
+    }
+
+    if (playBtn) {
+      playBtn.addEventListener("click", async () => {
+        const gen = ++gifGen;
+        setGifButtonsDisabled(true);
+        try {
+          const blob = await fetchGif();
+          if (!blob || gen !== gifGen) return;
+          const url = URL.createObjectURL(blob);   // new URL per click => GIF restarts
+          const probe = new Image();
+          probe.onload = () => {
+            if (gen !== gifGen) { URL.revokeObjectURL(url); return; }
+            const w  = probe.naturalWidth;
+            const h  = probe.naturalHeight;
+            const h1 = Math.floor(h / 2);          // same split as drawSplit
+            const h2 = h - h1;
+            const set = (clip, img, ch, off) => {
+              clip.style.width  = w + "px";
+              clip.style.height = ch + "px";
+              img.style.marginTop = (-off) + "px";
+              img.src = url;
+            };
+            set(document.getElementById("anim-clip-top"),    document.getElementById("anim-img-top"),    h1, 0);
+            set(document.getElementById("anim-clip-bottom"), document.getElementById("anim-img-bottom"), h2, h1);
+            const old = gifURL;
+            gifURL = url;
+            if (old) URL.revokeObjectURL(old);
+            halves.style.display     = "none";
+            animHalves.style.display = "flex";
+          };
+          probe.onerror = () => {
+            URL.revokeObjectURL(url);
+            if (gen === gifGen) errorMsg.textContent = "GIF konnte nicht angezeigt werden";
+          };
+          probe.src = url;
+        } finally {
+          setGifButtonsDisabled(false);
+        }
+      });
+    }
+
+    if (gifBtn) {
+      gifBtn.addEventListener("click", async () => {
+        setGifButtonsDisabled(true);
+        try {
+          const blob = await fetchGif();
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = templateName + ".gif";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } finally {
+          setGifButtonsDisabled(false);
+        }
+      });
+    }
+
     textarea.addEventListener("input", () => {
+      showStill();
       clearTimeout(debounce);
       debounce = setTimeout(render, 600);
     });
@@ -134,6 +254,7 @@
         return;
       }
 
+      showStill();
       spinner.style.display = "block";
       halves.style.display  = "none";
 

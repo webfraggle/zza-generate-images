@@ -215,3 +215,72 @@ func TestDetail_AnimatedFlag(t *testing.T) {
 		t.Error("missing template: Animated = true")
 	}
 }
+
+// addPlainTemplate adds a non-animated template "p" next to the splitflap one.
+func addPlainTemplate(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, "p"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	yaml := "meta:\n  canvas: {width: 20, height: 10}\nlayers:\n  - type: rect\n    x: 0\n    y: 0\n    width: 20\n    height: 10\n    color: \"#ff0000\"\n"
+	for name, content := range map[string]string{"template.yaml": yaml, "default.json": `{}`} {
+		if err := os.WriteFile(filepath.Join(dir, "p", name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func getPage(srv *Server, path string) string {
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+	return rr.Body.String()
+}
+
+func TestDetail_AnimatedControls(t *testing.T) {
+	srv := newFlapServer(t)
+	addPlainTemplate(t, srv.templatesDir)
+
+	anim := getPage(srv, "/t")
+	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`, "Animation abspielen", "GIF herunterladen"} {
+		if !strings.Contains(anim, id) {
+			t.Errorf("animated detail page lacks %s", id)
+		}
+	}
+	plain := getPage(srv, "/p")
+	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`} {
+		if strings.Contains(plain, id) {
+			t.Errorf("plain detail page contains %s", id)
+		}
+	}
+	if !strings.Contains(plain, `id="download-btn"`) {
+		t.Error("plain detail page lost the PNG download button")
+	}
+}
+
+// getEditorPage calls the editor page handler directly: the /edit/ route is
+// only wired up in the desktop build.
+func getEditorPage(srv *Server, name string) string {
+	req := httptest.NewRequest(http.MethodGet, "/edit/"+name, nil)
+	req.SetPathValue("template", name)
+	rr := httptest.NewRecorder()
+	srv.handleEditorPage(rr, req)
+	return rr.Body.String()
+}
+
+func TestEditor_AnimatedControls(t *testing.T) {
+	srv := newFlapServer(t)
+	addPlainTemplate(t, srv.templatesDir)
+
+	anim := getEditorPage(srv, "t")
+	for _, id := range []string{`id="preview-mode"`, `id="replay-btn"`, "Standbild", "Animation", "Erneut abspielen"} {
+		if !strings.Contains(anim, id) {
+			t.Errorf("animated editor page lacks %s", id)
+		}
+	}
+	plain := getEditorPage(srv, "p")
+	for _, id := range []string{`id="preview-mode"`, `id="replay-btn"`} {
+		if strings.Contains(plain, id) {
+			t.Errorf("plain editor page contains %s", id)
+		}
+	}
+}
