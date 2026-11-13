@@ -206,7 +206,7 @@ func (r *Renderer) renderFrameMode(tmpl *Template, data map[string]interface{}) 
 		return nil, fmt.Errorf("renderer: RenderAnimation: animation too large: %d frames of %dx%d exceed %d pixels",
 			a.Frames, c.Width, c.Height, maxAnimPixels)
 	}
-	delay := a.frameDelayCS()
+	delay := tmpl.animDelayCS()
 	root := r.newEvaluator(tmpl, data) // one `now` for all frames
 	imgCache := make(map[string]image.Image)
 	frames := make([]*image.NRGBA, 0, a.Frames)

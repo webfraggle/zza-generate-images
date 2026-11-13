@@ -247,3 +247,23 @@ describe('verschachtelte Filter-Argumente', () => {
     assert.strictEqual(evaluatePreview('{{zug1.zeit}}', [{ fn: 'minutes', arg: null }, { fn: 'sub', arg: 'missing' }], tj), '');
   });
 });
+
+
+describe('Go/JS-Parität Mathe-Filter', () => {
+  const tj = { a: '5', b: '2.5', n: '-3', z1: '10:15', empty: '', txt: 'abc', x: '-1e-20' };
+  const ev = (expr) => { const { base, filters } = parseValueAndFilters(expr); return evaluatePreview(base, filters, tj); };
+  it("{{z1 | add(5)}} \u2192 10:15", () => assert.strictEqual(ev("{{z1 | add(5)}}"), "10:15"));
+  it("{{empty | minutes | mod(1440)}} \u2192 ", () => assert.strictEqual(ev("{{empty | minutes | mod(1440)}}"), ""));
+  it("{{a | div(0)}} \u2192 0", () => assert.strictEqual(ev("{{a | div(0)}}"), "0"));
+  it("{{a | mod(0)}} \u2192 0", () => assert.strictEqual(ev("{{a | mod(0)}}"), "0"));
+  it("{{a | add('x')}} \u2192 5", () => assert.strictEqual(ev("{{a | add('x')}}"), "5"));
+  it("{{a | add(txt)}} \u2192 ", () => assert.strictEqual(ev("{{a | add(txt)}}"), ""));
+  it("{{a | add}} \u2192 5", () => assert.strictEqual(ev("{{a | add}}"), "5"));
+  it("{{a | add()}} \u2192 5", () => assert.strictEqual(ev("{{a | add()}}"), "5"));
+  it("{{b | mul(3)}} \u2192 7.5", () => assert.strictEqual(ev("{{b | mul(3)}}"), "7.5"));
+  it("{{a | div(3)}} \u2192 1.6666666666666667", () => assert.strictEqual(ev("{{a | div(3)}}"), "1.6666666666666667"));
+  it("{{a | add(inf)}} \u2192 ", () => assert.strictEqual(ev("{{a | add(inf)}}"), ""));
+  it("{{a | add(a | add(a | add(a | add(a))))}} \u2192 25", () => assert.strictEqual(ev("{{a | add(a | add(a | add(a | add(a))))}}"), "25"));
+  it("{{a | add(a | add(a | add(a | add(a | add(a)))))}} \u2192 ", () => assert.strictEqual(ev("{{a | add(a | add(a | add(a | add(a | add(a)))))}}"), ""));
+  it("{{x | mod(1440)}} \u2192 0", () => assert.strictEqual(ev("{{x | mod(1440)}}"), "0"));
+});

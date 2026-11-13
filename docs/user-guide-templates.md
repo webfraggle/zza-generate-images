@@ -729,7 +729,7 @@ Regeln:
 - `frames`: 2–125, `frame_delay`: 0.02–10 Sekunden (in 0.01-Schritten), `frames × frame_delay` höchstens 120 s. Nicht kombinierbar mit `fps`/`duration` oder einem `splitflap`-Layer.
 - `loop: true` wiederholt das GIF endlos, sonst spielt es einmal.
 - `now` wird einmal pro Render gelesen: Stunden- und Minutenzeiger stehen im GIF still, nur der Sekundenzeiger läuft. Er beginnt bei der aktuellen Sekunde und steht nach 60 Frames wieder am Anfang.
-- `anim.frame` (0 … frames−1), `anim.frames` und `anim.time` (Sekunden seit Start) sind in allen Ausdrücken verfügbar. Im PNG ist `anim.frame` = 0, das PNG gleicht also Frame 0 des GIFs.
+- `anim.frame` (0 … frames−1) und `anim.frames` sind in Text-/Wert-Ausdrücken und in Koordinaten-Ausdrücken (x/y/width/height) verfügbar; `anim.time` (Sekunden seit Start) nur in Text-/Wert-Ausdrücken, nicht in Koordinaten. Im PNG ist `anim.frame` = 0, das PNG gleicht also Frame 0 des GIFs.
 - Templates mit `now` werden vom Server nicht gecacht (`X-Cache: BYPASS`), die Uhr bleibt also nie stehen.
 
 ---

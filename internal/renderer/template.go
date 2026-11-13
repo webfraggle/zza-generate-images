@@ -150,6 +150,15 @@ func (t *Template) animFrames() int {
 	return 1
 }
 
+// animDelayCS returns the frame delay in centiseconds for frame-mode
+// templates, 0 otherwise.
+func (t *Template) animDelayCS() int {
+	if t.Meta.Animation.Frames > 0 {
+		return t.Meta.Animation.frameDelayCS()
+	}
+	return 0
+}
+
 func hasSplitflap(layers []Layer) bool {
 	for i := range layers {
 		switch {

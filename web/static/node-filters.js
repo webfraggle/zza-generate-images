@@ -42,7 +42,8 @@ export function parseValueAndFilters(str) {
 
 function _parseFilterStage(part) {
   const parenIdx = part.indexOf('(');
-  if (parenIdx === -1) return { fn: part.trim(), arg: null };
+  // Wie Go parseFilterCall: ohne schließende Klammer gilt alles als Name.
+  if (parenIdx === -1 || !part.trim().endsWith(')')) return { fn: part.trim(), arg: null };
   const fn  = part.slice(0, parenIdx).trim();
   const arg = part.slice(parenIdx + 1, part.lastIndexOf(')'));
   return { fn, arg };
@@ -122,6 +123,7 @@ const MAX_PIPELINE_DEPTH = 4;
 const MATH_FNS = new Set(['mul', 'div', 'add', 'sub', 'mod']);
 
 // Wertet "var | f1 | f2(arg)" gegen testJson aus (für Variablen-Argumente).
+// depth zählt verschachtelte Argument-Pipelines (wie Go evalPipelineDepth).
 function _evalPipeline(expr, testJson, depth) {
   if (depth > MAX_PIPELINE_DEPTH || !testJson) return '';
   const [first, ...rest] = splitTopLevel(expr, '|');
@@ -130,20 +132,86 @@ function _evalPipeline(expr, testJson, depth) {
   let value = String(raw);
   for (const stage of rest) {
     const { fn, arg } = _parseFilterStage(stage.trim());
-    value = _applyFilter(value, fn, arg, testJson, depth + 1);
+    value = _applyFilter(value, fn, arg, testJson, depth);
   }
   return value;
 }
 
-// Numerisches Argument: Literal oder Variablen-Pipeline. NaN wenn nicht auflösbar.
+const NUM_LITERAL_RE = /^[+-]?(\d+\.?\d*|\.\d+)$/;
+// Wie Go strconv.ParseFloat (nach TrimSpace); NaN-Ergebnis = nicht parsbar,
+// "NaN" selbst wird über die Sonderfälle als echter NaN-Wert geliefert.
+const GO_FLOAT_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+const GO_SPECIAL_RE = /^([+-]?(inf|infinity)|[+-]?nan)$/i;
+function _parseGoFloat(str) {
+  const t = String(str).trim();
+  if (GO_FLOAT_RE.test(t)) return { ok: true, v: parseFloat(t) };
+  if (GO_SPECIAL_RE.test(t)) {
+    if (/nan/i.test(t)) return { ok: true, v: NaN };
+    return { ok: true, v: t.startsWith('-') ? -Infinity : Infinity };
+  }
+  return { ok: false, v: NaN };
+}
+
+// Numerisches Argument (Go numericArg): Literal → strict=false, sonst
+// Variablen-Pipeline (depth + 1) → strict=true.
 function _numericArg(arg, testJson, depth) {
-  const t = (arg ?? '').trim();
-  const quoted = (t.startsWith("'") && t.endsWith("'") && t.length >= 2) ||
-                 (t.startsWith('"') && t.endsWith('"') && t.length >= 2);
-  const lit = quoted ? t.slice(1, -1) : t;
-  if (quoted || /^[+-]?(\d+\.?\d*|\.\d+)$/.test(lit)) return parseFloat(lit);
-  const v = _evalPipeline(t, testJson, depth);
-  return /^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$/.test(v) ? parseFloat(v) : NaN;
+  const t = arg.trim();
+  const quoted = t.length >= 2 &&
+    ((t.startsWith("'") && t.endsWith("'")) || (t.startsWith('"') && t.endsWith('"')));
+  if (quoted) return { val: t.slice(1, -1), strict: false };
+  if (NUM_LITERAL_RE.test(t)) return { val: t, strict: false };
+  return { val: _evalPipeline(t, testJson, depth + 1), strict: true };
+}
+
+// Zahlformatierung wie Go doMath: ganzzahlig im int64-Bereich → Integer,
+// sonst FormatFloat('f', -1) (nie Exponentialschreibweise).
+function _formatNumber(x) {
+  if (Number.isNaN(x)) return 'NaN';
+  if (x === Infinity) return '+Inf';
+  if (x === -Infinity) return '-Inf';
+  if (x === 0) return '0';
+  let str = String(x);
+  const m = str.match(/^(-?)(\d+)(?:\.(\d+))?e([+-]\d+)$/);
+  if (!m) return str;
+  const [, sign, ip, fp = '', ex] = m;
+  const digits = ip + fp;
+  const point = ip.length + parseInt(ex, 10);
+  if (point <= 0) return `${sign}0.${'0'.repeat(-point)}${digits}`;
+  if (point >= digits.length) return sign + digits + '0'.repeat(point - digits.length);
+  return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`;
+}
+
+// Go parseFilterCall + parseArgs: genau ein Argument, sonst null.
+function _singleArg(arg) {
+  if (arg == null) return null;
+  const parts = splitTopLevel(arg, ',').map(p => p.trim()).filter(p => p !== '');
+  return parts.length === 1 ? parts[0] : null;
+}
+
+// Go doMath: nicht-numerischer Wert → unverändert; nicht-numerisches Argument
+// → '' (Ausdruck) bzw. Wert unverändert (Literal).
+function _doMath(fn, value, arg, testJson, depth) {
+  const single = _singleArg(arg);
+  if (single === null) return value;
+  const { val, strict } = _numericArg(single, testJson, depth);
+  const pv = _parseGoFloat(value);
+  if (!pv.ok) return value;
+  const pa = _parseGoFloat(val);
+  if (!pa.ok) return strict ? '' : value;
+  const a = pv.v, b = pa.v;
+  switch (fn) {
+    case 'mul': return _formatNumber(a * b);
+    case 'div': return _formatNumber(b === 0 ? 0 : a / b);
+    case 'add': return _formatNumber(a + b);
+    case 'sub': return _formatNumber(a - b);
+    default: { // mod (floored)
+      if (b === 0) return '0';
+      let r = a % b;
+      if (r !== 0 && (r < 0) !== (b < 0)) r += b;
+      if (r === b) r = 0; // Float-Rundung, z.B. -1e-20 mod 1440
+      return _formatNumber(r);
+    }
+  }
 }
 
 function _resolvePath(path, obj) {
@@ -165,23 +233,7 @@ function _parseTwoArgs(arg) {
 }
 
 function _applyFilter(value, fn, arg, testJson = null, depth = 0) {
-  if (MATH_FNS.has(fn)) {
-    const b = _numericArg(arg, testJson, depth);
-    if (Number.isNaN(b)) return '';
-    const a = parseFloat(value);
-    switch (fn) {
-      case 'mul': return String(a * b);
-      case 'div': return String(a / b);
-      case 'add': return String(a + b);
-      case 'sub': return String(a - b);
-      case 'mod': {
-        if (b === 0) return '0';
-        let r = a % b;
-        if (r !== 0 && (r < 0) !== (b < 0)) r += b;
-        return String(r);
-      }
-    }
-  }
+  if (MATH_FNS.has(fn)) return _doMath(fn, value, arg, testJson, depth);
   switch (fn) {
     case 'strip': {
       const c = _parseArg(arg);

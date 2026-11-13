@@ -43,11 +43,7 @@ func (r *Renderer) clock() time.Time {
 // newEvaluator creates an Evaluator whose `now` is the renderer clock in the
 // template's time zone.
 func (r *Renderer) newEvaluator(tmpl *Template, data map[string]interface{}) *Evaluator {
-	delayCS := 0
-	if tmpl.Meta.Animation.Frames > 0 {
-		delayCS = tmpl.Meta.Animation.frameDelayCS()
-	}
-	return newEvaluatorAt(data, r.clock().In(tmpl.location())).withAnim(0, tmpl.animFrames(), delayCS)
+	return newEvaluatorAt(data, r.clock().In(tmpl.location())).withAnim(0, tmpl.animFrames(), tmpl.animDelayCS())
 }
 
 // New creates a new Renderer with the given templates directory.
@@ -308,6 +304,10 @@ func (r *Renderer) renderImage(rc *renderCtx, dst *image.NRGBA, layer Layer, eva
 		if err != nil {
 			return fmt.Errorf("renderImage: invalid rotate value %q: %w", rotStr, err)
 		}
+		if math.IsNaN(deg) || math.IsInf(deg, 0) {
+			return fmt.Errorf("renderImage: invalid rotate value %q: rotate must be finite", rotStr)
+		}
+		deg = math.Mod(deg, 360)
 		rotated := rotateImageCW(src, deg)
 		cx := x - rotated.Bounds().Dx()/2
 		cy := y - rotated.Bounds().Dy()/2

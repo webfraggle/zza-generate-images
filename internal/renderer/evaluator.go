@@ -310,6 +310,9 @@ func (e *Evaluator) applyFilter(value, filter string, depth int) string {
 				if r != 0 && (r < 0) != (b < 0) {
 					r += b
 				}
+				if r == b { // float rounding, e.g. -1e-20 mod 1440
+					r = 0
+				}
 				return r
 			})
 		}
@@ -437,6 +440,10 @@ func parseArgs(s string) []string {
 	return args
 }
 
+// numLiteralRe matches plain decimal literals (no inf/nan/hex/exponent); same
+// pattern as the JS node editor.
+var numLiteralRe = regexp.MustCompile(`^[+-]?(\d+\.?\d*|\.\d+)$`)
+
 // numericArg resolves the argument of a numeric filter. Quoted text and plain
 // numbers are literals (fromExpr=false); anything else is evaluated as a
 // nested pipeline (fromExpr=true).
@@ -445,7 +452,7 @@ func (e *Evaluator) numericArg(arg string, depth int) (val string, fromExpr bool
 	if len(t) >= 2 && ((t[0] == '\'' && t[len(t)-1] == '\'') || (t[0] == '"' && t[len(t)-1] == '"')) {
 		return unquote(t), false
 	}
-	if _, err := strconv.ParseFloat(t, 64); err == nil {
+	if numLiteralRe.MatchString(t) {
 		return t, false
 	}
 	return e.evalPipelineDepth(t, depth+1), true

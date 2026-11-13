@@ -31,6 +31,11 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 - YAML-Alias-Bombe-Schutz im Editor-Save (`gopkg.in/yaml.v3` ohne `SetMaxAliasCount`-Härtung). Body ist auf 1 MiB begrenzt; weitere Mitigation falls jemals Multi-Tenant.
 - CORS im Desktop-Build einschränken statt Wildcard `*` auf `/render`.
 
+## Animation / Uhr (Nachträge)
+
+- Microcache (~1 s) oder Singleflight für BYPASS-Antworten zeitabhängiger Templates: wiederholte `GET /{template}/preview?format=gif` belegen sonst beide GIF-Slots (andere bekommen 503); PNG-Pfad hat kein Concurrency-Limit.
+- Rotationsergebnis pro (Datei, Winkel) innerhalb eines Animations-Renders cachen (Stunden-/Minutenzeiger werden 60× identisch neu gedreht).
+
 ## Erledigt (Dual-Build, April 2026)
 
 - ✅ ZIP-Download des kompletten Templates (`GET /{template}.zip`)
