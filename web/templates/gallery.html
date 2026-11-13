@@ -21,7 +21,7 @@
       <div class="card-preview">
         {{if .HasDefault}}
         {{if .Animated}}
-        <img src="/{{.Name}}/preview?format=gif" data-animated="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
+        <img src="/{{.Name}}/preview?format=gif" data-fallback="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
         {{else}}
         <img src="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
         {{end}}
@@ -46,16 +46,21 @@
   <script>
     (function () {
       var n = 0;
-      document.querySelectorAll('img[data-animated]').forEach(function (img) {
+      document.querySelectorAll('img[data-fallback]').forEach(function (img) {
         var card = img.closest('.card');
         var base = img.getAttribute('src');
-        var fallback = img.getAttribute('data-animated');
+        var fallback = img.getAttribute('data-fallback');
         var failed = false;
         img.addEventListener('error', function () {
           if (failed) return;
           failed = true;
           img.src = fallback;
         });
+        // The error may have fired before the listener was attached.
+        if (img.complete && img.naturalWidth === 0) {
+          failed = true;
+          img.src = fallback;
+        }
         var btn = card && card.querySelector('.card-restart');
         if (btn) {
           btn.addEventListener('click', function () {

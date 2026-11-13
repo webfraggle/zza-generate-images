@@ -44,6 +44,18 @@ func oebbYellowish(img *image.NRGBA, y0, y1 int) int {
 	return n
 }
 
+// whiteMinX returns the smallest x with a white-ish pixel in rows y0..y1-1, or -1.
+func whiteMinX(img *image.NRGBA, y0, y1 int) int {
+	for x := 0; x < img.Bounds().Dx(); x++ {
+		for y := y0; y < y1; y++ {
+			if c := img.NRGBAAt(x, y); c.R > 200 && c.G > 200 && c.B > 200 {
+				return x
+			}
+		}
+	}
+	return -1
+}
+
 func TestOebb105_Meta(t *testing.T) {
 	_, tmpl, _ := loadOebb(t)
 	want := AnimationMeta{Frames: 60, FrameDelay: 1, Loop: true}
@@ -80,21 +92,42 @@ func TestOebb105_Animation(t *testing.T) {
 
 func TestOebb105_Cases(t *testing.T) {
 	r, tmpl, data := loadOebb(t)
+	noTimeYellow := func(t *testing.T, img *image.NRGBA) {
+		t.Helper()
+		if n := oebbYellowish(img, 40, 66); n != 0 {
+			t.Errorf("%d yellow pixels in the time row, want 0", n)
+		}
+	}
+	noBar := func(t *testing.T, img *image.NRGBA) {
+		t.Helper()
+		if img.NRGBAAt(1, 90) == oebbYellow || oebbYellowish(img, 85, 120) != 0 {
+			t.Error("yellow bar drawn, want none")
+		}
+	}
 	cases := []struct {
-		name string
-		set  map[string]string
+		name  string
+		set   map[string]string
+		check func(t *testing.T, img *image.NRGBA)
 	}{
-		{"default", nil},
-		{"abw0", map[string]string{"abw": "0"}},
-		{"abw-empty", map[string]string{"abw": ""}},
-		{"nostar", map[string]string{"hinweis": "Hält nicht in Unter Tullnerbach!"}},
-		{"nohint", map[string]string{"hinweis": ""}},
-		{"rex", map[string]string{"nr": "REX1234"}},
-		{"rj", map[string]string{"nr": "RJ"}},
-		{"s3", map[string]string{"nr": "s3"}},
-		{"nonr", map[string]string{"nr": ""}},
-		{"nozeit", map[string]string{"zeit": ""}},
-		{"sofort", map[string]string{"zeit": "sofort"}},
+		{"default", nil, func(t *testing.T, img *image.NRGBA) {
+			if oebbYellowish(img, 40, 66) == 0 || img.NRGBAAt(1, 90) != oebbYellow {
+				t.Error("default: want new time (yellow) and bar")
+			}
+		}},
+		{"abw0", map[string]string{"abw": "0"}, noTimeYellow},
+		{"abw-empty", map[string]string{"abw": ""}, noTimeYellow},
+		{"nostar", map[string]string{"hinweis": "Hält nicht in Unter Tullnerbach!"}, noBar},
+		{"nohint", map[string]string{"hinweis": ""}, noBar},
+		{"rex", map[string]string{"nr": "REX1234"}, nil},
+		{"rj", map[string]string{"nr": "RJ"}, nil},
+		{"s3", map[string]string{"nr": "s3"}, nil},
+		{"nonr", map[string]string{"nr": ""}, nil},
+		{"nozeit", map[string]string{"zeit": ""}, func(t *testing.T, img *image.NRGBA) {
+			if x := whiteMinX(img, 37, 66); x < 0 || x >= 6 {
+				t.Errorf("destination ink starts at x = %d, want within first 6 columns", x)
+			}
+		}},
+		{"sofort", map[string]string{"zeit": "sofort"}, noTimeYellow},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -120,6 +153,9 @@ func TestOebb105_Cases(t *testing.T) {
 			}
 			if img.Bounds().Dx() != 240 || img.Bounds().Dy() != 240 {
 				t.Errorf("size = %v", img.Bounds())
+			}
+			if c.check != nil {
+				c.check(t, img)
 			}
 		})
 	}

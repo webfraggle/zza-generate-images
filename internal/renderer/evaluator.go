@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // interpolateRe matches {{expr}} where expr may contain quoted strings (including '}').
@@ -322,7 +323,12 @@ func (e *Evaluator) applyFilter(value, filter string, depth int) string {
 	case "replace":
 		if len(args) == 2 {
 			if from := unquote(args[0]); from != "" {
-				return strings.ReplaceAll(value, from, unquote(args[1]))
+				to := unquote(args[1])
+				// Size budget: untrusted values must not blow up the result.
+				if len(value)+strings.Count(value, from)*(len(to)-len(from)) > maxFilterValueLen {
+					return value
+				}
+				return strings.ReplaceAll(value, from, to)
 			}
 			return value
 		}
@@ -521,6 +527,8 @@ const maxFormatOffsetSec = 3.2e9
 
 const (
 	maxMatchPatternLen = 100
+	// maxFilterValueLen caps the input of match and the result of replace (bytes).
+	maxFilterValueLen = 64 * 1024
 	maxRegexCacheSize  = 256
 )
 
@@ -551,7 +559,7 @@ func compileCached(pattern string) *regexp.Regexp {
 // matchGroup returns capture group n (0 = whole match) of the first match of
 // pattern in value, or "" on no match, invalid/overlong pattern or bad n.
 func matchGroup(value, pattern string, n int) string {
-	if n < 0 || len(pattern) > maxMatchPatternLen {
+	if n < 0 || utf8.RuneCountInString(pattern) > maxMatchPatternLen || len(value) > maxFilterValueLen {
 		return ""
 	}
 	re := compileCached(pattern)

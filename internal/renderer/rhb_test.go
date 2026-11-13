@@ -49,30 +49,73 @@ func TestRhb105_Loads(t *testing.T) {
 	}
 }
 
+// yellowCount counts yellow pixels in columns x0..x1-1 and rows y0..y1.
+func yellowCount(img *image.NRGBA, x0, x1, y0, y1 int) int {
+	n := 0
+	for y := y0; y <= y1; y++ {
+		for x := x0; x < x1; x++ {
+			if isYellow(img, x, y) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 func TestRhb105_RendersAllCases(t *testing.T) {
 	r := New("../../templates")
 	tmpl, err := LoadTemplate("../../templates", "rhb-105-v1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cases := map[string][2]string{
-		"default": {"-keep-", "-keep-"},
-		"IR":      {"IR", "-keep-"},
-		"R":       {"R", "-keep-"},
-		"REX":     {"REX", "-keep-"},
-		"novia":   {"-keep-", ""},
-		"five":    {"-keep-", "Chur - Thusis - Filisur - Samedan - Pontresina"},
-		"emptynr": {"", "-keep-"},
+	numberField := func(t *testing.T, img *image.NRGBA) {
+		t.Helper()
+		if yellowCount(img, 10, 20, 0, 36) == 0 {
+			t.Error("number field (x 10-19, rows 0-36) is empty, want dots")
+		}
 	}
-	for name, c := range cases {
-		img, err := r.Render(tmpl, rhbData(t, c[0], c[1]))
+	hasVia := func(t *testing.T, img *image.NRGBA) {
+		t.Helper()
+		numberField(t, img)
+		if yellowCount(img, 50, 240, 6, 16) == 0 {
+			t.Error("no via text right of the number field")
+		}
+	}
+	cases := []struct {
+		name    string
+		nr, via string
+		check   func(t *testing.T, img *image.NRGBA)
+	}{
+		{"default", "-keep-", "-keep-", hasVia},
+		{"IR", "IR", "-keep-", hasVia},
+		{"R", "R", "-keep-", hasVia},
+		{"REX", "REX", "-keep-", hasVia},
+		{"novia", "-keep-", "", func(t *testing.T, img *image.NRGBA) {
+			numberField(t, img)
+			if n := yellowCount(img, 40, 240, 6, 16); n != 0 {
+				t.Errorf("no via: %d yellow pixels in rows 6-16 right of the number field", n)
+			}
+		}},
+		{"five", "-keep-", "Chur - Thusis - Filisur - Samedan - Pontresina", hasVia},
+		{"emptynr", "", "-keep-", func(t *testing.T, img *image.NRGBA) {
+			if n := yellowCount(img, 4, 20, 0, 36); n != 0 {
+				t.Errorf("empty nr: %d yellow pixels in x 4-19, rows 0-36 (number field must be gone)", n)
+			}
+			if yellowCount(img, 20, 240, 6, 16) == 0 {
+				t.Error("empty nr: via text missing")
+			}
+		}},
+	}
+	for _, c := range cases {
+		img, err := r.Render(tmpl, rhbData(t, c.nr, c.via))
 		if err != nil {
-			t.Errorf("%s: %v", name, err)
+			t.Errorf("%s: %v", c.name, err)
 			continue
 		}
 		if b := img.Bounds(); b.Dx() != 240 || b.Dy() != 240 {
-			t.Errorf("%s: size %v", name, b)
+			t.Errorf("%s: size %v", c.name, b)
 		}
+		t.Run(c.name, func(t *testing.T) { c.check(t, img) })
 	}
 }
 

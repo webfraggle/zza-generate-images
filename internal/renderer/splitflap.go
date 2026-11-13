@@ -196,7 +196,7 @@ func (r *Renderer) renderLeaf(rc *renderCtx, m flapModule, bg *image.NRGBA, valu
 	leaf := image.NewNRGBA(image.Rect(0, 0, size.X, size.Y))
 	draw.Draw(leaf, leaf.Bounds(), bg, bg.Bounds().Min, draw.Src)
 
-	eval := rc.eval
+	eval := rc.eval.withOwnIntVars() // text ids set by the children stay private to the leaf
 	if m.layer.Var != "" {
 		eval = eval.withLoopVars(map[string]string{m.layer.Var: value}, nil)
 	}

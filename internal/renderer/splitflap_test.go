@@ -393,3 +393,23 @@ func TestSplitflap_ChildrenCountPerModule(t *testing.T) {
 		t.Errorf("63 modules × 4 children: unexpected error %v", err)
 	}
 }
+
+func TestSplitflap_ChildIDDoesNotLeak(t *testing.T) {
+	r := New(textExtFontDir)
+	tmpl := &Template{
+		Meta:  Meta{Canvas: Canvas{Width: 200, Height: 80}},
+		Fonts: []FontDef{{ID: "f", File: "NimbusSanL-Bol.otf"}},
+		Dir:   textExtFontDir,
+		Layers: []Layer{
+			flapLayer(0, 0, 20, 30, 2, 30, "chars", "WW", "", []Layer{{ // no var: the leaf would share rc.eval
+				Type: "text", Font: "f", Size: 20, ID: "leak", Value: StringOrCond{raw: "W"},
+				Color: StringOrCond{raw: "#000000"}, X: IntOrExpr{val: 0}, Y: IntOrExpr{val: 5},
+			}}),
+			redRect(exprInt("leak.end + 100"), 50),
+		},
+	}
+	// An unknown variable makes the expression 0; a leaked id would give > 100.
+	if got := redMinX(mustRender(t, r, tmpl, nil)); got != 0 {
+		t.Errorf("rect after splitflap at x = %d, want 0 (leaf id must not leak)", got)
+	}
+}

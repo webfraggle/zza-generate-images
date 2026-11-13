@@ -575,7 +575,7 @@ func TestPipeline_ClockAngles(t *testing.T) {
 		want string
 	}{{10, 15, "307.5"}, {12, 0, "360"}, {0, 30, "375"}, {3, 0, "90"}}
 	for _, c := range cases {
-		e := NewEvaluator(map[string]interface{}{})
+		e := fixedEval(map[string]interface{}{})
 		e.now = time.Date(2026, 11, 13, c.h, c.m, 0, 0, time.UTC)
 		checkInterp(t, e, expr, c.want)
 	}
@@ -699,11 +699,38 @@ func TestFilter_FormatOffsetAnimTime(t *testing.T) {
 }
 
 func TestFilter_MatchAsCondition(t *testing.T) {
-	e := NewEvaluator(map[string]interface{}{"nr": "S1", "x": "REX 12"})
+	e := fixedEval(map[string]interface{}{"nr": "S1", "x": "REX 12"})
 	if e.EvalCondition("isEmpty(nr | match('([a-zA-Z]+)([0-9]+)', 2))") {
 		t.Error("S1 should match")
 	}
 	if !e.EvalCondition("isEmpty(x | match('^([a-zA-Z]+)([0-9]+)$', 2))") {
 		t.Error("REX 12 should not match")
+	}
+}
+
+func TestMatch_PatternLimitCountsCharacters(t *testing.T) {
+	pat := strings.Repeat("ä", 60) // 120 bytes, 60 characters
+	e := fixedEval(map[string]interface{}{"v": pat})
+	if got := e.Interpolate("{{v | match('" + pat + "', 0)}}"); got != pat {
+		t.Errorf("60-char umlaut pattern should match, got %q", got)
+	}
+}
+
+func TestFilter_SizeBudget(t *testing.T) {
+	big := strings.Repeat("a", maxFilterValueLen+1)
+	e := fixedEval(map[string]interface{}{"big": big, "ok": strings.Repeat("a", 1000)})
+	if got := e.Interpolate("{{big | match('a', 0)}}"); got != "" {
+		t.Errorf("match on oversized value should be empty, got len %d", len(got))
+	}
+	if got := e.Interpolate("{{ok | match('a', 0)}}"); got != "a" {
+		t.Errorf("match on small value = %q", got)
+	}
+	// 1000 x "a" -> 100 chars each = 100000 > limit: unchanged.
+	longTo := strings.Repeat("b", 100)
+	if got := e.Interpolate("{{ok | replace('a', '" + longTo + "')}}"); got != strings.Repeat("a", 1000) {
+		t.Errorf("replace exceeding budget should return value unchanged, got len %d", len(got))
+	}
+	if got := e.Interpolate("{{ok | replace('a', 'bb')}}"); got != strings.Repeat("bb", 1000) {
+		t.Errorf("replace within budget should apply, got len %d", len(got))
 	}
 }

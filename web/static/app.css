@@ -132,6 +132,7 @@ header {
 }
 
 .card {
+  position: relative;
   background: var(--surface);
   overflow: hidden;
   display: flex;
@@ -139,10 +140,6 @@ header {
   box-shadow: rgba(0,0,0,0.4) 0px 6px 7px -1px;
   transition: transform .15s, box-shadow .15s;
   animation: card-in .3s ease both;
-}
-
-.card {
-  position: relative;
 }
 
 .card-link {

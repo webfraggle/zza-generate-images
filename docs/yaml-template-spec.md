@@ -229,7 +229,7 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   value: "{{zug1.zeit}}"
   x: 0
 - type: text
-  value: "{{zug1.ziel}}"
+  value: "{{zug1.vonnach}}"
   x: "{{zeit.end}}"   # beginnt 3 px hinter der Zeit
 ```
 
@@ -392,7 +392,7 @@ Für Firmware-Autoren: Das GIF hat **eine globale Farbtabelle** (keine lokalen T
 
 Palette und Delta-Frames sind in beiden Modi gleich. Im Frame-Modus werden aufeinanderfolgende identische Frames ebenfalls zusammengefasst (Verzögerung addiert).
 
-**Cache:** Templates, deren Ausgabe von der Zeit abhängt (irgendein `{{…}}` enthält `now` oder den Filter `format(…)`, auch in `if`/`elif`), werden vom Server nicht gecacht. Die Antwort trägt `X-Cache: BYPASS` und `Cache-Control: no-store`. Das gilt für PNG und GIF.
+**Cache:** Templates, deren Ausgabe von der Zeit abhängt (irgendein `{{…}}` enthält `now` oder den Filter `format(…)`, auch in `if`/`elif`), werden vom Server nicht gecacht. Die Antwort trägt `X-Cache: BYPASS` und `Cache-Control: no-store`. Das gilt für PNG und GIF. Ausnahme: `GET /{template}/preview?format=gif` liefert für solche Templates 10 Sekunden lang das zuletzt gerenderte GIF aus dem Speicher (`X-Cache: PREVIEW`, ebenfalls `no-store`); `POST /{template}/render` ist davon nicht betroffen.
 
 ---
 
@@ -543,8 +543,8 @@ value: "{{zug1.hinweis | strip('*') | upper}}"      # Kombination: erst strip, d
 | `format('pattern')`         | Datum/Zeit formatieren (nur für `now`-Variablen)          |
 | `format('pattern', sek)`    | wie oben, mit Versatz in Sekunden auf `now` (Zahl, Variable oder Pipeline, z. B. `anim.time`); nicht numerisch → kein Versatz |
 | `clock`                     | Minuten → `HH:MM`, modulo 1440 (`963` → `16:03`, `1445` → `00:05`); keine Zahl → `""` |
-| `replace('a','b')`          | Ersetzt alle `a` durch `b`; leeres `a` → unverändert      |
-| `match('re', n)`            | Erster Treffer des RE2-Ausdrucks, Gruppe `n` (0 = ganzer Treffer); kein Treffer, ungültiger Ausdruck, Ausdruck > 100 Zeichen oder `n` außerhalb → `""` (Ausdrücke werden gecacht, höchstens 256) |
+| `replace('a','b')`          | Ersetzt alle `a` durch `b`; leeres `a` → unverändert; würde das Ergebnis 64 KiB überschreiten, bleibt der Wert unverändert |
+| `match('re', n)`            | Erster Treffer des RE2-Ausdrucks, Gruppe `n` (0 = ganzer Treffer, `n` muss eine ganze Zahl sein); Eingabewert > 64 KiB → `""`; kein Treffer, ungültiger Ausdruck, Ausdruck > 100 Zeichen (Zeichen, nicht Bytes) oder `n` außerhalb → `""` (Ausdrücke werden gecacht, höchstens 256) |
 | `mul(x)`                    | Multipliziert Zahlenwert mit x                            |
 | `div(x)`                    | Dividiert Zahlenwert durch x                              |
 | `add(x)`                    | Addiert x zum Zahlenwert                                  |

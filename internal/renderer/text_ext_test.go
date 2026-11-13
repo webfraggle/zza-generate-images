@@ -552,3 +552,37 @@ func TestLoadTemplate_ScaleYValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestText_IDInIfElifElseChain(t *testing.T) {
+	idText := Layer{Type: "text", Font: "f", Size: 20, ID: "a", Value: StringOrCond{raw: "WW"},
+		X: IntOrExpr{val: 0}, Y: IntOrExpr{val: 5}, Color: StringOrCond{raw: "#000000"}}
+	block := func(cond func(*Layer)) Layer {
+		l := Layer{Layers: []Layer{idText}}
+		cond(&l)
+		return l
+	}
+	other := Layer{Layers: []Layer{redRect(IntOrExpr{val: 150}, 5)}}
+	cases := []struct {
+		name  string
+		chain []Layer
+	}{
+		{"if", []Layer{block(func(l *Layer) { l.If = "equals(k, 1)" })}},
+		{"elif", []Layer{
+			{If: "equals(k, 9)", Layers: other.Layers},
+			block(func(l *Layer) { l.Elif = "equals(k, 1)" })}},
+		{"else", []Layer{
+			{If: "equals(k, 9)", Layers: other.Layers},
+			block(func(l *Layer) { l.Else = true })}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			tmpl := textExtTemplate(idText)
+			tmpl.Layers = append(c.chain, redRect(exprInt("a.end + 100"), 50))
+			img := mustRender(t, New(textExtFontDir), tmpl, map[string]interface{}{"k": 1})
+			// a.end of "WW" is > 0, so the rect lands right of x 100; unknown id would give 0.
+			if got := redMinX(img); got <= 100 {
+				t.Errorf("rect after chain at x = %d, want > 100 (id set inside block must be visible)", got)
+			}
+		})
+	}
+}

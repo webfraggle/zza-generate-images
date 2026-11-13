@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
@@ -35,6 +36,34 @@ const maxConcurrentGIFRenders = 2
 // before it is answered with 503 and Retry-After.
 const defaultGIFWaitTimeout = 15 * time.Second
 
+// previewGIFTTL is how long GET /{template}/preview?format=gif serves the last
+// GIF of a template that cannot use the disk cache (UsesNow), so gallery
+// views do not each render a fresh animation.
+const previewGIFTTL = 10 * time.Second
+
+// previewEntry is one entry of the in-memory preview micro-cache.
+type previewEntry struct {
+	data    []byte
+	created time.Time
+}
+
+// captureWriter records status and body of a response while passing it on.
+type captureWriter struct {
+	http.ResponseWriter
+	status int
+	body   bytes.Buffer
+}
+
+func (c *captureWriter) WriteHeader(code int) {
+	c.status = code
+	c.ResponseWriter.WriteHeader(code)
+}
+
+func (c *captureWriter) Write(p []byte) (int, error) {
+	c.body.Write(p)
+	return c.ResponseWriter.Write(p)
+}
+
 // Output formats selectable with the "format" query parameter.
 const (
 	formatPNG = "png"
@@ -51,6 +80,9 @@ type Server struct {
 	gifSem         chan struct{} // limits concurrent GIF renders
 	gifWaitTimeout time.Duration // max wait for a slot in gifSem
 	templatesDir   string
+	now            func() time.Time // clock of the preview micro-cache (injectable in tests)
+	previewMu      sync.Mutex
+	previewGIFs    map[string]previewEntry // at most one entry per existing template
 	htmlTmpl       *template.Template
 	editorEnabled  bool
 }
@@ -97,6 +129,8 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 		cache:          cache,
 		gifSem:         make(chan struct{}, maxConcurrentGIFRenders),
 		gifWaitTimeout: defaultGIFWaitTimeout,
+		now:            time.Now,
+		previewGIFs:    map[string]previewEntry{},
 		templatesDir:   cfg.TemplatesDir,
 		htmlTmpl:       tmpl,
 	}
@@ -333,8 +367,30 @@ func (s *Server) handlePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reuse the render pipeline (includes caching).
-	s.renderAndServe(r.Context(), w, templateName, jsonBytes, format)
+	if format != formatGIF {
+		// Reuse the render pipeline (includes caching).
+		s.renderAndServe(r.Context(), w, templateName, jsonBytes, format)
+		return
+	}
+
+	// GIF: time-dependent templates bypass the disk cache; keep their last
+	// preview GIF in memory for previewGIFTTL.
+	s.previewMu.Lock()
+	e, ok := s.previewGIFs[templateName]
+	s.previewMu.Unlock()
+	if ok && s.now().Sub(e.created) < previewGIFTTL {
+		writeImage(w, formatGIF, "PREVIEW", e.data)
+		return
+	}
+	cw := &captureWriter{ResponseWriter: w, status: http.StatusOK}
+	s.renderAndServe(r.Context(), cw, templateName, jsonBytes, format)
+	// Only BYPASS responses (successful render of an existing, non-cacheable
+	// template) are stored, so the map is bounded by the number of templates.
+	if cw.status == http.StatusOK && w.Header().Get("X-Cache") == "BYPASS" {
+		s.previewMu.Lock()
+		s.previewGIFs[templateName] = previewEntry{data: cw.body.Bytes(), created: s.now()}
+		s.previewMu.Unlock()
+	}
 }
 
 func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
@@ -461,7 +517,7 @@ func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, temp
 // which are also the MIME subtypes. cacheState "BYPASS" also forbids caching
 // by clients and proxies.
 func writeImage(w http.ResponseWriter, format, cacheState string, data []byte) {
-	if cacheState == "BYPASS" {
+	if cacheState == "BYPASS" || cacheState == "PREVIEW" {
 		w.Header().Set("Cache-Control", "no-store")
 	}
 	w.Header().Set("Content-Type", "image/"+format)
