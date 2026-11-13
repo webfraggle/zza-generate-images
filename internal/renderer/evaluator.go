@@ -49,7 +49,12 @@ func (e *Evaluator) withLoopVars(strVars map[string]string, loopIntVars map[stri
 }
 
 // Interpolate replaces all {{expr}} placeholders in s.
-// Expressions support filter pipelines: {{var | filter1 | filter2(arg)}}.
+// Expressions are pipelines: operand ( "|" filter )*, where
+// filter := name [ "(" arg ( "," arg )* ")" ] and
+// arg := 'text' | "text" | number | pipeline (without {{ }}).
+// "|" and "," only separate at top level, i.e. outside quotes and parentheses.
+// Numeric filters (add, sub, mul, div, mod) evaluate non-literal arguments as
+// nested pipelines; text filters take literal arguments only.
 func (e *Evaluator) Interpolate(s string) string {
 	return interpolateRe.ReplaceAllStringFunc(s, func(match string) string {
 		inner := strings.TrimSpace(match[2 : len(match)-2])
@@ -57,18 +62,59 @@ func (e *Evaluator) Interpolate(s string) string {
 	})
 }
 
-var pipelineSplitRe = regexp.MustCompile(`\s*\|\s*`)
+// maxPipelineDepth limits nested argument pipelines; deeper ones yield "".
+const maxPipelineDepth = 4
+
+// minutesRe matches "H:MM"/"HH:MM" at the start of a value.
+var minutesRe = regexp.MustCompile(`^(\d{1,2}):(\d{1,2})`)
+
+// splitTopLevel splits s at sep outside of '…', "…" and ( … ). The parenthesis
+// depth never drops below 0: a surplus ")" counts as a normal character.
+// The parts are not trimmed.
+func splitTopLevel(s string, sep byte) []string {
+	var parts []string
+	depth := 0
+	var quote byte
+	start := 0
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch {
+		case ch == '\'' || ch == '"':
+			quote = ch
+		case ch == '(':
+			depth++
+		case ch == ')':
+			if depth > 0 {
+				depth--
+			}
+		case ch == sep && depth == 0:
+			parts = append(parts, s[start:i])
+			start = i + 1
+		}
+	}
+	return append(parts, s[start:])
+}
 
 // evalPipeline evaluates a pipeline expression like "var | filter1 | filter2(arg)".
-// Pipeline stages are separated by | with optional surrounding spaces.
 func (e *Evaluator) evalPipeline(expr string) string {
-	stages := pipelineSplitRe.Split(expr, -1)
-	if len(stages) == 0 {
+	return e.evalPipelineDepth(expr, 0)
+}
+
+// evalPipelineDepth evaluates a pipeline; depth counts nested argument pipelines.
+func (e *Evaluator) evalPipelineDepth(expr string, depth int) string {
+	if depth > maxPipelineDepth {
 		return ""
 	}
+	stages := splitTopLevel(expr, '|')
 	value := e.resolveVar(strings.TrimSpace(stages[0]))
 	for _, stage := range stages[1:] {
-		value = e.applyFilter(value, strings.TrimSpace(stage))
+		value = e.applyFilter(value, strings.TrimSpace(stage), depth)
 	}
 	return value
 }
@@ -144,7 +190,7 @@ func (e *Evaluator) resolvePath(path string) string {
 }
 
 // applyFilter applies a single filter expression to a value.
-func (e *Evaluator) applyFilter(value, filter string) string {
+func (e *Evaluator) applyFilter(value, filter string, depth int) string {
 	name, args := parseFilterCall(filter)
 	switch name {
 	case "strip":
@@ -199,25 +245,50 @@ func (e *Evaluator) applyFilter(value, filter string) string {
 		}
 	case "mul":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 { return a * b })
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 { return a * b })
 		}
 	case "div":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 {
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 {
 				if b == 0 {
 					return 0
 				}
 				return a / b
 			})
 		}
+	case "mod":
+		if len(args) == 1 {
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 {
+				if b == 0 {
+					return 0
+				}
+				r := math.Mod(a, b)
+				if r != 0 && (r < 0) != (b < 0) {
+					r += b
+				}
+				return r
+			})
+		}
 	case "add":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 { return a + b })
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 { return a + b })
 		}
 	case "sub":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 { return a - b })
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 { return a - b })
 		}
+	case "minutes":
+		if m := minutesRe.FindStringSubmatch(strings.TrimSpace(value)); m != nil {
+			h, _ := strconv.Atoi(m[1])
+			mi, _ := strconv.Atoi(m[2])
+			return strconv.Itoa(h*60 + mi)
+		}
+		return ""
 	case "round":
 		v, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 		if err == nil {
@@ -264,7 +335,7 @@ func (e *Evaluator) evalCond(expr string, depth int) bool {
 		return false
 	}
 
-	fieldVal := e.resolveVar(strings.TrimSpace(args[0]))
+	fieldVal := e.evalPipelineDepth(strings.TrimSpace(args[0]), 1)
 
 	switch funcName {
 	case "startsWith":
@@ -312,41 +383,31 @@ func parseFilterCall(filter string) (name string, args []string) {
 	return
 }
 
-// parseArgs splits a comma-separated argument string, respecting quoted strings.
+// parseArgs splits an argument string at top-level commas (outside quotes and
+// parentheses), trims the parts and drops empty ones.
 // Example: "'*', '{'" → ["'*'", "'{'"]
 func parseArgs(s string) []string {
 	var args []string
-	var current strings.Builder
-	inQuote := false
-	var quoteChar byte
-
-	for i := 0; i < len(s); i++ {
-		ch := s[i]
-		if inQuote {
-			current.WriteByte(ch)
-			if ch == quoteChar {
-				inQuote = false
-			}
-		} else {
-			switch ch {
-			case '\'', '"':
-				inQuote = true
-				quoteChar = ch
-				current.WriteByte(ch)
-			case ',':
-				if t := strings.TrimSpace(current.String()); t != "" {
-					args = append(args, t)
-				}
-				current.Reset()
-			default:
-				current.WriteByte(ch)
-			}
+	for _, part := range splitTopLevel(s, ',') {
+		if t := strings.TrimSpace(part); t != "" {
+			args = append(args, t)
 		}
 	}
-	if t := strings.TrimSpace(current.String()); t != "" {
-		args = append(args, t)
-	}
 	return args
+}
+
+// numericArg resolves the argument of a numeric filter. Quoted text and plain
+// numbers are literals (fromExpr=false); anything else is evaluated as a
+// nested pipeline (fromExpr=true).
+func (e *Evaluator) numericArg(arg string, depth int) (val string, fromExpr bool) {
+	t := strings.TrimSpace(arg)
+	if len(t) >= 2 && ((t[0] == '\'' && t[len(t)-1] == '\'') || (t[0] == '"' && t[len(t)-1] == '"')) {
+		return unquote(t), false
+	}
+	if _, err := strconv.ParseFloat(t, 64); err == nil {
+		return t, false
+	}
+	return e.evalPipelineDepth(t, depth+1), true
 }
 
 // unquote removes surrounding single or double quotes from a string.
@@ -360,12 +421,20 @@ func unquote(s string) string {
 	return s
 }
 
-// doMath applies a binary float64 operation. Returns the original string on parse error.
+// doMath applies a binary float64 operation. A non-numeric value is returned
+// unchanged. A non-numeric arg returns "" if strictArg (arg came from an
+// expression), otherwise the value unchanged.
 // Returns an integer string when the result has no fractional part and fits in int64.
-func doMath(value, arg string, op func(a, b float64) float64) string {
+func doMath(value, arg string, strictArg bool, op func(a, b float64) float64) string {
 	v, err1 := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err1 != nil {
+		return value
+	}
 	a, err2 := strconv.ParseFloat(strings.TrimSpace(arg), 64)
-	if err1 != nil || err2 != nil {
+	if err2 != nil {
+		if strictArg {
+			return ""
+		}
 		return value
 	}
 	result := op(v, a)
