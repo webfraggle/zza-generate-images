@@ -1,4 +1,4 @@
-import { parseValueAndFilters, formatValueWithFilters, evaluatePreview } from '../node-filters.js';
+import { parseValueAndFilters, formatValueWithFilters, evaluatePreview, splitTopLevel } from '../node-filters.js';
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
@@ -184,5 +184,66 @@ describe('evaluatePreview', () => {
 
   it('kein Template → base unverändert', () => {
     assert.strictEqual(evaluatePreview('statisch', [], testJson), 'statisch');
+  });
+});
+
+describe('verschachtelte Filter-Argumente', () => {
+  const minutesExpr = '{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}';
+
+  it('parse: Pipeline in Argumenten', () => {
+    assert.deepStrictEqual(parseValueAndFilters(minutesExpr), {
+      base: '{{zug2.zeit}}',
+      filters: [
+        { fn: 'minutes', arg: null },
+        { fn: 'sub', arg: 'zug1.zeit | minutes' },
+        { fn: 'mod', arg: '1440' },
+        { fn: 'add', arg: '5' },
+      ],
+    });
+  });
+
+  it('Roundtrip', () => {
+    for (const s of [
+      minutesExpr,
+      '{{now.second | add(anim.frame) | mul(6)}}',
+      '{{now.hour12 | mul(30) | add(now.minute | div(2))}}',
+    ]) {
+      const p = parseValueAndFilters(s);
+      assert.strictEqual(formatValueWithFilters(p.base, p.filters), s);
+    }
+  });
+
+  it('Pipe in Quotes trennt nicht', () => {
+    const p = parseValueAndFilters("{{v | stripAll('|')}}");
+    assert.deepStrictEqual(p.filters, [{ fn: 'stripAll', arg: "'|'" }]);
+  });
+
+  it('splitTopLevel', () => {
+    assert.deepStrictEqual(splitTopLevel('a | b(c | d) | e', '|'), ['a ', ' b(c | d) ', ' e']);
+  });
+
+  const tj = { zug1: { zeit: '10:15' }, zug2: { zeit: '10:18' }, t1: '23:58', t2: '00:04', n: '-3' };
+  const rest = (first) => [
+    { fn: 'minutes', arg: null },
+    { fn: 'sub', arg: `${first} | minutes` },
+    { fn: 'mod', arg: '1440' },
+    { fn: 'add', arg: '5' },
+  ];
+
+  it('evaluatePreview: Minutenspalte', () => {
+    assert.strictEqual(evaluatePreview('{{zug2.zeit}}', rest('zug1.zeit'), tj), '8');
+    assert.strictEqual(evaluatePreview('{{t2}}', rest('t1'), tj), '11');
+  });
+
+  it('mod floored', () => {
+    assert.strictEqual(evaluatePreview('{{n}}', [{ fn: 'mod', arg: '1440' }], tj), '1437');
+  });
+
+  it('minutes', () => {
+    assert.strictEqual(evaluatePreview('{{zug1.zeit}}', [{ fn: 'minutes', arg: null }], tj), '615');
+  });
+
+  it('unbekannte Variable als Argument → leer', () => {
+    assert.strictEqual(evaluatePreview('{{zug1.zeit}}', [{ fn: 'minutes', arg: null }, { fn: 'sub', arg: 'missing' }], tj), '');
   });
 });

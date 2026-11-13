@@ -14,7 +14,9 @@ export const FILTER_DEFS = [
   { fn: 'div',          label: 'div',           hasArg: true,  category: 'math' },
   { fn: 'add',          label: 'add',           hasArg: true,  category: 'math' },
   { fn: 'sub',          label: 'sub',           hasArg: true,  category: 'math' },
+  { fn: 'mod',          label: 'mod',           hasArg: true,  category: 'math' },
   { fn: 'round',        label: 'round',         hasArg: false, category: 'math' },
+  { fn: 'minutes',      label: 'minutes',       hasArg: false, category: 'time' },
   { fn: 'format',       label: 'format',        hasArg: true,  category: 'time' },
 ];
 
@@ -29,19 +31,51 @@ export function parseValueAndFilters(str) {
   if (!match) return { base: str, filters: [] };
 
   const inner = match[1];
-  const parts = inner.split(' | ');
+  const parts = splitTopLevel(inner, '|').map(p => p.trim());
   if (parts.length === 1) return { base: str, filters: [] };
 
   const [expr, ...filterParts] = parts;
-  const filters = filterParts.map(part => {
-    const parenIdx = part.indexOf('(');
-    if (parenIdx === -1) return { fn: part.trim(), arg: null };
-    const fn  = part.slice(0, parenIdx).trim();
-    const arg = part.slice(parenIdx + 1, part.lastIndexOf(')'));
-    return { fn, arg };
-  });
+  const filters = filterParts.map(_parseFilterStage);
 
   return { base: `{{${expr}}}`, filters };
+}
+
+function _parseFilterStage(part) {
+  const parenIdx = part.indexOf('(');
+  if (parenIdx === -1) return { fn: part.trim(), arg: null };
+  const fn  = part.slice(0, parenIdx).trim();
+  const arg = part.slice(parenIdx + 1, part.lastIndexOf(')'));
+  return { fn, arg };
+}
+
+/**
+ * Teilt str an sep außerhalb von Quotes ('/") und Klammern. Die Klammertiefe
+ * fällt nie unter 0. Teile werden nicht getrimmt (wie Go splitTopLevel).
+ * @param {string} str
+ * @param {string} sep
+ * @returns {string[]}
+ */
+export function splitTopLevel(str, sep) {
+  const parts = [];
+  let depth = 0;
+  let quote = '';
+  let start = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (quote) {
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === "'" || ch === '"') quote = ch;
+    else if (ch === '(') depth++;
+    else if (ch === ')') { if (depth > 0) depth--; }
+    else if (ch === sep && depth === 0) {
+      parts.push(str.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(str.slice(start));
+  return parts;
 }
 
 /**
@@ -79,9 +113,37 @@ export function evaluatePreview(base, filters, testJson) {
 
   let value = String(raw);
   for (const { fn, arg } of filters) {
-    value = _applyFilter(value, fn, arg);
+    value = _applyFilter(value, fn, arg, testJson);
   }
   return value;
+}
+
+const MAX_PIPELINE_DEPTH = 4;
+const MATH_FNS = new Set(['mul', 'div', 'add', 'sub', 'mod']);
+
+// Wertet "var | f1 | f2(arg)" gegen testJson aus (für Variablen-Argumente).
+function _evalPipeline(expr, testJson, depth) {
+  if (depth > MAX_PIPELINE_DEPTH || !testJson) return '';
+  const [first, ...rest] = splitTopLevel(expr, '|');
+  const raw = _resolvePath(first.trim(), testJson);
+  if (raw === undefined || raw === null) return '';
+  let value = String(raw);
+  for (const stage of rest) {
+    const { fn, arg } = _parseFilterStage(stage.trim());
+    value = _applyFilter(value, fn, arg, testJson, depth + 1);
+  }
+  return value;
+}
+
+// Numerisches Argument: Literal oder Variablen-Pipeline. NaN wenn nicht auflösbar.
+function _numericArg(arg, testJson, depth) {
+  const t = (arg ?? '').trim();
+  const quoted = (t.startsWith("'") && t.endsWith("'") && t.length >= 2) ||
+                 (t.startsWith('"') && t.endsWith('"') && t.length >= 2);
+  const lit = quoted ? t.slice(1, -1) : t;
+  if (quoted || /^[+-]?(\d+\.?\d*|\.\d+)$/.test(lit)) return parseFloat(lit);
+  const v = _evalPipeline(t, testJson, depth);
+  return /^\s*[+-]?(\d+\.?\d*|\.\d+)\s*$/.test(v) ? parseFloat(v) : NaN;
 }
 
 function _resolvePath(path, obj) {
@@ -102,7 +164,24 @@ function _parseTwoArgs(arg) {
   return parts.map(_parseArg);
 }
 
-function _applyFilter(value, fn, arg) {
+function _applyFilter(value, fn, arg, testJson = null, depth = 0) {
+  if (MATH_FNS.has(fn)) {
+    const b = _numericArg(arg, testJson, depth);
+    if (Number.isNaN(b)) return '';
+    const a = parseFloat(value);
+    switch (fn) {
+      case 'mul': return String(a * b);
+      case 'div': return String(a / b);
+      case 'add': return String(a + b);
+      case 'sub': return String(a - b);
+      case 'mod': {
+        if (b === 0) return '0';
+        let r = a % b;
+        if (r !== 0 && (r < 0) !== (b < 0)) r += b;
+        return String(r);
+      }
+    }
+  }
   switch (fn) {
     case 'strip': {
       const c = _parseArg(arg);
@@ -129,10 +208,10 @@ function _applyFilter(value, fn, arg) {
     case 'trim':   return value.trim();
     case 'prefix': return _parseArg(arg) + value;
     case 'suffix': return value + _parseArg(arg);
-    case 'mul':    return String(parseFloat(value) * parseFloat(_parseArg(arg)));
-    case 'div':    return String(parseFloat(value) / parseFloat(_parseArg(arg)));
-    case 'add':    return String(parseFloat(value) + parseFloat(_parseArg(arg)));
-    case 'sub':    return String(parseFloat(value) - parseFloat(_parseArg(arg)));
+    case 'minutes': {
+      const m = value.trim().match(/^(\d{1,2}):(\d{1,2})/);
+      return m ? String(parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : '';
+    }
     case 'round':  return String(Math.round(parseFloat(value)));
     case 'format': return '[format]';
     default:       return value;
