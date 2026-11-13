@@ -502,6 +502,9 @@ value: "{{zug1.hinweis | strip('*') | upper}}"
 | `mod(x)` | Rest der Division (Vorzeichen des Teilers) | `{{x \| mod(1440)}}` | `-3` → `1437` |
 | `round` | Runden (ganzzahlig) | `{{x \| round}}` | `3.7` → `4` |
 | `minutes` | Uhrzeit `H:MM` in Minuten seit Mitternacht | `{{zug1.zeit \| minutes}}` | `10:15` → `615` |
+| `clock` | Minuten als `HH:MM` (umgekehrt zu `minutes`, modulo 1440) | `{{m \| clock}}` | `963` → `16:03`, `1445` → `00:05` |
+| `replace('a','b')` | Text ersetzen | `{{v \| replace(' - ', '~')}}` | `A - B` → `A~B` |
+| `match('re', n)` | Gruppe `n` des ersten Treffers (RE2, 0 = ganzer Treffer), sonst leer | `{{nr \| match('([A-Z]+)([0-9]+)', 2)}}` | `S1` → `1` |
 
 Division durch 0 ergibt `0`. Nicht-numerische Werte werden unverändert durchgereicht. `minutes` liefert bei einem Wert, der nicht wie `10:15` aussieht (leer, `ca. 10`), eine leere Ausgabe.
 
@@ -566,6 +569,7 @@ Mit `format(muster)` kann die Zeit frei formatiert werden:
 value: "{{now | format('HH:mm:ss')}}"    # → "15:54:07"
 value: "{{now | format('dd.MM.yyyy')}}"  # → "24.03.2026"
 value: "{{now | format('EEEE')}}"        # → "Dienstag"
+value: "{{now | format('HH:mm:ss', anim.time)}}"  # Uhr läuft in der Animation mit (zweites Argument: Sekunden-Versatz)
 ```
 
 ### Zeitzone

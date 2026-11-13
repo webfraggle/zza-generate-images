@@ -289,12 +289,12 @@ func TestHasSplitflap(t *testing.T) {
 		t.Error("HasSplitflap() = false for splitflap inside block nodes, want true")
 	}
 
-	tmpl, err := LoadTemplate("../../templates", "sbb-096-v1")
+	tmpl, err := LoadTemplate("../../templates", "sbb-105-v1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if tmpl.HasSplitflap() {
-		t.Error("HasSplitflap() = true for sbb-096-v1, want false")
+		t.Error("HasSplitflap() = true for sbb-105-v1, want false")
 	}
 }
 

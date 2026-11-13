@@ -11,6 +11,7 @@ func TestUsesNow(t *testing.T) {
 	}{
 		{"now.hour", val("{{now.hour}}"), true},
 		{"format filter", val("{{zug1.zeit | format('HH:mm')}}"), true},
+		{"format with offset", val("{{now | format('HH:mm:ss', anim.time)}}"), true},
 		{"now as filter arg", val("{{x | add(now.second)}}"), true},
 		{"if now", Layer{Type: "rect", If: "greaterThan(now.hour, 5)"}, true},
 		{"elif now", Layer{Type: "rect", Elif: "greaterThan(now.hour, 5)"}, true},
@@ -43,11 +44,9 @@ func TestUsesNow(t *testing.T) {
 
 func TestUsesNow_RealTemplates(t *testing.T) {
 	want := map[string]bool{
-		"nederland-096-v1": true, "nederland-105-v1": true,
-		"oebb-096-v1": true, "oebb-105-v1": true,
-		"umuc-096-v1": true, "umuc-105-v1": true,
-		"faltblatt-105-v1": false, "rhb-096-v1": false, "rhb-105-v1": false,
-		"sbb-096-v1": false, "sbb-105-v1": false,
+		"nederland-105-v1": true, "oebb-105-v1": true, "umuc-105-v1": true,
+		"faltblatt-105-v1": false, "rhb-105-v1": false,
+		"sbb-105-v1": false,
 	}
 	for name, w := range want {
 		tmpl, err := LoadTemplate("../../templates", name)

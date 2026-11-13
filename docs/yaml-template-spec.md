@@ -486,6 +486,7 @@ Datum/Zeit lässt sich auch formatieren:
 ```yaml
 value: "{{now | format('HH:mm')}}"     # → "15:51"
 value: "{{now | format('dd.MM.yyyy')}}" # → "24.03.2026"
+value: "{{now | format('HH:mm:ss', anim.time)}}" # laufende Uhr in einer Animation (Versatz in Sekunden)
 ```
 
 Format-Tokens: `HH` (Stunde 00–23), `hh` (Stunde 01–12), `mm` (Minute), `ss` (Sekunde), `dd` (Tag), `MM` (Monat), `yyyy` (Jahr), `EE` (Wochentag kurz), `EEEE` (Wochentag lang)
@@ -516,6 +517,10 @@ value: "{{zug1.hinweis | strip('*') | upper}}"      # Kombination: erst strip, d
 | `suffix('x')`               | Hängt Zeichen/Text `x` an den Wert an                    |
 | `trim`                      | Entfernt führende und nachfolgende Leerzeichen            |
 | `format('pattern')`         | Datum/Zeit formatieren (nur für `now`-Variablen)          |
+| `format('pattern', sek)`    | wie oben, mit Versatz in Sekunden auf `now` (Zahl, Variable oder Pipeline, z. B. `anim.time`); nicht numerisch → kein Versatz |
+| `clock`                     | Minuten → `HH:MM`, modulo 1440 (`963` → `16:03`, `1445` → `00:05`); keine Zahl → `""` |
+| `replace('a','b')`          | Ersetzt alle `a` durch `b`; leeres `a` → unverändert      |
+| `match('re', n)`            | Erster Treffer des RE2-Ausdrucks, Gruppe `n` (0 = ganzer Treffer); kein Treffer, ungültiger Ausdruck, Ausdruck > 100 Zeichen oder `n` außerhalb → `""` (Ausdrücke werden gecacht, höchstens 256) |
 | `mul(x)`                    | Multipliziert Zahlenwert mit x                            |
 | `div(x)`                    | Dividiert Zahlenwert durch x                              |
 | `add(x)`                    | Addiert x zum Zahlenwert                                  |

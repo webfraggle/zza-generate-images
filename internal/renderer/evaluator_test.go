@@ -647,3 +647,63 @@ func TestSplitTopLevel(t *testing.T) {
 		}
 	}
 }
+
+// --- clock / replace / match / format offset ---
+
+func TestFilter_ClockReplaceMatchFormatOffset(t *testing.T) {
+	cases := []struct {
+		name string
+		data map[string]interface{}
+		expr string
+		want string
+	}{
+		{"clock 963", map[string]interface{}{"m": 963}, "{{m | clock}}", "16:03"},
+		{"clock 0", map[string]interface{}{"m": 0}, "{{m | clock}}", "00:00"},
+		{"clock wrap", map[string]interface{}{"m": 1445}, "{{m | clock}}", "00:05"},
+		{"clock negative", map[string]interface{}{"m": -5}, "{{m | clock}}", "23:55"},
+		{"clock text", map[string]interface{}{"m": "abc"}, "{{m | clock}}", ""},
+		{"clock empty", map[string]interface{}{"m": ""}, "{{m | clock}}", ""},
+		{"clock chain", map[string]interface{}{"zug1": map[string]interface{}{"zeit": "15:53", "abw": 10}},
+			"{{zug1.zeit | minutes | add(zug1.abw) | clock}}", "16:03"},
+		{"replace", map[string]interface{}{"v": "A - B - C"}, "{{v | replace(' - ', '~')}}", "A~B~C"},
+		{"replace empty from", map[string]interface{}{"v": "A - B"}, "{{v | replace('', 'x')}}", "A - B"},
+		{"match g1", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 1)}}", "S"},
+		{"match g2", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 2)}}", "1"},
+		{"match g0", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 0)}}", "S1"},
+		{"match none", map[string]interface{}{"nr": "REX 1234"}, "{{nr | match('^([a-zA-Z]+)([0-9]+)$', 1)}}", ""},
+		{"match group out of range", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 5)}}", ""},
+		{"match invalid", map[string]interface{}{"nr": "S1"}, "{{nr | match('(', 0)}}", ""},
+		{"match too long", map[string]interface{}{"nr": "S1"}, "{{nr | match('" + strings.Repeat("a", 101) + "', 0)}}", ""},
+		{"match 100 chars ok", map[string]interface{}{"nr": strings.Repeat("a", 100)},
+			"{{nr | match('" + strings.Repeat("a", 100) + "', 0)}}", strings.Repeat("a", 100)},
+		{"format offset", nil, "{{now | format('HH:mm:ss', 5)}}", "12:01:03"},
+		{"format offset negative", nil, "{{now | format('HH:mm:ss', 0 | sub(58))}}", "12:00:58"},
+		{"format offset text", nil, "{{now | format('HH:mm', 'x')}}", "12:00"},
+		{"format offset huge", nil, "{{now | format('HH:mm', 1e30)}}", "12:00"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEvaluatorAt(c.data, time.Date(2026, 3, 24, 12, 0, 58, 0, time.UTC))
+			if got := e.Interpolate(c.expr); got != c.want {
+				t.Errorf("%s = %q, want %q", c.expr, got, c.want)
+			}
+		})
+	}
+}
+
+func TestFilter_FormatOffsetAnimTime(t *testing.T) {
+	e := newEvaluatorAt(nil, time.Date(2026, 3, 24, 12, 0, 0, 0, time.UTC)).withAnim(3, 60, 100)
+	if got := e.Interpolate("{{now | format('HH:mm:ss', anim.time)}}"); got != "12:00:03" {
+		t.Errorf("got %q, want 12:00:03", got)
+	}
+}
+
+func TestFilter_MatchAsCondition(t *testing.T) {
+	e := NewEvaluator(map[string]interface{}{"nr": "S1", "x": "REX 12"})
+	if e.EvalCondition("isEmpty(nr | match('([a-zA-Z]+)([0-9]+)', 2))") {
+		t.Error("S1 should match")
+	}
+	if !e.EvalCondition("isEmpty(x | match('^([a-zA-Z]+)([0-9]+)$', 2))") {
+		t.Error("REX 12 should not match")
+	}
+}

@@ -286,11 +286,11 @@ func TestRenderAnimation_CopyFollows(t *testing.T) {
 
 func TestRenderAnimation_NoSplitflap(t *testing.T) {
 	templatesDir := filepath.Join("..", "..", "templates")
-	tmpl, err := LoadTemplate(templatesDir, "sbb-096-v1")
+	tmpl, err := LoadTemplate(templatesDir, "sbb-105-v1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(filepath.Join(templatesDir, "sbb-096-v1", "default.json"))
+	raw, err := os.ReadFile(filepath.Join(templatesDir, "sbb-105-v1", "default.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestRenderAnimation_NoSplitflap(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := New(templatesDir)
-	a := mustAnimate(t, r, tmpl, data, AnimationSeed("sbb-096-v1", raw))
+	a := mustAnimate(t, r, tmpl, data, AnimationSeed("sbb-105-v1", raw))
 	if len(a.Frames) != 1 {
 		t.Fatalf("frames = %d, want 1", len(a.Frames))
 	}
