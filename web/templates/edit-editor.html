@@ -107,6 +107,13 @@ let cmView       = null;
 let prevBlobUrl  = null; // for revoking old preview blob URLs
 let activeTab    = 'yaml';   // 'yaml' | 'nodes'
 let nodeCanvasInitialized = false;
+// True only while the node canvas holds a graph parsed from the current YAML.
+// When the YAML could not be shown as nodes (syntax error or unsupported
+// layers), leaving the NODES tab must keep the YAML text untouched.
+let nodeGraphValid = false;
+// Layers of the graph as loaded (JSON). Leaving the NODES tab only rewrites the
+// YAML when the layers differ, so comments and formatting survive a mere visit.
+let nodeLayersAtLoad = null;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const fileList    = document.getElementById('file-list');
@@ -232,7 +239,7 @@ cmHost.addEventListener('keydown', e => {
 async function saveFile() {
   if (!cmView) return;
   // If NODES tab is active, serialize graph → YAML before saving
-  if (activeTab === 'nodes' && nodeLock.hidden && getGraph()) {
+  if (activeTab === 'nodes') {
     switchToYaml();
   }
   const content = cmView.state.doc.toString();
@@ -382,6 +389,7 @@ function switchTab(tab) {
 }
 
 function switchToNodes() {
+  nodeGraphValid = false;
   const yamlStr = cmView ? cmView.state.doc.toString() : '';
 
   let parsed;
@@ -411,18 +419,23 @@ function switchToNodes() {
 
   nodeLock.hidden = true;
   loadGraph({ nodes: result.nodes, chain: result.chain });
+  nodeGraphValid = true;
+  nodeLayersAtLoad = JSON.stringify(graphToLayers(getGraph()));
   setTestJson(jsonInput.value);
 }
 
 function switchToYaml() {
+  if (!nodeGraphValid) return; // nothing was converted: keep the original YAML
   const graph = getGraph();
   if (!graph) return;
+
+  const newLayers = graphToLayers(graph);
+  if (JSON.stringify(newLayers) === nodeLayersAtLoad) return; // nothing edited
 
   const yamlStr = cmView ? cmView.state.doc.toString() : '';
   let parsed = {};
   try { parsed = jsYaml.load(yamlStr) || {}; } catch { /* ignore */ }
 
-  const newLayers = graphToLayers(graph);
   const newDoc = jsYaml.dump({ ...parsed, layers: newLayers }, {
     indent: 2,
     lineWidth: -1,
