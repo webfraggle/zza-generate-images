@@ -132,6 +132,7 @@ header {
 }
 
 .card {
+  position: relative;
   background: var(--surface);
   overflow: hidden;
   display: flex;
@@ -140,6 +141,35 @@ header {
   transition: transform .15s, box-shadow .15s;
   animation: card-in .3s ease both;
 }
+
+.card-link {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+}
+
+.card-restart {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--text-color);
+  border: 1px solid var(--border);
+  font-size: .95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s;
+}
+.card-restart:hover { background: var(--surface-2); }
+.card-restart:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 
 .card:hover {
   transform: translateY(-2px);
@@ -179,6 +209,8 @@ header {
   gap: 3px;
   flex: 1;
 }
+/* Reserve room for the restart button in the bottom-left corner. */
+.card:has(.card-restart) .card-info { padding-bottom: 50px; }
 
 .card-name {
   font-family: var(--font-display);

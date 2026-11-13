@@ -16,10 +16,15 @@
   </header>
   <main class="gallery">
     {{range .Templates}}
-    <a class="card" href="/{{.Name}}">
+    <div class="card">
+      <a class="card-link" href="/{{.Name}}">
       <div class="card-preview">
         {{if .HasDefault}}
+        {{if .Animated}}
+        <img src="/{{.Name}}/preview?format=gif" data-fallback="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
+        {{else}}
         <img src="/{{.Name}}/preview" alt="{{.Meta.Name}} Vorschau" loading="lazy">
+        {{end}}
         {{else}}
         <span class="card-no-preview">Keine Vorschau</span>
         {{end}}
@@ -29,11 +34,43 @@
         {{if .Meta.Description}}<span class="card-desc">{{.Meta.Description}}</span>{{end}}
         <span class="card-id">{{if .Meta.Display}}{{.Meta.Display}}{{else}}{{.Name}}{{end}}</span>
       </div>
-    </a>
+      </a>
+      {{if and .HasDefault .Animated}}
+      <button type="button" class="card-restart" aria-label="Animation neu starten" title="Animation neu starten">↻</button>
+      {{end}}
+    </div>
     {{else}}
     <p style="padding:24px;color:var(--mid)">Keine Templates gefunden.</p>
     {{end}}
   </main>
+  <script>
+    (function () {
+      var n = 0;
+      document.querySelectorAll('img[data-fallback]').forEach(function (img) {
+        var card = img.closest('.card');
+        var base = img.getAttribute('src');
+        var fallback = img.getAttribute('data-fallback');
+        var failed = false;
+        img.addEventListener('error', function () {
+          if (failed) return;
+          failed = true;
+          img.src = fallback;
+        });
+        // The error may have fired before the listener was attached.
+        if (img.complete && img.naturalWidth === 0) {
+          failed = true;
+          img.src = fallback;
+        }
+        var btn = card && card.querySelector('.card-restart');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            if (failed) { failed = false; }
+            img.src = base + '&r=' + (++n);
+          });
+        }
+      });
+    })();
+  </script>
   <span class="app-version">{{appVersion}}</span>
   {{if not .EditorEnabled}}
   <a class="footer-legal" href="https://www.modellbahn-displays.de/impressum-datenschutz-bildgenerator" target="_blank" rel="noopener">Impressum, Datenschutz &amp; Nutzungsbedingungen</a>

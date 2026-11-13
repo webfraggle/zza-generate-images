@@ -6,7 +6,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // interpolateRe matches {{expr}} where expr may contain quoted strings (including '}').
@@ -58,6 +60,18 @@ func (e *Evaluator) withLoopVars(strVars map[string]string, loopIntVars map[stri
 		newIntVars[k] = v
 	}
 	return &Evaluator{data: newData, intVars: newIntVars, now: e.now, anim: e.anim}
+}
+
+// withOwnIntVars returns a copy of e with its own integer-variable map (data
+// and now are shared), so that variables set during one render stay private to it.
+func (e *Evaluator) withOwnIntVars() *Evaluator {
+	iv := make(map[string]int, len(e.intVars)+4)
+	for k, v := range e.intVars {
+		iv[k] = v
+	}
+	c := *e
+	c.intVars = iv
+	return &c
 }
 
 // withAnim returns a copy of e (data and now are shared) with the animation
@@ -281,8 +295,46 @@ func (e *Evaluator) applyFilter(value, filter string, depth int) string {
 	case "format":
 		// Applies to e.now regardless of input value.
 		// Intended use: {{now | format('HH:mm')}}.
+		// Optional second argument: offset in seconds (number, variable or
+		// pipeline); a non-numeric offset is ignored.
 		if len(args) == 1 {
 			return formatTime(e.now, unquote(args[0]))
+		}
+		if len(args) == 2 {
+			t := e.now
+			arg, _ := e.numericArg(args[1], depth)
+			if sec, err := strconv.ParseFloat(strings.TrimSpace(arg), 64); err == nil &&
+				!math.IsNaN(sec) && math.Abs(sec) <= maxFormatOffsetSec {
+				t = t.Add(time.Duration(sec * float64(time.Second)))
+			}
+			return formatTime(t, unquote(args[0]))
+		}
+	case "clock":
+		// Minutes since midnight -> HH:MM, wrapping modulo 1440.
+		v, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+			return ""
+		}
+		m := math.Mod(math.Floor(v), 1440)
+		if m < 0 {
+			m += 1440
+		}
+		return fmt.Sprintf("%02d:%02d", int(m)/60, int(m)%60)
+	case "replace":
+		if len(args) == 2 {
+			if from := unquote(args[0]); from != "" {
+				to := unquote(args[1])
+				// Size budget: untrusted values must not blow up the result.
+				if len(value)+strings.Count(value, from)*(len(to)-len(from)) > maxFilterValueLen {
+					return value
+				}
+				return strings.ReplaceAll(value, from, to)
+			}
+			return value
+		}
+	case "match":
+		if len(args) == 2 {
+			return matchGroup(value, unquote(args[0]), e.numericArgInt(args[1], depth))
 		}
 	case "mul":
 		if len(args) == 1 {
@@ -348,7 +400,7 @@ func (e *Evaluator) applyFilter(value, filter string, depth int) string {
 const maxCondDepth = 10
 
 // EvalCondition evaluates a boolean condition expression.
-// Supported functions: startsWith, endsWith, contains, isEmpty, equals, greaterThan, not.
+// Supported functions: startsWith, endsWith, contains, isEmpty, equals, greaterThan, not, and, or.
 // Returns true for empty expressions.
 func (e *Evaluator) EvalCondition(expr string) bool {
 	return e.evalCond(expr, 0)
@@ -376,6 +428,24 @@ func (e *Evaluator) evalCond(expr string, depth int) bool {
 	argsStr := expr[parenIdx+1 : len(expr)-1]
 	args := parseArgs(argsStr)
 	if len(args) < 1 {
+		return false
+	}
+
+	// and(c1, c2, …) / or(c1, c2, …): each argument is itself a condition.
+	switch funcName {
+	case "and":
+		for _, a := range args {
+			if !e.evalCond(a, depth+1) {
+				return false
+			}
+		}
+		return true
+	case "or":
+		for _, a := range args {
+			if e.evalCond(a, depth+1) {
+				return true
+			}
+		}
 		return false
 	}
 
@@ -456,6 +526,69 @@ func (e *Evaluator) numericArg(arg string, depth int) (val string, fromExpr bool
 		return t, false
 	}
 	return e.evalPipelineDepth(t, depth+1), true
+}
+
+// numericArgInt resolves a numeric filter argument to an int; anything that is
+// not a plain integer yields -1.
+func (e *Evaluator) numericArgInt(arg string, depth int) int {
+	v, _ := e.numericArg(arg, depth)
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
+// maxFormatOffsetSec bounds the format() offset (about 100 years) so the
+// Duration conversion cannot overflow.
+const maxFormatOffsetSec = 3.2e9
+
+const (
+	maxMatchPatternLen = 100
+	// maxFilterValueLen caps the input of match and the result of replace (bytes).
+	maxFilterValueLen = 64 * 1024
+	maxRegexCacheSize  = 256
+)
+
+var (
+	regexCacheMu sync.Mutex
+	regexCache   = map[string]*regexp.Regexp{} // nil value = invalid pattern
+)
+
+// compileCached compiles a RE2 pattern, caching results (including failures)
+// in a map bounded to maxRegexCacheSize entries.
+func compileCached(pattern string) *regexp.Regexp {
+	regexCacheMu.Lock()
+	defer regexCacheMu.Unlock()
+	if re, ok := regexCache[pattern]; ok {
+		return re
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		re = nil
+	}
+	if len(regexCache) >= maxRegexCacheSize {
+		regexCache = make(map[string]*regexp.Regexp, maxRegexCacheSize)
+	}
+	regexCache[pattern] = re
+	return re
+}
+
+// matchGroup returns capture group n (0 = whole match) of the first match of
+// pattern in value, or "" on no match, invalid/overlong pattern or bad n.
+func matchGroup(value, pattern string, n int) string {
+	if n < 0 || utf8.RuneCountInString(pattern) > maxMatchPatternLen || len(value) > maxFilterValueLen {
+		return ""
+	}
+	re := compileCached(pattern)
+	if re == nil {
+		return ""
+	}
+	m := re.FindStringSubmatch(value)
+	if m == nil || n >= len(m) {
+		return ""
+	}
+	return m[n]
 }
 
 // unquote removes surrounding single or double quotes from a string.

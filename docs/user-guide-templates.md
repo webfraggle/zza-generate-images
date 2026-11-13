@@ -230,12 +230,14 @@ Gibt Text auf dem Bild aus. Der Text kann feste Werte oder Zugdaten enthalten (s
 | `align` | Horizontale Ausrichtung: `left` (Standard), `center`, `right` |
 | `valign` | Vertikale Ausrichtung: `top` (Standard), `middle`, `bottom` — benötigt `height`; `baseline` — `y` ist die Grundlinie der Schrift |
 | `scale_x` | optional — horizontale Skalierung, z.B. `0.5` = halbe Breite |
+| `scale_y` | optional — vertikale Skalierung, z.B. `1.2`; verankert an `y` (Oberkante bzw. Grundlinie bei `valign: baseline`) |
+| `id`, `advance` | optional — `id: zeit` stellt `{{zeit.width}}` und `{{zeit.end}}` (= `x + Breite + advance`) für `x`/`y`/… folgender Layer bereit, z.B. `x: "{{zeit.end}}"`; Details in `yaml-template-spec.md` |
 | `fit_items` | optional — Wert an `split_by` teilen und die Elemente einzeilig nebeneinander setzen; was nicht mehr in `max_width` passt, entfällt (z.B. Via-Stationen) |
 | `width` | optional — Boxbreite in Pixeln für Ausrichtung und Zeilenumbruch |
 | `height` | optional — Boxhöhe in Pixeln für vertikale Ausrichtung |
 | `max_width` | optional — maximale Breite für Zeilenumbruch (alternativ zu `width`) |
 
-**Alte PHP-Themes portieren:** Schriftgröße = Legacy-Größe × 16/9, das Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`), Legacy-`xFactor 0.5` ist `scale_x: 0.5`.
+**Alte PHP-Themes portieren:** Schriftgröße = Legacy-Größe × 16/9, das Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`), Legacy-`xFactor 0.5` ist `scale_x: 0.5`, Legacy-`yFactor` ist `scale_y`.
 
 **Horizontale Ausrichtung:**
 
@@ -502,6 +504,9 @@ value: "{{zug1.hinweis | strip('*') | upper}}"
 | `mod(x)` | Rest der Division (Vorzeichen des Teilers) | `{{x \| mod(1440)}}` | `-3` → `1437` |
 | `round` | Runden (ganzzahlig) | `{{x \| round}}` | `3.7` → `4` |
 | `minutes` | Uhrzeit `H:MM` in Minuten seit Mitternacht | `{{zug1.zeit \| minutes}}` | `10:15` → `615` |
+| `clock` | Minuten als `HH:MM` (umgekehrt zu `minutes`, modulo 1440) | `{{m \| clock}}` | `963` → `16:03`, `1445` → `00:05` |
+| `replace('a','b')` | Text ersetzen | `{{v \| replace(' - ', '~')}}` | `A - B` → `A~B` |
+| `match('re', n)` | Gruppe `n` des ersten Treffers (RE2, 0 = ganzer Treffer), sonst leer | `{{nr \| match('([A-Z]+)([0-9]+)', 2)}}` | `S1` → `1` |
 
 Division durch 0 ergibt `0`. Nicht-numerische Werte werden unverändert durchgereicht. `minutes` liefert bei einem Wert, der nicht wie `10:15` aussieht (leer, `ca. 10`), eine leere Ausgabe.
 
@@ -566,6 +571,7 @@ Mit `format(muster)` kann die Zeit frei formatiert werden:
 value: "{{now | format('HH:mm:ss')}}"    # → "15:54:07"
 value: "{{now | format('dd.MM.yyyy')}}"  # → "24.03.2026"
 value: "{{now | format('EEEE')}}"        # → "Dienstag"
+value: "{{now | format('HH:mm:ss', anim.time)}}"  # Uhr läuft in der Animation mit (zweites Argument: Sekunden-Versatz)
 ```
 
 ### Zeitzone

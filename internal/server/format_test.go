@@ -156,11 +156,11 @@ func TestPreview_FormatGIF(t *testing.T) {
 
 func TestRender_GIF_NoSplitflap(t *testing.T) {
 	srv := newTestServer(t)
-	raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "sbb-096-v1", "default.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "sbb-105-v1", "default.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	rr := doRender(srv, "/sbb-096-v1/render?format=gif", string(raw), nil)
+	rr := doRender(srv, "/sbb-105-v1/render?format=gif", string(raw), nil)
 	if rr.Code != 200 {
 		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
 	}
@@ -443,5 +443,62 @@ func TestDetail_AnimatedFlag_FrameMode(t *testing.T) {
 	}
 	if !strings.Contains(getEditorPage(srv, "f"), `id="preview-mode"`) {
 		t.Error("editor page lacks preview-mode")
+	}
+}
+
+func previewGIF(srv *Server, name string) *httptest.ResponseRecorder {
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/"+name+"/preview?format=gif", nil))
+	return rr
+}
+
+func TestPreviewGIF_MicroCache(t *testing.T) {
+	srv, _ := newTimeServer(t)
+	clock := time.Unix(1000, 0)
+	srv.now = func() time.Time { return clock }
+
+	first := previewGIF(srv, "n")
+	if first.Code != 200 || first.Header().Get("X-Cache") != "BYPASS" {
+		t.Fatalf("first: %d, X-Cache %q, want 200 BYPASS", first.Code, first.Header().Get("X-Cache"))
+	}
+	clock = clock.Add(previewGIFTTL - time.Second)
+	second := previewGIF(srv, "n")
+	if second.Code != 200 || second.Header().Get("X-Cache") != "PREVIEW" {
+		t.Fatalf("second: %d, X-Cache %q, want 200 PREVIEW", second.Code, second.Header().Get("X-Cache"))
+	}
+	if !bytes.Equal(first.Body.Bytes(), second.Body.Bytes()) {
+		t.Error("PREVIEW hit differs from the rendered GIF")
+	}
+	if got := second.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", got)
+	}
+
+	// The render endpoint is unaffected.
+	if rr := doRender(srv, "/n/render?format=gif", `{}`, nil); rr.Header().Get("X-Cache") != "BYPASS" {
+		t.Errorf("render X-Cache = %q, want BYPASS", rr.Header().Get("X-Cache"))
+	}
+
+	// Expired entry re-renders.
+	clock = clock.Add(2 * time.Second)
+	if rr := previewGIF(srv, "n"); rr.Header().Get("X-Cache") != "BYPASS" {
+		t.Errorf("after TTL: X-Cache = %q, want BYPASS (re-render)", rr.Header().Get("X-Cache"))
+	}
+}
+
+func TestPreviewGIF_MicroCache_OnlyExistingNotCacheable(t *testing.T) {
+	srv, _ := newTimeServer(t)
+	if rr := previewGIF(srv, "missing"); rr.Code != http.StatusNotFound && rr.Code != http.StatusBadRequest {
+		t.Errorf("missing: %d", rr.Code)
+	}
+	// Cacheable (animated, no now) template is served by the disk cache, not the micro-cache.
+	previewGIF(srv, "n")
+	previewGIF(srv, "f")
+	if rr := previewGIF(srv, "f"); rr.Header().Get("X-Cache") != "HIT" {
+		t.Errorf("cacheable template: X-Cache = %q, want HIT", rr.Header().Get("X-Cache"))
+	}
+	srv.previewMu.Lock()
+	defer srv.previewMu.Unlock()
+	if len(srv.previewGIFs) != 1 {
+		t.Errorf("micro-cache holds %d entries, want 1 (only the time-dependent template)", len(srv.previewGIFs))
 	}
 }

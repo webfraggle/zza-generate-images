@@ -123,6 +123,7 @@ width: "{{12 * 3}}"       # auch konstante Ausdrücke erlaubt
 | `i`            | Loop-Index, 0-basiert (Kurzform)          | `type: loop`  |
 | `loop.index`   | Loop-Index, 0-basiert (Langform)          | `type: loop`  |
 | `loop.y`       | Absolutes Y des aktuellen Elements        | `type: loop`  |
+| `<id>.width`, `<id>.end` | Breite bzw. Ende eines vorherigen Text-Layers mit `id` (siehe `type: text`) | folgende Layer |
 
 Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Rendern.
 
@@ -202,18 +203,43 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   max_width: 80       # optional — nur Zeilenumbruch (alternativ zu width)
   line_height: 1.5    # optional — Zeilenabstand als Multiplikator (Standard: 1.0)
   scale_x: 0.5        # optional — horizontale Skalierung der Schrift (Standard: 1)
+  scale_y: 1.2        # optional — vertikale Skalierung der Schrift (Standard: 1)
+  id: zeit            # optional — stellt zeit.width / zeit.end für folgende Layer bereit
+  advance: 3          # optional — Pixel, die zu zeit.end addiert werden (0–240, Standard: 0)
   fit_items:          # optional — einzeilige Element-Einpassung (Elemente entfallen nur mit max_width)
     split_by: "-"
     gap: 2
 ```
 
+**Längenbegrenzung** — Der Text eines Layers wird nach dem Einsetzen der Variablen auf 4096 Zeichen gekürzt; umbrochene Zeilen unterhalb der Leinwand werden nicht gezeichnet. Sichtbar ändert sich dadurch nichts, aber sehr lange Eingaben bleiben billig.
+
 **`valign: baseline`** — `y` ist die Grundlinie der ersten Zeile (so rechnet das Legacy-PHP), nicht die Oberkante. `height` wird dabei nicht gebraucht.
 
 **`scale_x`** — Skaliert die Schrift horizontal (`0.5` = halbe Breite, `1` oder weglassen = unverändert). Erlaubt sind `0.05` bis `8`; andere Werte (auch negative, `.inf`, `.nan`) lehnt das Laden des Templates ab. Text, der skaliert weit über die Leinwand hinausragt, wird nur im sichtbaren Bereich gezeichnet. Ausrichtung, `width`, `max_width` und Zeilenumbruch rechnen mit der skalierten Breite. Das Legacy-Theme staucht fast alle Texte mit `xFactor 0.5`; das entspricht `scale_x: 0.5`.
 
+**`scale_y`** — Streckt die Schrift vertikal (`2` = doppelte Höhe, `1` oder weglassen = unverändert, Ausgabe dann byteidentisch zu vorher). Gleiche Grenzen und Validierung wie `scale_x` (`0.05` bis `8`). Verankert ist die Streckung an `y`: bei `valign: top` an der Oberkante der Textbox, bei `valign: baseline` an der Grundlinie. Zeilenhöhe und `valign: middle`/`bottom` rechnen mit der gestreckten Höhe. Das entspricht dem Legacy-`yFactor`.
+
+**`id` und `advance`** — Mit `id` (`[a-z][a-z0-9_]{0,31}`, im ganzen Template eindeutig) stehen allen **folgenden** Layern in Koordinaten-Ausdrücken zwei Variablen bereit:
+
+- `{{zeit.width}}` — gezeichnete Breite der breitesten Zeile in Pixeln (inkl. `scale_x`); leerer Text → 0.
+- `{{zeit.end}}` — `x + width + advance`, wenn `width > 0`; bei leerem Text nur `x` (ein leerer Text schiebt nichts weiter).
+
+```yaml
+- type: text
+  id: zeit
+  advance: 3
+  value: "{{zug1.zeit}}"
+  x: 0
+- type: text
+  value: "{{zug1.vonnach}}"
+  x: "{{zeit.end}}"   # beginnt 3 px hinter der Zeit
+```
+
+`id` ist nur bei `type: text` mit `align: left` erlaubt und nicht zusammen mit `fit_items`; `advance` braucht eine `id`. Doppelte `id`, ungültige Namen oder `advance` außerhalb 0–240 lehnt das Laden ab. IDs auf oberster Ebene gelten auch in Loops; IDs innerhalb eines Loops nur in der jeweiligen Iteration. Ein per `if` übersprungener Layer setzt nichts — für bedingtes Anschließen einen bedingten `value` mit leerem `else` verwenden. Unbekannte Variablen machen den ganzen Ausdruck 0.
+
 **`fit_items`** — Setzt den Wert einzeilig und linksbündig in Elemente: Der Wert wird an `split_by` geteilt (Elemente werden getrimmt, leere entfallen) und die Elemente werden mit `gap` Pixeln Abstand nebeneinander gesetzt. Ein Element wird nur gezeichnet, wenn `xpos + Breite < max_width` gilt; `xpos` rückt auch für ausgelassene Elemente um `Breite + gap` weiter — wie die Via-Schleife im Legacy-PHP. Ohne `max_width` (oder mit `0`) wird nichts weggelassen. Zeilenumbruch und `align` gelten in diesem Modus nicht.
 
-**Portierung von Legacy-PHP-Themes:** Schriftgröße = Legacy-Wert × 16/9 (z.B. Legacy 12 → `size: 21.33`); Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`); Legacy-`xFactor 0.5` ist `scale_x: 0.5`.
+**Portierung von Legacy-PHP-Themes:** Schriftgröße = Legacy-Wert × 16/9 (z.B. Legacy 12 → `size: 21.33`); Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`); Legacy-`xFactor 0.5` ist `scale_x: 0.5`; Legacy-`yFactor` ist `scale_y`; das fortlaufende `$x += $w + 3` wird mit `id` und `advance` nachgebaut.
 
 ---
 
@@ -368,7 +394,7 @@ Für Firmware-Autoren: Das GIF hat **eine globale Farbtabelle** (keine lokalen T
 
 Palette und Delta-Frames sind in beiden Modi gleich. Im Frame-Modus werden aufeinanderfolgende identische Frames ebenfalls zusammengefasst (Verzögerung addiert).
 
-**Cache:** Templates, deren Ausgabe von der Zeit abhängt (irgendein `{{…}}` enthält `now` oder den Filter `format(…)`, auch in `if`/`elif`), werden vom Server nicht gecacht. Die Antwort trägt `X-Cache: BYPASS` und `Cache-Control: no-store`. Das gilt für PNG und GIF.
+**Cache:** Templates, deren Ausgabe von der Zeit abhängt (irgendein `{{…}}` enthält `now` oder den Filter `format(…)`, auch in `if`/`elif`), werden vom Server nicht gecacht. Die Antwort trägt `X-Cache: BYPASS` und `Cache-Control: no-store`. Das gilt für PNG und GIF. Ausnahme: `GET /{template}/preview?format=gif` liefert für solche Templates 10 Sekunden lang das zuletzt gerenderte GIF aus dem Speicher (`X-Cache: PREVIEW`, ebenfalls `no-store`); `POST /{template}/render` ist davon nicht betroffen.
 
 ---
 
@@ -486,6 +512,7 @@ Datum/Zeit lässt sich auch formatieren:
 ```yaml
 value: "{{now | format('HH:mm')}}"     # → "15:51"
 value: "{{now | format('dd.MM.yyyy')}}" # → "24.03.2026"
+value: "{{now | format('HH:mm:ss', anim.time)}}" # laufende Uhr in einer Animation (Versatz in Sekunden)
 ```
 
 Format-Tokens: `HH` (Stunde 00–23), `hh` (Stunde 01–12), `mm` (Minute), `ss` (Sekunde), `dd` (Tag), `MM` (Monat), `yyyy` (Jahr), `EE` (Wochentag kurz), `EEEE` (Wochentag lang)
@@ -516,6 +543,10 @@ value: "{{zug1.hinweis | strip('*') | upper}}"      # Kombination: erst strip, d
 | `suffix('x')`               | Hängt Zeichen/Text `x` an den Wert an                    |
 | `trim`                      | Entfernt führende und nachfolgende Leerzeichen            |
 | `format('pattern')`         | Datum/Zeit formatieren (nur für `now`-Variablen)          |
+| `format('pattern', sek)`    | wie oben, mit Versatz in Sekunden auf `now` (Zahl, Variable oder Pipeline, z. B. `anim.time`); nicht numerisch → kein Versatz |
+| `clock`                     | Minuten → `HH:MM`, modulo 1440 (`963` → `16:03`, `1445` → `00:05`); keine Zahl → `""` |
+| `replace('a','b')`          | Ersetzt alle `a` durch `b`; leeres `a` → unverändert; würde das Ergebnis 64 KiB überschreiten, bleibt der Wert unverändert |
+| `match('re', n)`            | Erster Treffer des RE2-Ausdrucks, Gruppe `n` (0 = ganzer Treffer, `n` muss eine ganze Zahl sein); Eingabewert > 64 KiB → `""`; kein Treffer, ungültiger Ausdruck, Ausdruck > 100 Zeichen (Zeichen, nicht Bytes) oder `n` außerhalb → `""` (Ausdrücke werden gecacht, höchstens 256) |
 | `mul(x)`                    | Multipliziert Zahlenwert mit x                            |
 | `div(x)`                    | Dividiert Zahlenwert durch x                              |
 | `add(x)`                    | Addiert x zum Zahlenwert                                  |
@@ -695,6 +726,12 @@ Das **erste Argument** darf auch eine Filter-Pipeline sein: `greaterThan(zug1.ze
 | `isEmpty(feld)`                 | Ist der Wert leer?                        |
 | `equals(feld, 'wert')`          | Ist der Wert gleich diesem String?        |
 | `greaterThan(feld, zahl)`       | Ist der Zahlenwert größer als X?          |
+| `not(bedingung)`                | Kehrt die Bedingung um                    |
+| `and(b1, b2, …)`                | Alle Bedingungen wahr? (ohne Argumente: falsch) |
+| `or(b1, b2, …)`                 | Mindestens eine Bedingung wahr? (ohne Argumente: falsch) |
+
+`not`, `and` und `or` lassen sich verschachteln, z. B.
+`and(isEmpty(zug1.nr | trim), not(isEmpty(zug1.hinweis)))`.
 
 ---
 

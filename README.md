@@ -19,8 +19,8 @@ Render-CLI ohne Server starten — schnellster Smoke-Test:
 
 ```bash
 go run ./cmd/zza render \
-  -t sbb-096-v1 \
-  -i templates/sbb-096-v1/default.json \
+  -t sbb-105-v1 \
+  -i templates/sbb-105-v1/default.json \
   -o /tmp/out.png
 open /tmp/out.png
 ```
@@ -50,7 +50,7 @@ go run ./cmd/zza serve --port 18081
 
 ```bash
 # PNG (Standard)
-curl -X POST http://localhost:18080/sbb-096-v1/render -H 'Content-Type: application/json' --data-binary @templates/sbb-096-v1/default.json -o out.png
+curl -X POST http://localhost:18080/sbb-105-v1/render -H 'Content-Type: application/json' --data-binary @templates/sbb-105-v1/default.json -o out.png
 
 # Animiertes GIF (Faltblatt-Animation)
 curl -X POST 'http://localhost:18080/faltblatt-105-v1/render?format=gif' -H 'Content-Type: application/json' --data-binary @templates/faltblatt-105-v1/default.json -o out.gif
@@ -62,7 +62,7 @@ curl -X POST 'http://localhost:18080/umuc-105-v1/render?format=gif' -H 'Content-
 - `POST /{template}/render` und `GET /{template}/preview` akzeptieren `?format=png|gif`. Ohne Angabe oder mit `png` kommt ein PNG wie bisher; jeder andere Wert ergibt 400.
 - `format=gif` liefert `Content-Type: image/gif`. Faltblatt-Templates (`splitflap`) spielen einmal ab und enden mit einem Halte-Frame auf dem Standbild (identisch zum PNG). Templates mit `meta.animation.frames` (Frame-Animation, z.B. `umuc-105-v1`) ergeben `frames` Frames à `frame_delay` Sekunden, ohne Halte-Frame und mit `loop: true` als Endlosschleife. Templates ohne Animation ergeben ein GIF mit einem Frame.
 - Gleiches Template und exakt gleicher Request-Body (Bytes) ergeben ein bytegleiches GIF (Ausnahme: Templates mit `{{now.*}}`). PNG und GIF werden getrennt gecacht (`X-Cache: HIT|MISS`).
-- Zeitabhängige Templates (`now` oder `format(…)` in einem Ausdruck) werden nicht gecacht: `X-Cache: BYPASS` und `Cache-Control: no-store`, für PNG und GIF. `now` läuft in `meta.timezone` (Standard `Europe/Berlin`).
+- Zeitabhängige Templates (`now` oder `format(…)` in einem Ausdruck) werden nicht gecacht: `X-Cache: BYPASS` und `Cache-Control: no-store`, für PNG und GIF. Nur `GET /{template}/preview?format=gif` hält das letzte GIF 10 Sekunden im Speicher (`X-Cache: PREVIEW`), damit Galerie-Aufrufe nicht jedes Mal neu rendern. `now` läuft in `meta.timezone` (Standard `Europe/Berlin`).
 - Es laufen höchstens 2 GIF-Renders gleichzeitig, weitere warten bis zu 15 s und bekommen danach `503` mit `Retry-After`. Template-Fehler (z.B. Limits überschritten) ergeben 422.
 - `POST …/render` bleibt auch mit `?format=gif` vom HTTPS-Redirect ausgenommen (Microcontroller ohne TLS).
 - Format des GIFs und Template-Syntax: `docs/yaml-template-spec.md` (`type: splitflap`, „Frame-Animation", „GIF-Ausgabe").
