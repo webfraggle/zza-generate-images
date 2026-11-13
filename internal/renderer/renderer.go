@@ -363,8 +363,30 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		wrapWidth = layerW
 	}
 
+	scale := layer.ScaleX
+	if scale <= 0 || scale == 1 {
+		scale = 0 // inactive: take the unscaled drawing path
+	}
+	baseline := layer.Valign == "baseline"
+
+	if layer.FitItems != nil {
+		items, xs := layoutFitItems(face, text, layer.FitItems, scale, maxW)
+		baseY := layerY + ascent
+		if baseline {
+			baseY = layerY
+		}
+		for i, item := range items {
+			drawTextLine(dst, face, item, layerX+xs[i], baseY, c, scale)
+		}
+		return nil
+	}
+
 	var lines []string
 	if wrapWidth > 0 {
+		if scale > 0 {
+			// Wrap in natural (unscaled) space so scaled lines fit the box.
+			wrapWidth = int(float64(wrapWidth) / scale)
+		}
 		lines = wrapText(face, text, wrapWidth)
 	} else {
 		lines = []string{text}
@@ -375,7 +397,9 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 
 	// Vertical alignment — requires height to be set.
 	startY := layerY
-	if layerH > 0 {
+	if baseline {
+		startY = layerY - ascent // baseline of the first line = layerY
+	} else if layerH > 0 {
 		totalHeight := len(lines) * lineHeight
 		switch layer.Valign {
 		case "middle":
@@ -389,8 +413,6 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		}
 	}
 
-	img := &image.Uniform{C: c}
-
 	for i, line := range lines {
 		y := startY + ascent + i*lineHeight
 
@@ -400,14 +422,14 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		var x int
 		switch layer.Align {
 		case "center":
-			lineW := measureText(face, line)
+			lineW := scaledWidth(measureText(face, line), scale)
 			if layerW > 0 {
 				x = layerX + (layerW-lineW)/2
 			} else {
 				x = layerX - lineW/2
 			}
 		case "right":
-			lineW := measureText(face, line)
+			lineW := scaledWidth(measureText(face, line), scale)
 			if layerW > 0 {
 				x = layerX + layerW - lineW
 			} else {
@@ -417,19 +439,99 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			x = layerX
 		}
 
-		d := &font.Drawer{
-			Dst:  dst,
-			Src:  img,
-			Face: face,
-			Dot: fixed.Point26_6{
-				X: fixed.I(x),
-				Y: fixed.I(y),
-			},
-		}
-		d.DrawString(line)
+		drawTextLine(dst, face, line, x, y, c, scale)
 	}
 
 	return nil
+}
+
+// scaledWidth returns the on-canvas width of a natural width w; scale 0 = inactive.
+func scaledWidth(w int, scale float64) int {
+	if scale <= 0 {
+		return w
+	}
+	return int(math.Ceil(float64(w) * scale))
+}
+
+// drawTextLine draws one line with its origin at (x, baselineY). With scale > 0
+// the line is rendered offscreen at natural size and resampled horizontally.
+func drawTextLine(dst *image.NRGBA, face font.Face, line string, x, baselineY int, c color.Color, scale float64) {
+	src := &image.Uniform{C: c}
+	if scale <= 0 {
+		d := &font.Drawer{
+			Dst:  dst,
+			Src:  src,
+			Face: face,
+			Dot:  fixed.Point26_6{X: fixed.I(x), Y: fixed.I(baselineY)},
+		}
+		d.DrawString(line)
+		return
+	}
+
+	w := measureText(face, line)
+	if w <= 0 {
+		return
+	}
+	m := face.Metrics()
+	ascent, descent := m.Ascent.Round(), m.Descent.Round()
+	pad := ascent // generous margin for overhanging glyph parts
+	off := image.NewNRGBA(image.Rect(0, 0, w+2*pad, ascent+descent+2*pad))
+	d := &font.Drawer{
+		Dst:  off,
+		Src:  src,
+		Face: face,
+		Dot:  fixed.Point26_6{X: fixed.I(pad), Y: fixed.I(pad + ascent)},
+	}
+	d.DrawString(line)
+
+	dw := int(math.Ceil(float64(off.Bounds().Dx()) * scale))
+	dx := x - int(math.Round(float64(pad)*scale))
+	dy := baselineY - (pad + ascent)
+	rect := image.Rect(dx, dy, dx+dw, dy+off.Bounds().Dy())
+	xdraw.CatmullRom.Scale(dst, rect, off, off.Bounds(), xdraw.Over, nil)
+}
+
+// fitItems implements the legacy "via" rule. widths are the item widths; item i
+// is drawn (true) when xpos+width < maxWidth, with xpos starting at 0. xpos
+// advances by width+gap for every item, drawn or not. maxWidth <= 0 = no limit.
+func fitItems(widths []int, gap, maxWidth int) []bool {
+	draw := make([]bool, len(widths))
+	xpos := 0
+	for i, w := range widths {
+		draw[i] = maxWidth <= 0 || xpos+w < maxWidth
+		xpos += w + gap
+	}
+	return draw
+}
+
+// layoutFitItems splits text, trims items (dropping empty ones), measures them
+// (scaled when scale > 0) and returns the items to draw with their x offsets
+// relative to the layer origin.
+func layoutFitItems(face font.Face, text string, fi *FitItems, scale float64, maxWidth int) (items []string, xs []int) {
+	parts := []string{text}
+	if fi.SplitBy != "" {
+		parts = strings.Split(text, fi.SplitBy)
+	}
+	var all []string
+	var widths []int
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		all = append(all, p)
+		widths = append(widths, scaledWidth(measureText(face, p), scale))
+	}
+	draw := fitItems(widths, fi.Gap, maxWidth)
+	xpos := 0
+	for i, p := range all {
+		if draw[i] {
+			items = append(items, p)
+			xs = append(xs, xpos)
+		}
+		xpos += widths[i] + fi.Gap
+	}
+	return items, xs
 }
 
 // getFace finds the font definition for the layer and returns an opentype.Face.

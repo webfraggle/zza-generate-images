@@ -56,9 +56,13 @@ type Layer struct {
 	Font     string       `yaml:"font"`
 	Size     float64      `yaml:"size"`
 	Align      string    `yaml:"align"`       // left (default) | center | right
-	Valign     string    `yaml:"valign"`      // top (default) | middle | bottom — needs height
+	Valign     string    `yaml:"valign"`      // top (default) | middle | bottom — needs height; baseline — first-line baseline = y
 	MaxWidth   IntOrExpr `yaml:"max_width"`
 	LineHeight float64   `yaml:"line_height"` // multiplier relative to font height; 0/1 = default
+	// type: text — optional horizontal scaling (applied only when > 0 and != 1)
+	ScaleX float64 `yaml:"scale_x"`
+	// type: text — optional single-line item fitting (legacy "via" behaviour)
+	FitItems *FitItems `yaml:"fit_items"`
 	// type: image — optional rotation
 	// When rotate is set, x and y are the CENTER coordinates of the image on the canvas.
 	Rotate StringOrCond `yaml:"rotate"` // degrees clockwise; supports expressions: "{{now.minute | mul(6)}}"
@@ -72,6 +76,14 @@ type Layer struct {
 	Var      string  `yaml:"var"`       // name of the loop item variable
 	MaxItems int     `yaml:"max_items"` // safety cap; 0 = default (20)
 	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration
+}
+
+// FitItems makes a text layer split its value at SplitBy and place the items
+// left-aligned on one line, Gap pixels apart, omitting items that no longer
+// fit into max_width.
+type FitItems struct {
+	SplitBy string `yaml:"split_by"`
+	Gap     int    `yaml:"gap"`
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler for Layer.
