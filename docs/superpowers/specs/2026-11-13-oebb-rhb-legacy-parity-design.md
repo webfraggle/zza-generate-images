@@ -111,6 +111,31 @@ Referenz: `legacy/rhb-105-v1/index.php`.
   Oberkante y 40, kein Umbruch.
 - Obere Hälfte wird nach y 120 kopiert.
 
+## Template SBB (`sbb-105-v1`) — Nachtrag
+
+Referenz: `legacy/sbb-105-v1/index.php`. Schriftgrößen Legacy × 16/9, Texte
+wie im PHP doppelt gezeichnet, obere Hälfte nach y 120 kopiert.
+
+- Renderer: Bedingungen `and(…)` und `or(…)` (beliebig viele Teilbedingungen,
+  verschachtelbar, ohne Argumente falsch).
+- Info-Modus, wenn `abw`, `vonnach`, `nr` und `via` leer sind (getrimmt): nur
+  der Hinweis, Legacy 12.75, `#fff048`, zweimal mit 1 px Versatz, ohne Uhrzeit.
+  Das PHP bricht mit der fetten Schrift um, zeichnet aber normal; das Template
+  misst normal mit `max_width 140`.
+- Sonst: Abfahrtszeit fett (Legacy 12); Hinweis auf rotem Balken
+  (x 3–119, y 78–107), zweizeilig; Ziel unten verankert über dem Hinweis bzw.
+  am Feldende, `/` wird zu `/ `.
+- Via an `-` geteilt, höchstens 5, Punkt + Text je 16 px.
+- `abw > 0` mit Hinweis: blaues Feld `#132a9b` mit `+N’` an Stelle der
+  Zuggattung (die entfällt); ohne Hinweis: `+N’` unter der Zeit.
+- Zuggattung (Groß-/Kleinschreibung egal, Reihenfolge wie PHP): IC (nicht
+  ICE/ICN), EC, ICN, IR, VAE mit Logo + Nummer; RE rot auf Weiß; S/R schwarz
+  auf Weiß; `PE BEX`/`PE GEX` und ICE, TGV, NJ, RJX, EXT, CNL, … kursiv weiß
+  auf Rot; sonst `nr` unverändert.
+- Bewusste Abweichung: Das PHP verankert das Ziel an der Unterkante der Tinte,
+  ein Ziel ohne Unterlänge sitzt dort ~4 px tiefer als eines mit. Das Template
+  nimmt die Mitte (beide Fälle ±2 px).
+
 Beide Templates werden gegen die PHP-Ausgabe (`php index.php` im
 Legacy-Ordner, Ergebnis in `cache/`) pixelweise verglichen und nachjustiert;
 Ziel sind höchstens 1–2 px Lageabweichung je Element.

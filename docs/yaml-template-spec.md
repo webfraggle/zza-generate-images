@@ -724,6 +724,12 @@ Das **erste Argument** darf auch eine Filter-Pipeline sein: `greaterThan(zug1.ze
 | `isEmpty(feld)`                 | Ist der Wert leer?                        |
 | `equals(feld, 'wert')`          | Ist der Wert gleich diesem String?        |
 | `greaterThan(feld, zahl)`       | Ist der Zahlenwert größer als X?          |
+| `not(bedingung)`                | Kehrt die Bedingung um                    |
+| `and(b1, b2, …)`                | Alle Bedingungen wahr? (ohne Argumente: falsch) |
+| `or(b1, b2, …)`                 | Mindestens eine Bedingung wahr? (ohne Argumente: falsch) |
+
+`not`, `and` und `or` lassen sich verschachteln, z. B.
+`and(isEmpty(zug1.nr | trim), not(isEmpty(zug1.hinweis)))`.
 
 ---
 

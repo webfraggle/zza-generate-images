@@ -400,7 +400,7 @@ func (e *Evaluator) applyFilter(value, filter string, depth int) string {
 const maxCondDepth = 10
 
 // EvalCondition evaluates a boolean condition expression.
-// Supported functions: startsWith, endsWith, contains, isEmpty, equals, greaterThan, not.
+// Supported functions: startsWith, endsWith, contains, isEmpty, equals, greaterThan, not, and, or.
 // Returns true for empty expressions.
 func (e *Evaluator) EvalCondition(expr string) bool {
 	return e.evalCond(expr, 0)
@@ -428,6 +428,24 @@ func (e *Evaluator) evalCond(expr string, depth int) bool {
 	argsStr := expr[parenIdx+1 : len(expr)-1]
 	args := parseArgs(argsStr)
 	if len(args) < 1 {
+		return false
+	}
+
+	// and(c1, c2, …) / or(c1, c2, …): each argument is itself a condition.
+	switch funcName {
+	case "and":
+		for _, a := range args {
+			if !e.evalCond(a, depth+1) {
+				return false
+			}
+		}
+		return true
+	case "or":
+		for _, a := range args {
+			if e.evalCond(a, depth+1) {
+				return true
+			}
+		}
 		return false
 	}
 

@@ -265,6 +265,42 @@ func TestCondition_Empty_AlwaysTrue(t *testing.T) {
 	}
 }
 
+func TestCondition_AndOr(t *testing.T) {
+	e := fixedEval(testData()) // hinweis set, via empty, abw 10
+	cases := []struct {
+		expr string
+		want bool
+	}{
+		{"and(isEmpty(zug1.via), greaterThan(zug1.abw, 0))", true},
+		{"and(isEmpty(zug1.via), isEmpty(zug1.hinweis))", false},
+		{"and(isEmpty(zug1.via), not(isEmpty(zug1.hinweis)), equals(gleis, '3'))", true},
+		{"or(isEmpty(zug1.hinweis), isEmpty(zug1.via))", true},
+		{"or(isEmpty(zug1.hinweis), greaterThan(zug1.abw, 10))", false},
+		{"not(or(isEmpty(zug1.hinweis), greaterThan(zug1.abw, 10)))", true},
+		{"and(or(isEmpty(zug1.hinweis), isEmpty(zug1.via)), equals(gleis, '3'))", true},
+		// commas and parentheses inside quotes do not split arguments
+		{"or(startsWith(zug1.hinweis, ',('), isEmpty(zug1.via))", true},
+		{"and()", false},
+		{"or()", false},
+	}
+	for _, c := range cases {
+		if got := e.EvalCondition(c.expr); got != c.want {
+			t.Errorf("%s = %v, want %v", c.expr, got, c.want)
+		}
+	}
+}
+
+func TestCondition_AndOr_DepthLimit(t *testing.T) {
+	e := fixedEval(testData())
+	expr := "isEmpty(zug1.via)"
+	for i := 0; i < maxCondDepth+2; i++ {
+		expr = "and(" + expr + ")"
+	}
+	if e.EvalCondition(expr) {
+		t.Error("over-nested and() must be false")
+	}
+}
+
 // --- doStripBetween ---
 
 func TestStripBetween_Multiple(t *testing.T) {
