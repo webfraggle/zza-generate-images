@@ -16,12 +16,13 @@ const (
 )
 
 // EncodeGIF writes anim as a GIF that plays exactly once and ends on the last
-// frame. colors is the size of the global palette (0 means 256, otherwise
-// 2–256); one entry is reserved for transparency, so at most colors-1 real
-// colours are used (colors: 2 gives one real colour plus transparency).
+// frame. colors is the number of real colours in the global palette (0 means
+// 256, otherwise 2–256), capped at 255; the transparent entry is added on top,
+// so colors: 2 gives two real colours plus transparency (palette length 3) and
+// 256 gives 255 + 1.
 //
 // All frames share one global colour table and no local tables. If all frames
-// together use at most colors-1 distinct colours, exactly those form the
+// together use at most that many distinct colours, exactly those form the
 // palette; otherwise a mosaic of sample frames is quantized with Quantize.
 // Frame 0 is stored in full. Later frames are delta rectangles (DisposalNone)
 // covering the bounding box of changed pixels; inside it, pixels equal to the
@@ -162,13 +163,13 @@ func distinctColors(frames []*image.NRGBA, limit int) (cols []color.NRGBA, ok bo
 
 // gifPalette returns the global palette: real colours followed by one fully
 // transparent entry (always last, never used for real pixels). With at most
-// colors-1 distinct colours in total those are used exactly; otherwise a
+// min(colors, 255) distinct colours in total those are used exactly; otherwise a
 // side-by-side mosaic of sample frames (first, last and up to six evenly
 // spaced in between) is quantized.
 func gifPalette(frames []*image.NRGBA, colors int) color.Palette {
-	real := colors - 1
+	realColors := min(colors, 255) // the transparent entry comes on top
 	var pal color.Palette
-	if cols, ok := distinctColors(frames, real); ok {
+	if cols, ok := distinctColors(frames, realColors); ok {
 		for _, c := range cols {
 			pal = append(pal, c)
 		}
@@ -201,17 +202,7 @@ func gifPalette(frames []*image.NRGBA, colors int) color.Palette {
 		draw.Draw(mosaic, dst, frames[fi], b.Min, draw.Src)
 	}
 
-	if real == 1 {
-		pix := make([]color.NRGBA, 0, mosaic.Bounds().Dx()*mosaic.Bounds().Dy())
-		for y := 0; y < mosaic.Bounds().Dy(); y++ {
-			for x := 0; x < mosaic.Bounds().Dx(); x++ {
-				pix = append(pix, mosaic.NRGBAAt(x, y))
-			}
-		}
-		pal = color.Palette{medianCut(pix, 1)[0]}
-	} else {
-		pal = Quantize(mosaic, real).Palette
-	}
+	pal = Quantize(mosaic, realColors).Palette
 	return append(pal, color.NRGBA{})
 }
 

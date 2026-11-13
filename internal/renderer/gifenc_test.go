@@ -166,6 +166,20 @@ func TestEncodeGIF_SingleFrame(t *testing.T) {
 	}
 }
 
+// gifUsedEntries is the highest palette index used in any frame plus one. The
+// decoded palette length is padded to a power of two, so it cannot be asserted.
+func gifUsedEntries(g *gif.GIF) int {
+	m := 0
+	for _, f := range g.Image {
+		for _, v := range f.Pix {
+			if int(v)+1 > m {
+				m = int(v) + 1
+			}
+		}
+	}
+	return m
+}
+
 func TestEncodeGIF_Colors(t *testing.T) {
 	img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
 	for y := 0; y < 16; y++ {
@@ -174,8 +188,8 @@ func TestEncodeGIF_Colors(t *testing.T) {
 		}
 	}
 	g := encodeAndDecode(t, &Animation{FPS: 10, Frames: []*image.NRGBA{img}}, 4)
-	if n := len(g.Image[0].Palette); n > 4 || n < 2 {
-		t.Errorf("palette len = %d, want 2..4", n)
+	if n := gifUsedEntries(g); n > 5 || n < 2 {
+		t.Errorf("used entries = %d, want 2..5 (4 colours + transparent)", n)
 	}
 }
 
@@ -273,8 +287,8 @@ func TestEncodeGIF_QuantizeFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := len(g.Image[0].Palette); n > 8 {
-		t.Errorf("palette len %d > 8", n)
+	if n := gifUsedEntries(g); n > 9 {
+		t.Errorf("used entries %d > 9", n)
 	}
 }
 
@@ -418,18 +432,31 @@ func TestEncodeGIF_SizeWithStaticNoisyBackground(t *testing.T) {
 	}
 }
 
-// colors: 2 means one real colour plus the transparent entry.
+// colors: 2 means two real colours plus the transparent entry.
 func TestEncodeGIF_TwoColors(t *testing.T) {
-	one := &Animation{FPS: 10, Frames: []*image.NRGBA{gifSolid(6, 6, gifWhite), gifSolid(6, 6, gifWhite)}}
-	g := encodeAndDecode(t, one, 2)
-	if len(g.Image[0].Palette) != 2 {
-		t.Errorf("palette len = %d, want 2", len(g.Image[0].Palette))
-	}
-	many := &Animation{FPS: 10, Frames: []*image.NRGBA{
-		gifSolid(6, 6, gifBlack), gifSquare(6, 6, 1, 1, 3, gifBlack, gifWhite),
+	anim := &Animation{FPS: 10, Frames: []*image.NRGBA{
+		gifSolid(6, 6, gifBlack), gifSquare(6, 6, 1, 1, 3, gifBlack, gifWhite), gifSquare(6, 6, 2, 2, 3, gifBlack, gifWhite),
 	}}
-	g = encodeAndDecode(t, many, 2)
-	if n := len(g.Image[0].Palette); n != 2 {
-		t.Errorf("fallback palette len = %d, want 2", n)
+	g := encodeAndDecode(t, anim, 2)
+	if n := gifUsedEntries(g); n != 3 {
+		t.Errorf("used palette entries = %d, want 3", n)
+	}
+	rec := reconstruct(g)
+	for i := range anim.Frames {
+		if !samePixels(rec[i], anim.Frames[i]) {
+			t.Errorf("frame %d not reconstructed exactly", i)
+		}
+	}
+}
+
+// 256 colours still fit: 255 real + transparent.
+func TestEncodeGIF_FullPalette(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 32, 32))
+	for i := 0; i < 32*32; i++ {
+		img.SetNRGBA(i%32, i/32, color.NRGBA{uint8(i), uint8(i / 4), 7, 255})
+	}
+	g := encodeAndDecode(t, &Animation{FPS: 10, Frames: []*image.NRGBA{img, img}}, 256)
+	if n := len(g.Image[0].Palette); n > 256 {
+		t.Errorf("palette len = %d > 256", n)
 	}
 }
