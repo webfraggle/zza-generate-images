@@ -1,0 +1,149 @@
+meta:
+  name: "Nederland 0.96\""
+  description: "Nederlandse Spoorwegen, 160×160px, 0.96 Zoll, Bahnhofsuhr"
+  author: "christoph"
+  version: "2.0"
+  canvas:
+    width: 160
+    height: 160
+  timezone: "Europe/Berlin"
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+# Aufbau wie legacy/nederland-096-v1/index.php: Gezeichnet wird die obere
+# Bildhälfte (links Gleis, Mitte Abfahrtstafel, rechts Uhr); drei copy-Layer
+# am Ende setzen sie vertauscht in die untere Hälfte (Uhr links, Gleis
+# rechts). Alles vor den copy-Layern — auch die Uhrzeiger — erscheint deshalb
+# zweimal.
+# Schriftgrößen = Legacy-Größe × 4/3; Positionen = Oberkante der Schrift.
+# Kein Sekundenzeiger (gibt es in dieser Größe auch im Original nicht), daher
+# keine Animation.
+
+layers:
+  # Hintergrund (160×80): Gleis-Schild „spoor", weiße Tafel mit NS-Logo,
+  # Zifferblatt
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+
+  # Alles rechts der Tafel (Rahmen + Uhr, ab x 115) unberührt in der noch
+  # leeren unteren Hälfte parken (x 38–82, wird am Ende von der Tafel-Kopie
+  # überdeckt), bevor Text gezeichnet wird …
+  - type: copy
+    src_x: 115
+    src_y: 0
+    src_width: 45
+    src_height: 80
+    x: 38
+    y: 80
+
+  # Gleis, mittig im weißen Schild (x 2–20)
+  - type: text
+    value: "{{gleis}}"
+    x: 11
+    y: 13
+    font: bold
+    size: 14
+    color: "#024ddc"
+    align: center
+
+  # --- Zug 1: Zeit + Zuggattung, Ziel, Via (bricht auf Tafelbreite um) ---
+  - type: text
+    value: "{{zug1.zeit}} {{zug1.nr}}"
+    x: 33
+    y: 11
+    font: regular
+    size: 10
+    color: "#0415a1"
+
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 33
+    y: 25
+    font: regular
+    size: 13
+    color: "#0415a1"
+
+  - type: text
+    if: "not(isEmpty(zug1.via))"
+    value: "{{zug1.via}}"
+    x: 32
+    y: 37
+    font: regular
+    size: 10
+    color: "#0415a1"
+    max_width: 84
+    line_height: 0.9
+
+  # --- Zug 2: Folgezug als invertierte Fußzeile, nur wenn ein Ziel da ist ---
+  - type: rect
+    if: "not(isEmpty(zug2.vonnach))"
+    x: 30
+    y: 63
+    width: 85
+    height: 12
+    color: "#0415a1"
+
+  - type: text
+    if: "not(isEmpty(zug2.vonnach))"
+    value: "{{zug2.zeit}} {{zug2.nr}} {{zug2.vonnach}}"
+    x: 33
+    y: 65
+    font: regular
+    size: 8
+    color: "#ffffff"
+
+  # … und jetzt zurück: schneidet Text ab, der rechts aus der Tafel läuft.
+  - type: copy
+    src_x: 38
+    src_y: 80
+    src_width: 45
+    src_height: 80
+    x: 115
+    y: 0
+
+  # Uhr: Zifferblatt-Mitte (141,22). Zeiger-PNGs 26×26, Drehpunkt = Bildmitte,
+  # bei 0° nach oben; rotate dreht im Uhrzeigersinn, x/y = Drehpunkt.
+  - type: image
+    file: clock-hour.png
+    x: 141
+    y: 22
+    rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"
+
+  - type: image
+    file: clock-minutes.png
+    x: 141
+    y: 22
+    rotate: "{{now.minute | mul(6)}}"
+
+  # Untere Hälfte: Uhr nach links unten …
+  - type: copy
+    src_x: 122
+    src_y: 0
+    src_width: 38
+    src_height: 80
+    x: 0
+    y: 80
+
+  # … Gleis nach rechts unten …
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 23
+    src_height: 80
+    x: 137
+    y: 80
+
+  # … Abfahrtstafel dazwischen
+  - type: copy
+    src_x: 23
+    src_y: 0
+    src_width: 99
+    src_height: 80
+    x: 38
+    y: 80
