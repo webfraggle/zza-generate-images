@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -75,6 +76,12 @@ type Layer struct {
 	LineHeight float64      `yaml:"line_height"` // multiplier relative to font height; 0/1 = default
 	// type: text — optional horizontal scaling (applied only when > 0 and != 1)
 	ScaleX float64 `yaml:"scale_x"`
+	// type: text — optional vertical scaling, anchored at y (top edge, or baseline with valign: baseline)
+	ScaleY float64 `yaml:"scale_y"`
+	// type: text — id publishes <id>.width and <id>.end to following layers' coordinate
+	// expressions; advance (px) is added to <id>.end when the text is not empty.
+	ID      string `yaml:"id"`
+	Advance int    `yaml:"advance"`
 	// type: text — optional single-line item fitting (legacy "via" behaviour)
 	FitItems *FitItems `yaml:"fit_items"`
 	// type: image — optional rotation
@@ -204,6 +211,13 @@ func (l *Layer) UnmarshalYAML(value *yaml.Node) error {
 		return fmt.Errorf("line %d: scale_x must be between %g and %g (got %v)", value.Line, minScaleX, maxScaleX, s)
 	}
 
+	if s := l.ScaleY; s != 0 && !(s >= minScaleX && s <= maxScaleX) {
+		return fmt.Errorf("line %d: scale_y must be between %g and %g (got %v)", value.Line, minScaleX, maxScaleX, s)
+	}
+	if err := l.validateID(value.Line); err != nil {
+		return err
+	}
+
 	// Scan the raw mapping for the "else" key and set ElseMarker correctly
 	// when the value is a null node (bare `else:` with no value).
 	if value.Kind == yaml.MappingNode {
@@ -215,6 +229,53 @@ func (l *Layer) UnmarshalYAML(value *yaml.Node) error {
 				}
 				break
 			}
+		}
+	}
+	return nil
+}
+
+// maxAdvance is the largest allowed text advance in pixels.
+const maxAdvance = 240
+
+var textIDRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
+
+// validateID checks the id/advance fields of a text layer.
+func (l *Layer) validateID(line int) error {
+	if l.Advance < 0 || l.Advance > maxAdvance {
+		return fmt.Errorf("line %d: advance must be between 0 and %d (got %d)", line, maxAdvance, l.Advance)
+	}
+	if l.ID == "" {
+		if l.Advance != 0 {
+			return fmt.Errorf("line %d: advance needs an id", line)
+		}
+		return nil
+	}
+	if l.Type != "text" {
+		return fmt.Errorf("line %d: id is only allowed on type: text layers", line)
+	}
+	if !textIDRe.MatchString(l.ID) {
+		return fmt.Errorf("line %d: id %q must match [a-z][a-z0-9_]{0,31}", line, l.ID)
+	}
+	if l.Align != "" && l.Align != "left" {
+		return fmt.Errorf("line %d: id requires align: left", line)
+	}
+	if l.FitItems != nil {
+		return fmt.Errorf("line %d: id cannot be combined with fit_items", line)
+	}
+	return nil
+}
+
+// checkDuplicateIDs reports a text id used more than once anywhere in the layer tree.
+func checkDuplicateIDs(layers []Layer, seen map[string]bool) error {
+	for i := range layers {
+		if id := layers[i].ID; id != "" {
+			if seen[id] {
+				return fmt.Errorf("duplicate text id %q", id)
+			}
+			seen[id] = true
+		}
+		if err := checkDuplicateIDs(layers[i].Layers, seen); err != nil {
+			return err
 		}
 	}
 	return nil

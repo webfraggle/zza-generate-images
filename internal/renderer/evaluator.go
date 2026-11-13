@@ -61,6 +61,18 @@ func (e *Evaluator) withLoopVars(strVars map[string]string, loopIntVars map[stri
 	return &Evaluator{data: newData, intVars: newIntVars, now: e.now, anim: e.anim}
 }
 
+// withOwnIntVars returns a copy of e with its own integer-variable map (data
+// and now are shared), so that variables set during one render stay private to it.
+func (e *Evaluator) withOwnIntVars() *Evaluator {
+	iv := make(map[string]int, len(e.intVars)+4)
+	for k, v := range e.intVars {
+		iv[k] = v
+	}
+	c := *e
+	c.intVars = iv
+	return &c
+}
+
 // withAnim returns a copy of e (data and now are shared) with the animation
 // variables set: {{anim.*}} in strings and anim.frame / anim.frames in
 // coordinate expressions.

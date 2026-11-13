@@ -310,3 +310,245 @@ func TestLoadTemplate_ScaleXValidation(t *testing.T) {
 		}
 	}
 }
+
+// --- text id / advance ---
+
+func exprInt(s string) IntOrExpr { return IntOrExpr{expr: s, isExpr: true} }
+
+// idTemplate builds a template with one text layer (id "a", x 10) followed by the given layers.
+func idTemplate(first Layer, follow ...Layer) *Template {
+	first.ID = "a"
+	if first.Size == 0 {
+		first.Size = 20
+	}
+	first.X = IntOrExpr{val: 10}
+	first.Y = IntOrExpr{val: 5}
+	tmpl := textExtTemplate(first)
+	tmpl.Layers = append(tmpl.Layers, follow...)
+	return tmpl
+}
+
+func redRect(x IntOrExpr, y int) Layer {
+	return Layer{Type: "rect", X: x, Y: IntOrExpr{val: y}, Width: IntOrExpr{val: 4}, Height: IntOrExpr{val: 4},
+		Color: StringOrCond{raw: "#ff0000"}}
+}
+
+// redMinX returns the smallest x of a red pixel, or -1.
+func redMinX(img *image.NRGBA) int {
+	for x := 0; x < img.Rect.Dx(); x++ {
+		for y := 0; y < img.Rect.Dy(); y++ {
+			if c := img.NRGBAAt(x, y); c.A > 0 && c.R == 255 && c.G == 0 {
+				return x
+			}
+		}
+	}
+	return -1
+}
+
+func textWidthFor(t *testing.T, tmpl *Template, text string) int {
+	t.Helper()
+	face, err := New(textExtFontDir).getFace(tmpl, tmpl.Layers[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer face.Close()
+	return measureText(face, text)
+}
+
+func TestText_IDEndAndWidth(t *testing.T) {
+	tmpl := idTemplate(Layer{Value: StringOrCond{raw: "Hallo"}, Advance: 3},
+		redRect(exprInt("a.end"), 50), redRect(exprInt("a.width + 100"), 60))
+	w := textWidthFor(t, tmpl, "Hallo")
+	img := mustRender(t, New(textExtFontDir), tmpl, nil)
+	if got := redMinX(img); got != 10+w+3 {
+		t.Errorf("a.end rect at x = %d, want %d", got, 10+w+3)
+	}
+	// second rect (y 60) at 100 + width
+	for x := 0; x < 200; x++ {
+		if img.NRGBAAt(x, 61).A > 0 {
+			if x != w+100 {
+				t.Errorf("a.width rect at x = %d, want %d", x, w+100)
+			}
+			break
+		}
+	}
+}
+
+func TestText_IDEmptyValue(t *testing.T) {
+	tmpl := idTemplate(Layer{Value: StringOrCond{raw: ""}, Advance: 3},
+		redRect(exprInt("a.end"), 50))
+	if got := redMinX(mustRender(t, New(textExtFontDir), tmpl, nil)); got != 10 {
+		t.Errorf("empty text: a.end rect at x = %d, want 10", got)
+	}
+	tmpl = idTemplate(Layer{Value: StringOrCond{raw: ""}}, redRect(exprInt("a.width + 20"), 50))
+	if got := redMinX(mustRender(t, New(textExtFontDir), tmpl, nil)); got != 20 {
+		t.Errorf("empty text: a.width = %d, want 0", got-20)
+	}
+}
+
+func TestText_IDWithScaleX(t *testing.T) {
+	tmpl := idTemplate(Layer{Value: StringOrCond{raw: "Hallo"}, ScaleX: 0.5},
+		redRect(exprInt("a.end"), 50))
+	w := scaledWidth(textWidthFor(t, tmpl, "Hallo"), 0.5)
+	if got := redMinX(mustRender(t, New(textExtFontDir), tmpl, nil)); got != 10+w {
+		t.Errorf("scaled a.end = %d, want %d", got, 10+w)
+	}
+}
+
+func TestText_IDVisibleInLoop(t *testing.T) {
+	loop := Layer{Type: "loop", Value: StringOrCond{raw: "x|y"}, Var: "v",
+		Layers: []Layer{redRect(exprInt("a.end + loop.index * 30"), 50)}}
+	tmpl := idTemplate(Layer{Value: StringOrCond{raw: "Hi"}}, loop)
+	w := textWidthFor(t, tmpl, "Hi")
+	img := mustRender(t, New(textExtFontDir), tmpl, nil)
+	if got := redMinX(img); got != 10+w {
+		t.Errorf("loop rect at x = %d, want %d", got, 10+w)
+	}
+	if img.NRGBAAt(10+w+30, 51).A == 0 {
+		t.Errorf("second iteration rect missing at x = %d", 10+w+30)
+	}
+}
+
+func TestText_IDInLoopDoesNotLeak(t *testing.T) {
+	inner := Layer{Type: "text", Font: "f", Size: 20, ID: "b", Value: StringOrCond{raw: "WWWW"},
+		X: IntOrExpr{val: 0}, Y: IntOrExpr{val: 5}, Color: StringOrCond{raw: "#000000"}}
+	loop := Layer{Type: "loop", Value: StringOrCond{raw: "x"}, Var: "v", Layers: []Layer{inner}}
+	tmpl := idTemplate(Layer{Value: StringOrCond{raw: "Hi"}}, loop, redRect(exprInt("b.end + 150"), 50))
+	// An unknown variable makes the whole expression 0; a leaked b would give > 150.
+	if got := redMinX(mustRender(t, New(textExtFontDir), tmpl, nil)); got != 0 {
+		t.Errorf("rect after loop at x = %d, want 0 (b must not leak)", got)
+	}
+}
+
+func TestText_IDFreshPerAnimationFrame(t *testing.T) {
+	// a is only set while the condition holds; a stale value from an earlier frame must not survive.
+	first := Layer{Type: "text", Font: "f", Size: 20, ID: "a", If: "equals(anim.frame, 0)",
+		Value: StringOrCond{raw: "WW"}, X: IntOrExpr{val: 0}, Y: IntOrExpr{val: 5}, Color: StringOrCond{raw: "#000000"}}
+	tmpl := textExtTemplate(first)
+	tmpl.Meta.Animation = AnimationMeta{Frames: 2, FrameDelay: 1}
+	tmpl.Layers = append(tmpl.Layers, redRect(exprInt("a.end + 100"), 50))
+	anim, err := New(textExtFontDir).RenderAnimation(tmpl, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := redMinX(anim.Frames[0]); got <= 100 {
+		t.Errorf("frame 0: rect at x = %d, want > 100", got)
+	}
+	if got := redMinX(anim.Frames[1]); got != 0 {
+		t.Errorf("frame 1: rect at x = %d, want 0 (stale id from frame 0)", got)
+	}
+}
+
+func loadYAMLTemplate(t *testing.T, layers string) error {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "t"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	y := "meta:\n  canvas: {width: 20, height: 10}\nlayers:\n" + layers
+	if err := os.WriteFile(filepath.Join(dir, "t", "template.yaml"), []byte(y), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadTemplate(dir, "t")
+	return err
+}
+
+func TestLoadTemplate_IDValidation(t *testing.T) {
+	txt := func(extra string) string { return "  - type: text\n    value: x\n" + extra }
+	for _, tc := range []struct {
+		name, layers string
+		ok           bool
+	}{
+		{"valid", txt("    id: zeit\n    advance: 3\n"), true},
+		{"advance max", txt("    id: a\n    advance: 240\n"), true},
+		{"align left", txt("    id: a\n    align: left\n"), true},
+		{"duplicate", txt("    id: a\n") + txt("    id: a\n"), false},
+		{"duplicate in loop", txt("    id: a\n") + "  - type: loop\n    layers:\n" + "      - type: text\n        value: x\n        id: a\n", false},
+		{"digit start", txt("    id: \"9x\"\n"), false},
+		{"uppercase", txt("    id: Abc\n"), false},
+		{"too long", txt("    id: a" + strings.Repeat("b", 32) + "\n"), false},
+		{"align right", txt("    id: a\n    align: right\n"), false},
+		{"align center", txt("    id: a\n    align: center\n"), false},
+		{"fit_items", txt("    id: a\n    fit_items: {split_by: ','}\n"), false},
+		{"on rect", "  - type: rect\n    id: a\n", false},
+		{"advance -1", txt("    id: a\n    advance: -1\n"), false},
+		{"advance 241", txt("    id: a\n    advance: 241\n"), false},
+	} {
+		if err := loadYAMLTemplate(t, tc.layers); (err == nil) != tc.ok {
+			t.Errorf("%s: err = %v, want ok=%v", tc.name, err, tc.ok)
+		}
+	}
+}
+
+// --- scale_y ---
+
+func TestText_ScaleY(t *testing.T) {
+	l := Layer{Value: StringOrCond{raw: "HHHH"}, Size: 20, X: IntOrExpr{val: 10}, Y: IntOrExpr{val: 10}}
+	n := inkBounds(renderTextLayer(t, l))
+	l.ScaleY = 2
+	s := inkBounds(renderTextLayer(t, l))
+	// Catmull-Rom blurs each stretched edge by up to a pixel, hence ±2.
+	if d := s.Dy() - 2*n.Dy(); d < -2 || d > 2 {
+		t.Errorf("scaled height = %d, want %d ±2", s.Dy(), 2*n.Dy())
+	}
+	// Top edge of the text box stays at y: glyph top moves from asc-capHeight to 2*(asc-capHeight).
+	face, err := New(textExtFontDir).getFace(textExtTemplate(l), textExtTemplate(l).Layers[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	asc := face.Metrics().Ascent.Round()
+	face.Close()
+	capTop := n.Min.Y - 10 // distance of the glyph top below the box top
+	if want := 10 + capTop*2; s.Min.Y < want-1 || s.Min.Y > want+1 {
+		t.Errorf("scaled Min.Y = %d, want %d ±1 (ascent %d)", s.Min.Y, want, asc)
+	}
+	if d := s.Dx() - n.Dx(); d < -1 || d > 1 {
+		t.Errorf("scaled width = %d, want %d ±1", s.Dx(), n.Dx())
+	}
+}
+
+func TestText_ScaleY_Baseline(t *testing.T) {
+	l := Layer{Value: StringOrCond{raw: "H"}, Size: 20, X: IntOrExpr{val: 10}, Y: IntOrExpr{val: 40}, Valign: "baseline"}
+	n := inkBounds(renderTextLayer(t, l))
+	l.ScaleY = 2
+	s := inkBounds(renderTextLayer(t, l))
+	if d := s.Max.Y - n.Max.Y; d < -1 || d > 1 {
+		t.Errorf("baseline moved: Max.Y %d vs %d", s.Max.Y, n.Max.Y)
+	}
+	if d := s.Dy() - 2*n.Dy(); d < -2 || d > 2 {
+		t.Errorf("height = %d, want %d ±2", s.Dy(), 2*n.Dy())
+	}
+}
+
+func TestText_ScaleY_OneIsIdentical(t *testing.T) {
+	l := Layer{Value: StringOrCond{raw: "Hallo Welt"}, Size: 20, X: IntOrExpr{val: 10}, Y: IntOrExpr{val: 10}}
+	a := renderTextLayer(t, l)
+	l.ScaleY = 1
+	b := renderTextLayer(t, l)
+	if !reflect.DeepEqual(a.Pix, b.Pix) {
+		t.Error("scale_y 1 differs from scale_y omitted")
+	}
+}
+
+func TestText_ScaleY_LineHeight(t *testing.T) {
+	// Two lines: with scale_y 2 the second line starts about twice as far below the first.
+	l := Layer{Value: StringOrCond{raw: "H H"}, Size: 10, X: IntOrExpr{val: 10}, Y: IntOrExpr{val: 0}, Width: IntOrExpr{val: 12}}
+	one := inkBounds(renderTextLayer(t, l))
+	l.ScaleY = 2
+	two := inkBounds(renderTextLayer(t, l))
+	if two.Dy() < one.Dy()*2-3 {
+		t.Errorf("two-line block height %d, want about %d", two.Dy(), one.Dy()*2)
+	}
+}
+
+func TestLoadTemplate_ScaleYValidation(t *testing.T) {
+	for _, tc := range []struct {
+		val string
+		ok  bool
+	}{{"0.5", true}, {"1", true}, {"8", true}, {".inf", false}, {".nan", false}, {"-1", false}, {"0.001", false}, {"9", false}} {
+		err := loadYAMLTemplate(t, "  - type: text\n    value: x\n    scale_y: "+tc.val+"\n")
+		if (err == nil) != tc.ok {
+			t.Errorf("scale_y %s: err = %v, want ok=%v", tc.val, err, tc.ok)
+		}
+	}
+}

@@ -230,12 +230,14 @@ Gibt Text auf dem Bild aus. Der Text kann feste Werte oder Zugdaten enthalten (s
 | `align` | Horizontale Ausrichtung: `left` (Standard), `center`, `right` |
 | `valign` | Vertikale Ausrichtung: `top` (Standard), `middle`, `bottom` — benötigt `height`; `baseline` — `y` ist die Grundlinie der Schrift |
 | `scale_x` | optional — horizontale Skalierung, z.B. `0.5` = halbe Breite |
+| `scale_y` | optional — vertikale Skalierung, z.B. `1.2`; verankert an `y` (Oberkante bzw. Grundlinie bei `valign: baseline`) |
+| `id`, `advance` | optional — `id: zeit` stellt `{{zeit.width}}` und `{{zeit.end}}` (= `x + Breite + advance`) für `x`/`y`/… folgender Layer bereit, z.B. `x: "{{zeit.end}}"`; Details in `yaml-template-spec.md` |
 | `fit_items` | optional — Wert an `split_by` teilen und die Elemente einzeilig nebeneinander setzen; was nicht mehr in `max_width` passt, entfällt (z.B. Via-Stationen) |
 | `width` | optional — Boxbreite in Pixeln für Ausrichtung und Zeilenumbruch |
 | `height` | optional — Boxhöhe in Pixeln für vertikale Ausrichtung |
 | `max_width` | optional — maximale Breite für Zeilenumbruch (alternativ zu `width`) |
 
-**Alte PHP-Themes portieren:** Schriftgröße = Legacy-Größe × 16/9, das Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`), Legacy-`xFactor 0.5` ist `scale_x: 0.5`.
+**Alte PHP-Themes portieren:** Schriftgröße = Legacy-Größe × 16/9, das Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`), Legacy-`xFactor 0.5` ist `scale_x: 0.5`, Legacy-`yFactor` ist `scale_y`.
 
 **Horizontale Ausrichtung:**
 

@@ -123,6 +123,7 @@ width: "{{12 * 3}}"       # auch konstante Ausdrücke erlaubt
 | `i`            | Loop-Index, 0-basiert (Kurzform)          | `type: loop`  |
 | `loop.index`   | Loop-Index, 0-basiert (Langform)          | `type: loop`  |
 | `loop.y`       | Absolutes Y des aktuellen Elements        | `type: loop`  |
+| `<id>.width`, `<id>.end` | Breite bzw. Ende eines vorherigen Text-Layers mit `id` (siehe `type: text`) | folgende Layer |
 
 Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Rendern.
 
@@ -202,6 +203,9 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   max_width: 80       # optional — nur Zeilenumbruch (alternativ zu width)
   line_height: 1.5    # optional — Zeilenabstand als Multiplikator (Standard: 1.0)
   scale_x: 0.5        # optional — horizontale Skalierung der Schrift (Standard: 1)
+  scale_y: 1.2        # optional — vertikale Skalierung der Schrift (Standard: 1)
+  id: zeit            # optional — stellt zeit.width / zeit.end für folgende Layer bereit
+  advance: 3          # optional — Pixel, die zu zeit.end addiert werden (0–240, Standard: 0)
   fit_items:          # optional — einzeilige Element-Einpassung (Elemente entfallen nur mit max_width)
     split_by: "-"
     gap: 2
@@ -211,9 +215,29 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
 
 **`scale_x`** — Skaliert die Schrift horizontal (`0.5` = halbe Breite, `1` oder weglassen = unverändert). Erlaubt sind `0.05` bis `8`; andere Werte (auch negative, `.inf`, `.nan`) lehnt das Laden des Templates ab. Text, der skaliert weit über die Leinwand hinausragt, wird nur im sichtbaren Bereich gezeichnet. Ausrichtung, `width`, `max_width` und Zeilenumbruch rechnen mit der skalierten Breite. Das Legacy-Theme staucht fast alle Texte mit `xFactor 0.5`; das entspricht `scale_x: 0.5`.
 
+**`scale_y`** — Streckt die Schrift vertikal (`2` = doppelte Höhe, `1` oder weglassen = unverändert, Ausgabe dann byteidentisch zu vorher). Gleiche Grenzen und Validierung wie `scale_x` (`0.05` bis `8`). Verankert ist die Streckung an `y`: bei `valign: top` an der Oberkante der Textbox, bei `valign: baseline` an der Grundlinie. Zeilenhöhe und `valign: middle`/`bottom` rechnen mit der gestreckten Höhe. Das entspricht dem Legacy-`yFactor`.
+
+**`id` und `advance`** — Mit `id` (`[a-z][a-z0-9_]{0,31}`, im ganzen Template eindeutig) stehen allen **folgenden** Layern in Koordinaten-Ausdrücken zwei Variablen bereit:
+
+- `{{zeit.width}}` — gezeichnete Breite der breitesten Zeile in Pixeln (inkl. `scale_x`); leerer Text → 0.
+- `{{zeit.end}}` — `x + width + advance`, wenn `width > 0`; bei leerem Text nur `x` (ein leerer Text schiebt nichts weiter).
+
+```yaml
+- type: text
+  id: zeit
+  advance: 3
+  value: "{{zug1.zeit}}"
+  x: 0
+- type: text
+  value: "{{zug1.ziel}}"
+  x: "{{zeit.end}}"   # beginnt 3 px hinter der Zeit
+```
+
+`id` ist nur bei `type: text` mit `align: left` erlaubt und nicht zusammen mit `fit_items`; `advance` braucht eine `id`. Doppelte `id`, ungültige Namen oder `advance` außerhalb 0–240 lehnt das Laden ab. IDs auf oberster Ebene gelten auch in Loops; IDs innerhalb eines Loops nur in der jeweiligen Iteration. Ein per `if` übersprungener Layer setzt nichts — für bedingtes Anschließen einen bedingten `value` mit leerem `else` verwenden. Unbekannte Variablen machen den ganzen Ausdruck 0.
+
 **`fit_items`** — Setzt den Wert einzeilig und linksbündig in Elemente: Der Wert wird an `split_by` geteilt (Elemente werden getrimmt, leere entfallen) und die Elemente werden mit `gap` Pixeln Abstand nebeneinander gesetzt. Ein Element wird nur gezeichnet, wenn `xpos + Breite < max_width` gilt; `xpos` rückt auch für ausgelassene Elemente um `Breite + gap` weiter — wie die Via-Schleife im Legacy-PHP. Ohne `max_width` (oder mit `0`) wird nichts weggelassen. Zeilenumbruch und `align` gelten in diesem Modus nicht.
 
-**Portierung von Legacy-PHP-Themes:** Schriftgröße = Legacy-Wert × 16/9 (z.B. Legacy 12 → `size: 21.33`); Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`); Legacy-`xFactor 0.5` ist `scale_x: 0.5`.
+**Portierung von Legacy-PHP-Themes:** Schriftgröße = Legacy-Wert × 16/9 (z.B. Legacy 12 → `size: 21.33`); Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`); Legacy-`xFactor 0.5` ist `scale_x: 0.5`; Legacy-`yFactor` ist `scale_y`; das fortlaufende `$x += $w + 3` wird mit `id` und `advance` nachgebaut.
 
 ---
 

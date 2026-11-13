@@ -83,6 +83,9 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 	if err := tmpl.validateAnimation(); err != nil {
 		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
 	}
+	if err := checkDuplicateIDs(tmpl.Layers, map[string]bool{}); err != nil {
+		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
+	}
 
 	loc, err := loadTimezone(tmpl.Meta.Timezone)
 	if err != nil {
@@ -115,7 +118,7 @@ func newRenderCtx(tmpl *Template, eval *Evaluator) *renderCtx {
 	count := 0
 	return &renderCtx{
 		tmpl:       tmpl,
-		eval:       eval,
+		eval:       eval.withOwnIntVars(), // text ids of this render must not outlive it
 		layerCount: &count,
 		imgCache:   make(map[string]image.Image),
 	}
@@ -441,6 +444,14 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 	if layer.LineHeight > 0 && layer.LineHeight != 1 {
 		lineHeight = int(math.Round(float64(lineHeight) * layer.LineHeight))
 	}
+	scaleY := layer.ScaleY
+	if scaleY <= 0 || scaleY == 1 {
+		scaleY = 0 // inactive
+	} else {
+		// Vertical metrics follow the stretched glyphs.
+		ascent = int(math.Round(float64(ascent) * scaleY))
+		lineHeight = int(math.Round(float64(lineHeight) * scaleY))
+	}
 
 	layerX := layer.X.Resolve(eval)
 	layerY := layer.Y.Resolve(eval)
@@ -467,7 +478,7 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			baseY = layerY
 		}
 		for i, item := range items {
-			drawTextLine(dst, face, item, layerX+xs[i], baseY, c, scale)
+			drawTextLine(dst, face, item, layerX+xs[i], baseY, c, scale, scaleY)
 		}
 		return nil
 	}
@@ -481,6 +492,13 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		lines = wrapText(face, text, wrapWidth)
 	} else {
 		lines = []string{text}
+	}
+	if layer.ID != "" {
+		widest := 0
+		for _, line := range lines {
+			widest = max(widest, scaledWidth(measureText(face, line), scale))
+		}
+		setTextVars(eval, layer, layerX, widest)
 	}
 	if len(lines) == 0 {
 		return nil
@@ -530,10 +548,30 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			x = layerX
 		}
 
-		drawTextLine(dst, face, line, x, y, c, scale)
+		drawTextLine(dst, face, line, x, y, c, scale, scaleY)
 	}
 
 	return nil
+}
+
+// maxTextVar bounds the published id variables so that following coordinate
+// arithmetic cannot overflow, however long the text is.
+const maxTextVar = 1 << 24
+
+// setTextVars publishes <id>.width and <id>.end of a drawn text layer in eval.
+// Evaluators of loop iterations own their maps, so ids set there stay local.
+func setTextVars(eval *Evaluator, layer Layer, x, width int) {
+	if eval.intVars == nil {
+		eval.intVars = make(map[string]int)
+	}
+	width = min(width, maxTextVar)
+	x = max(-maxTextVar, min(x, maxTextVar))
+	end := x
+	if width > 0 {
+		end = x + width + layer.Advance
+	}
+	eval.intVars[layer.ID+".width"] = width
+	eval.intVars[layer.ID+".end"] = end
 }
 
 // scaledWidth returns the on-canvas width of a natural width w; scale 0 = inactive.
@@ -545,10 +583,11 @@ func scaledWidth(w int, scale float64) int {
 }
 
 // drawTextLine draws one line with its origin at (x, baselineY). With scale > 0
-// the line is rendered offscreen at natural size and resampled horizontally.
-func drawTextLine(dst *image.NRGBA, face font.Face, line string, x, baselineY int, c color.Color, scale float64) {
+// (horizontal) or scaleY > 0 (vertical) the line is rendered offscreen at natural
+// size and resampled; 0 means inactive. scaleY stretches around the baseline.
+func drawTextLine(dst *image.NRGBA, face font.Face, line string, x, baselineY int, c color.Color, scale, scaleY float64) {
 	src := &image.Uniform{C: c}
-	if scale <= 0 {
+	if scale <= 0 && scaleY <= 0 {
 		d := &font.Drawer{
 			Dst:  dst,
 			Src:  src,
@@ -566,8 +605,15 @@ func drawTextLine(dst *image.NRGBA, face font.Face, line string, x, baselineY in
 	// The offscreen line and the resampler's buffer grow with the text width, and
 	// the text can come from the request. A line far wider than the canvas is
 	// therefore cut down to the glyphs that can reach the canvas.
-	if b := dst.Bounds(); float64(w+2*pad)*scale > float64(2*b.Dx()+4*pad) {
-		line, x = visibleRun(face, line, x, scale, b.Min.X-2*pad, b.Max.X+2*pad)
+	sx, sy := scale, scaleY
+	if sx <= 0 {
+		sx = 1
+	}
+	if sy <= 0 {
+		sy = 1
+	}
+	if b := dst.Bounds(); float64(w+2*pad)*sx > float64(2*b.Dx()+4*pad) {
+		line, x = visibleRun(face, line, x, sx, b.Min.X-2*pad, b.Max.X+2*pad)
 		w = measureText(face, line)
 	}
 	if w <= 0 {
@@ -582,10 +628,11 @@ func drawTextLine(dst *image.NRGBA, face font.Face, line string, x, baselineY in
 	}
 	d.DrawString(line)
 
-	dw := int(math.Ceil(float64(off.Bounds().Dx()) * scale))
-	dx := x - int(math.Round(float64(pad)*scale))
-	dy := baselineY - (pad + ascent)
-	rect := image.Rect(dx, dy, dx+dw, dy+off.Bounds().Dy())
+	dw := int(math.Ceil(float64(off.Bounds().Dx()) * sx))
+	dh := int(math.Ceil(float64(off.Bounds().Dy()) * sy))
+	dx := x - int(math.Round(float64(pad)*sx))
+	dy := baselineY - int(math.Round(float64(pad+ascent)*sy))
+	rect := image.Rect(dx, dy, dx+dw, dy+dh)
 	xdraw.CatmullRom.Scale(dst, rect, off, off.Bounds(), xdraw.Over, nil)
 }
 
