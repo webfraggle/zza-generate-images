@@ -37,10 +37,12 @@ const (
 	flapShadeLower = 0.15 // lower half of the new value, unfolding below the hinge
 )
 
-// Animation is a rendered frame sequence. The last frame is the still image.
+// Animation is a rendered frame sequence.
 type Animation struct {
 	Frames []*image.NRGBA
-	FPS    int
+	FPS    int  // splitflap mode: every frame lasts round(100/FPS) cs, the last frame gifFinalDelay
+	Delay  int  // frame mode: every frame lasts Delay cs (1–1000); when > 0, FPS is ignored and the last frame is not held
+	Loop   bool // GIF repeats forever (NETSCAPE loop count 0); false = plays once
 }
 
 // resolve returns the effective animation settings, applying defaults for
