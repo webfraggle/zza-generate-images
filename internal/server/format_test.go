@@ -156,11 +156,11 @@ func TestPreview_FormatGIF(t *testing.T) {
 
 func TestRender_GIF_NoSplitflap(t *testing.T) {
 	srv := newTestServer(t)
-	raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "sbb-096-v1", "default.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "sbb-105-v1", "default.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	rr := doRender(srv, "/sbb-096-v1/render?format=gif", string(raw), nil)
+	rr := doRender(srv, "/sbb-105-v1/render?format=gif", string(raw), nil)
 	if rr.Code != 200 {
 		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
 	}

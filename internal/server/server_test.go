@@ -53,7 +53,7 @@ func TestServer_Health(t *testing.T) {
 func TestServer_CORS_Preflight(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodOptions, "/sbb-096-v1/render", nil)
+	req := httptest.NewRequest(http.MethodOptions, "/sbb-105-v1/render", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
@@ -78,15 +78,15 @@ func TestServer_Gallery(t *testing.T) {
 	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
 		t.Errorf("gallery Content-Type: %q", ct)
 	}
-	if !strings.Contains(rr.Body.String(), "sbb-096-v1") {
-		t.Error("gallery should list sbb-096-v1")
+	if !strings.Contains(rr.Body.String(), "sbb-105-v1") {
+		t.Error("gallery should list sbb-105-v1")
 	}
 }
 
 func TestServer_Detail(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sbb-105-v1", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
@@ -94,7 +94,7 @@ func TestServer_Detail(t *testing.T) {
 		t.Errorf("detail: got %d, want 200", rr.Code)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "sbb-096-v1") {
+	if !strings.Contains(body, "sbb-105-v1") {
 		t.Error("detail page should contain template name")
 	}
 	if !strings.Contains(body, "json-input") {
@@ -103,7 +103,7 @@ func TestServer_Detail(t *testing.T) {
 	if strings.Contains(body, "Bearbeiten") {
 		t.Error("server build should NOT show edit button")
 	}
-	if !strings.Contains(body, "/sbb-096-v1.zip") {
+	if !strings.Contains(body, "/sbb-105-v1.zip") {
 		t.Error("detail page should show ZIP download link")
 	}
 }
@@ -112,12 +112,12 @@ func TestServer_Detail_EditorEnabled_ShowsEditButton(t *testing.T) {
 	srv := newTestServer(t)
 	srv.SetEditorEnabled(true)
 
-	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sbb-105-v1", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
-	if !strings.Contains(rr.Body.String(), `href="/edit/sbb-096-v1"`) {
-		t.Error("desktop build should link to /edit/sbb-096-v1")
+	if !strings.Contains(rr.Body.String(), `href="/edit/sbb-105-v1"`) {
+		t.Error("desktop build should link to /edit/sbb-105-v1")
 	}
 }
 
@@ -136,7 +136,7 @@ func TestServer_Detail_NotFound(t *testing.T) {
 func TestServer_Preview(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1/preview", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sbb-105-v1/preview", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
@@ -170,7 +170,7 @@ func TestServer_Render_InvalidTemplateName(t *testing.T) {
 func TestServer_Render_InvalidJSON(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/sbb-096-v1/render",
+	req := httptest.NewRequest(http.MethodPost, "/sbb-105-v1/render",
 		strings.NewReader("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -209,7 +209,7 @@ func TestServer_Render_Success(t *testing.T) {
 		},
 		"gleis": "7",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/sbb-096-v1/render",
+	req := httptest.NewRequest(http.MethodPost, "/sbb-105-v1/render",
 		strings.NewReader(string(data)))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -242,7 +242,7 @@ func TestServer_Render_CacheHit(t *testing.T) {
 	})
 
 	makeReq := func() *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodPost, "/sbb-096-v1/render",
+		req := httptest.NewRequest(http.MethodPost, "/sbb-105-v1/render",
 			strings.NewReader(string(data)))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
@@ -311,7 +311,7 @@ func TestServer_EditorPage_DesktopOnly(t *testing.T) {
 	// editorHandler==nil branch in ServeHTTP and returns 404 directly
 	// (it does NOT fall through to the mux, where GET /{template} would
 	// otherwise match and render a detail page).
-	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-096-v1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-105-v1", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
@@ -324,17 +324,41 @@ func TestServer_EditorPage_WithEditor_Renders(t *testing.T) {
 	tdir := filepath.Join("..", "..", "templates")
 	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache))
 
-	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-096-v1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-105-v1", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("got %d, body: %s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "sbb-096-v1") {
+	if !strings.Contains(body, "sbb-105-v1") {
 		t.Error("editor page should include template name")
 	}
-	if !strings.Contains(body, "'sbb-096-v1'") {
-		t.Error("editor page JS should reference TEMPLATE = 'sbb-096-v1'")
+	if !strings.Contains(body, "'sbb-105-v1'") {
+		t.Error("editor page JS should reference TEMPLATE = 'sbb-105-v1'")
+	}
+}
+
+func TestGallery_AnimatedCardHasGifAndRestartButton(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+	body := rr.Body.String()
+
+	if !strings.Contains(body, `src="/umuc-105-v1/preview?format=gif"`) {
+		t.Error("animated template should load the GIF preview")
+	}
+	if !strings.Contains(body, `aria-label="Animation neu starten"`) {
+		t.Error("animated card should have a restart button")
+	}
+	if !strings.Contains(body, `src="/sbb-105-v1/preview"`) {
+		t.Error("static template should load the PNG preview")
+	}
+	if strings.Contains(body, `src="/sbb-105-v1/preview?format=gif"`) {
+		t.Error("static template must not load a GIF")
+	}
+	// Exactly one button per animated template, none for static ones.
+	if got, want := strings.Count(body, `class="card-restart"`), strings.Count(body, `?format=gif"`); got != want {
+		t.Errorf("restart buttons = %d, animated images = %d", got, want)
 	}
 }

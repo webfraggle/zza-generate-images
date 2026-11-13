@@ -17,7 +17,7 @@ import (
 func TestServer_TemplateZip_ContainsExpectedFiles(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1.zip", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sbb-105-v1.zip", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
