@@ -15,6 +15,9 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 - Editor: Sequenzzähler für Vorschau-Antworten (späte GIF-Antwort überschreibt sonst „Standbild“); Animations-Umschalter ohne Reload nach dem ersten `splitflap`-Layer
 - Templates direkt auf dem ZZA rendern (nur S3/1.05", Latin-1): Desktop-App exportiert ein vorkompiliertes Paket, die Firmware rendert selbst und animiert live — Spec `docs/superpowers/specs/2026-11-13-esp32-on-device-rendering-design.md` (zurückgestellt)
 - Firmware: GIF/MJPEG-Wiedergabe auf dem Display (Abspielen der Faltblatt-GIFs bzw. MJPEG als Alternative)
+- Stundenzeiger (24 h, ohne Minutenanteil) in `umuc-096-v1` und `nederland-096-v1` korrigieren (Formel wie in `umuc-105-v1`)
+- Frame-Animation: statische Layer nur einmal rendern (Performance)
+- Firmware: Loop-GIFs abspielen
 - Weitere Faltblatt-Templates animieren (z.B. das alte 240×270-Faltblatt)
 - `and()`/`or()` Funktionen im Evaluator — mehrere Bedingungen in einem `if:` verknüpfen, z.B. `if: "and(not(isEmpty(zug1.via)), isEmpty(zug1.hinweis))"`. Workaround heute: verschachtelte Block-Nodes.
 

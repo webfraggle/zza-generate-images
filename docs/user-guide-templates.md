@@ -59,6 +59,11 @@ meta:
     width: 160    # Bildbreite in Pixeln
     height: 160   # Bildhöhe in Pixeln
     colors: 32    # optional — Farbpalette reduzieren (2–256)
+  timezone: "Europe/Berlin"   # optional — Zeitzone für {{now.*}}
+  animation:                  # optional — nur für GIF-Ausgabe
+    frames: 60                # Frame-Animation: Anzahl Frames (2–125)
+    frame_delay: 1            # Sekunden pro Frame (0.02–10)
+    loop: true                # endlos wiederholen
 ```
 
 | Feld | Beschreibung |
@@ -71,6 +76,8 @@ meta:
 | `instructions` | Freitext-Anleitung für Nutzer (mehrzeilig mit YAML `\|`) — erscheint auf der Vorschau-Seite |
 | `canvas` | Bildabmessungen (`width` × `height` in Pixeln) — Pflichtfeld |
 | `canvas.colors` | Farbpalette reduzieren (2–256) — kleinere PNG-Dateien für Microcontroller (siehe unten) |
+| `timezone` | IANA-Zeitzone für `{{now.*}}`, Standard `Europe/Berlin` (siehe [Zeitzone](#zeitzone)) |
+| `animation` | GIF-Einstellungen: `frames`, `frame_delay`, `loop` für Frame-Animationen (siehe [Frame-Animation](#frame-animation)), `fps`/`duration` für Faltblatt-Animationen |
 
 Alle Felder außer `canvas` sind optional, aber empfohlen — sie erscheinen in der Galerie und auf der Vorschau-Seite.
 
@@ -492,15 +499,40 @@ value: "{{zug1.hinweis | strip('*') | upper}}"
 | `div(x)` | Dividieren | `{{x \| div(4)}}` | `10` → `2.5` |
 | `add(x)` | Addieren | `{{x \| add(5)}}` | `10` → `15` |
 | `sub(x)` | Subtrahieren | `{{x \| sub(3)}}` | `10` → `7` |
+| `mod(x)` | Rest der Division (Vorzeichen des Teilers) | `{{x \| mod(1440)}}` | `-3` → `1437` |
 | `round` | Runden (ganzzahlig) | `{{x \| round}}` | `3.7` → `4` |
+| `minutes` | Uhrzeit `H:MM` in Minuten seit Mitternacht | `{{zug1.zeit \| minutes}}` | `10:15` → `615` |
 
-Division durch 0 ergibt `0`. Nicht-numerische Werte werden unverändert durchgereicht.
+Division durch 0 ergibt `0`. Nicht-numerische Werte werden unverändert durchgereicht. `minutes` liefert bei einem Wert, der nicht wie `10:15` aussieht (leer, `ca. 10`), eine leere Ausgabe.
+
+**Variablen als Argument:** Das Argument von `add`, `sub`, `mul`, `div` und `mod` darf auch eine Variable oder eine ganze Filterkette sein (ohne Anführungszeichen):
+
+```yaml
+rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+value:  "{{zug2.zeit | minutes | sub(zug1.zeit | minutes)}}"
+```
+
+Zahlen (`6`, `-0.5`) und Texte in Anführungszeichen (`'6'`) bleiben Literale. Ist das Argument eine Variable ohne Zahlenwert, ist die Ausgabe leer.
+
+**Beispiel: Minuten bis zur Abfahrt.** Zug 1 steht bei 10:15, Zug 2 bei 10:18, angezeigt werden soll „Minuten nach Zug 1 plus 5" (wie auf den Münchner Anzeigen: 5 / 8 / 16):
+
+```yaml
+- type: text
+  value: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"   # → 8
+  x: 238
+  y: 62
+  font: regular
+  size: 12
+  align: right
+```
+
+`mod(1440)` hält den Wert über Mitternacht positiv (23:58 → 00:04 ergibt 6, plus 5 = 11). Eine leere oder ungültige Zeit ergibt eine leere Zelle.
 
 ---
 
 ## Zeit-Variablen
 
-Die aktuelle Zeit steht über `{{now.*}}` zur Verfügung (wird einmal pro Render-Aufruf erfasst):
+Die aktuelle Zeit steht über `{{now.*}}` zur Verfügung (wird einmal pro Render-Aufruf erfasst, in der Zeitzone des Templates, siehe [Zeitzone](#zeitzone)):
 
 | Variable | Beschreibung | Beispiel |
 |---|---|---|
@@ -535,6 +567,17 @@ value: "{{now | format('HH:mm:ss')}}"    # → "15:54:07"
 value: "{{now | format('dd.MM.yyyy')}}"  # → "24.03.2026"
 value: "{{now | format('EEEE')}}"        # → "Dienstag"
 ```
+
+### Zeitzone
+
+`{{now.*}}` rechnet standardmäßig in `Europe/Berlin`, unabhängig von der Zeitzone des Servers. Mit `meta.timezone` lässt sich eine andere IANA-Zeitzone wählen:
+
+```yaml
+meta:
+  timezone: "UTC"        # oder "America/New_York", "Asia/Tokyo", …
+```
+
+Erlaubt sind IANA-Namen (höchstens 64 Zeichen, `Local` nicht); ein ungültiger Name ist ein Template-Fehler.
 
 ---
 
@@ -613,7 +656,7 @@ Bilder (Typ `image`) können gedreht werden — nützlich für analoge Uhren ode
 
 ### Beispiel: Analoge Uhr
 
-Das Zifferblatt ist 200×200px groß, Mittelpunkt bei (100, 100):
+Das Zifferblatt ist 200×200px groß, Mittelpunkt bei (100, 100). Die Drehachse liegt exakt auf `x`/`y`, auch bei dünnen Zeigern:
 
 ```yaml
 layers:
@@ -626,7 +669,7 @@ layers:
     file: stundenzeiger.png
     x: 100   # Mittelpunkt des Zifferblatts
     y: 100
-    rotate: "{{now.hour12 | mul(30)}}"  # 12 Stunden × 30° = 360°
+    rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"  # 30° pro Stunde + 0,5° pro Minute
 
   - type: image
     file: minutenzeiger.png
@@ -640,6 +683,54 @@ layers:
     y: 100
     rotate: "{{now.second | mul(6)}}"
 ```
+
+Der Stundenzeiger rückt mit den Minuten weiter (10:15 → 307,5°). Der Sekundenzeiger steht im PNG auf der aktuellen Sekunde. Wie er im GIF läuft, zeigt der nächste Abschnitt.
+
+### Frame-Animation
+
+Mit `meta.animation.frames` wird das Template bei `?format=gif` mehrfach gerendert, in jedem Frame mit anderem `anim.frame`. So läuft der Sekundenzeiger:
+
+```yaml
+meta:
+  name: "Uhr mit Sekundenzeiger"
+  canvas:
+    width: 200
+    height: 200
+  timezone: "Europe/Berlin"
+  animation:
+    frames: 60        # 60 Frames …
+    frame_delay: 1    # … je 1 Sekunde …
+    loop: true        # … und dann von vorn
+
+layers:
+  - type: image
+    file: zifferblatt.png
+    x: 0
+    y: 0
+  - type: image
+    file: stundenzeiger.png
+    x: 100
+    y: 100
+    rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"
+  - type: image
+    file: minutenzeiger.png
+    x: 100
+    y: 100
+    rotate: "{{now.minute | mul(6)}}"
+  - type: image
+    file: sekundenzeiger.png
+    x: 100
+    y: 100
+    rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+```
+
+Regeln:
+
+- `frames`: 2–125, `frame_delay`: 0.02–10 Sekunden (in 0.01-Schritten), `frames × frame_delay` höchstens 120 s. Nicht kombinierbar mit `fps`/`duration` oder einem `splitflap`-Layer.
+- `loop: true` wiederholt das GIF endlos, sonst spielt es einmal.
+- `now` wird einmal pro Render gelesen: Stunden- und Minutenzeiger stehen im GIF still, nur der Sekundenzeiger läuft. Er beginnt bei der aktuellen Sekunde und steht nach 60 Frames wieder am Anfang.
+- `anim.frame` (0 … frames−1), `anim.frames` und `anim.time` (Sekunden seit Start) sind in allen Ausdrücken verfügbar. Im PNG ist `anim.frame` = 0, das PNG gleicht also Frame 0 des GIFs.
+- Templates mit `now` werden vom Server nicht gecacht (`X-Cache: BYPASS`), die Uhr bleibt also nie stehen.
 
 ---
 

@@ -44,15 +44,30 @@ meta:
     width: 160    # Breite in Pixeln
     height: 80    # Höhe in Pixeln
     colors: 32    # optional — Farbpalette reduzieren (2–256); weglassen = volle Farbe
-  animation:      # optional — nur relevant für GIF-Ausgabe (siehe type: splitflap)
-    fps: 20       # Frames pro Sekunde; Standard 20, erlaubt 5–25
-    duration: 2.5 # maximale Laufzeit in Sekunden; Standard 2.5, erlaubt 0.5–5
+  timezone: "Europe/Berlin"  # optional — IANA-Zeitzone für {{now.*}}; Standard Europe/Berlin
+  animation:      # optional — nur relevant für GIF-Ausgabe
+    fps: 20       # Splitflap-Modus: Frames pro Sekunde; Standard 20, erlaubt 5–25
+    duration: 2.5 # Splitflap-Modus: maximale Laufzeit in Sekunden; Standard 2.5, erlaubt 0.5–5
+    # Frame-Modus (statt fps/duration): frames, frame_delay, loop — siehe unten
 ```
 
 - `display` (optional) — Bezeichnung des Ziel-Displays, z.B. `"0.96 Zoll OLED"`. Wird auf der Vorschau-Seite angezeigt.
 - `instructions` (optional) — Freitext-Anleitung für Nutzer des Templates. Wird auf der Vorschau-Seite angezeigt. Mehrzeilig möglich mit YAML Block-Scalar (`|`).
 - `canvas.colors` (optional) — Reduziert die Ausgabe auf eine Indexed-PNG mit maximal N Farben (2–256) via Median-Cut-Algorithmus. Verringert die Dateigröße bei einfachen Grafiken erheblich. Weglassen oder `0` = volle 32-Bit-Farbe. Bei GIF-Ausgabe ist es die Zahl der echten Farben der globalen Palette (höchstens 255); der transparente Eintrag kommt zusätzlich dazu, siehe [GIF-Ausgabe](#gif-ausgabe).
-- `animation` (optional) — Einstellungen für die Faltblatt-Animation, siehe [`type: splitflap`](#type-splitflap). Fehlt der Block, gelten die Standardwerte, sobald ein GIF angefordert wird. Werte außerhalb des erlaubten Bereichs (`fps` 5–25, `duration` 0.5–5) sind ein Template-Fehler. Zusätzlich gilt (nur für Templates mit `splitflap`-Layer): Die **maximal möglichen** Bilder (`duration × fps`, höchstens 125) × Breite × Höhe dürfen höchstens 32.000.000 Pixel ergeben. Geprüft wird diese Obergrenze vor dem Rendern, nicht die tatsächliche Frame-Zahl; ein hoher `fps` bei langer `duration` auf großem Canvas kann also abgelehnt werden, auch wenn die Animation kürzer wäre.
+- `timezone` (optional) — IANA-Zeitzone (`Europe/Berlin`, `UTC`, `America/New_York`, …), in der `{{now.*}}` und `format(…)` ausgewertet werden. Standard: `Europe/Berlin` (nicht die Zeitzone des Servers). Ungültige Namen sind ein Template-Fehler (`invalid meta.timezone`): höchstens 64 Zeichen, nur Buchstaben, Ziffern, `_`, `+`, `-` und `/` als Trenner, `Local` ist nicht erlaubt. Die Zeitzonen-Datenbank ist in die Binärdatei eingebettet.
+- `animation` (optional) — Einstellungen für GIF-Ausgabe. Es gibt zwei Modi, die sich gegenseitig ausschließen:
+
+| Feld | Typ | Modus | Standard | Erlaubt |
+|---|---|---|---|---|
+| `fps` | int | Splitflap | 20 | 5–25 |
+| `duration` | float (s) | Splitflap | 2.5 | 0.5–5 |
+| `frames` | int | Frame | 0 = aus | 2–125 |
+| `frame_delay` | float (s) | Frame | 1 | 0.02–10, Vielfaches von 0.01 |
+| `loop` | bool | beide | `false` | GIF endlos wiederholen; `false` = einmal abspielen |
+
+  - **Frame-Modus** (`frames` gesetzt): Das Template wird `frames`-mal gerendert, jedes Frame dauert `frame_delay` Sekunden, siehe [Frame-Animation](#frame-animation). Gilt als Template-Fehler (HTTP 422 beim Rendern), wenn `frames` außerhalb 2–125 liegt, wenn zusätzlich `fps` oder `duration` gesetzt sind, wenn das Template einen `splitflap`-Layer enthält, wenn `frame_delay` außerhalb 0.02–10 liegt oder kein Vielfaches von 0.01 ist oder wenn `frames × frame_delay` 120 s überschreitet. Außerdem müssen `frames × Breite × Höhe` höchstens 32.000.000 Pixel ergeben.
+  - **Splitflap-Modus** (`frames` nicht gesetzt, Template enthält `splitflap`): `fps` 5–25 und `duration` 0.5–5, siehe [`type: splitflap`](#type-splitflap). Die **maximal möglichen** Bilder (`duration × fps`, höchstens 125) × Breite × Höhe dürfen höchstens 32.000.000 Pixel ergeben. Geprüft wird diese Obergrenze vor dem Rendern, nicht die tatsächliche Frame-Zahl. Ein gesetztes `frame_delay` ohne `frames` ist ein Fehler.
+  - **Nicht animiert** (weder `frames` noch `splitflap`): `?format=gif` liefert ein GIF mit einem Frame, `loop` wird ignoriert. Werte außerhalb von `fps`/`duration` sind trotzdem ein Template-Fehler, `frame_delay` ohne `frames` ebenfalls.
 
 ---
 
@@ -127,9 +142,9 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   rotate: 0     # optional — Drehwinkel in Grad (Uhrzeigersinn)
 ```
 
-**Rotation** wird verwendet für analoge Uhren. Der Winkel kann über einen Ausdruck berechnet werden.
+**Rotation** wird verwendet für analoge Uhren. Der Winkel kann über einen Ausdruck berechnet werden und darf größer als 360° sein.
 
-> **Hinweis:** Wenn `rotate` gesetzt ist, sind `x` und `y` die **Mittelpunkt-Koordinaten** des Bildes auf dem Canvas (nicht die obere linke Ecke). Das Bild wird um seine eigene Mitte gedreht und dann so platziert, dass sein Mittelpunkt auf `(x, y)` liegt.
+> **Hinweis:** Wenn `rotate` gesetzt ist, sind `x` und `y` die **Mittelpunkt-Koordinaten** des Bildes auf dem Canvas (nicht die obere linke Ecke). Das Bild wird um seine eigene Mitte gedreht und dann so platziert, dass sein Mittelpunkt auf `(x, y)` liegt. Die Drehachse liegt für jeden Winkel exakt auf `x`/`y` (kein Zittern bei dünnen Zeigern).
 
 ```yaml
 # Minutenzeiger: 360° / 60 Minuten = 6° pro Minute
@@ -145,7 +160,14 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   file: clock-hour.png
   x: 120
   y: 120
-  rotate: "{{now.hour12 | mul(30)}}"
+  rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"   # inkl. Minutenanteil
+
+# Sekundenzeiger (läuft im GIF, siehe Frame-Animation)
+- type: image
+  file: clock-seconds.png
+  x: 120
+  y: 120
+  rotate: "{{now.second | add(anim.frame) | mul(6)}}"
 ```
 
 ---
@@ -330,13 +352,78 @@ Beide Beispiele stammen aus `templates/faltblatt-105-v1/template.yaml` (dort ste
 - **Deterministisch:** Der Zufall ist ein Hash aus Template-Name, Request-Body, Layer- und Modulnummer. Gleiches Template + gleicher Request-Body ⇒ **bytegleiches GIF**. Der Zeitpunkt für `{{now.*}}` wird einmal pro Animation eingefroren; die Zusage gilt daher nur für Templates ohne `now`.
 - **Start und Ende:** Frame 0 zeigt bereits alle Module in Bewegung, denn das Display zeigt vorher das Standbild des alten Zugs. Das letzte Frame ist das Standbild und entspricht dem PNG-Render derselben Daten (bis auf die GIF-Palettierung). Das GIF spielt **einmal** (keine Loop-Extension) und bleibt auf dem letzten Frame stehen.
 - Alle übrigen Layer (auch `copy`) werden pro Frame normal gerendert.
-- Ein Template ohne `splitflap`-Layer ergibt bei `?format=gif` ein GIF mit einem einzigen Frame.
+- Ein Template ohne `splitflap`-Layer und ohne `meta.animation.frames` ergibt bei `?format=gif` ein GIF mit einem einzigen Frame.
 
 #### GIF-Ausgabe
 
 Für Firmware-Autoren: Das GIF hat **eine globale Farbtabelle** (keine lokalen Tabellen) mit `min(canvas.colors, 255)` echten Farben (Standard 255) **plus** einem zusätzlichen transparenten Index (`canvas.colors: 32` ergibt also 33 Einträge). Frame 0 ist vollständig; alle weiteren Frames sind **Delta-Frames** über das Rechteck der geänderten Pixel, mit Disposal „do not dispose" (Frames werden aufeinander komponiert). Unveränderte Pixel innerhalb eines Delta-Rechtecks sind transparent. Aufeinanderfolgende identische Frames werden zu einem zusammengefasst (Verzögerung addiert). Verzögerung: jedes Frame vor dem letzten dauert `round(100/fps)` Hundertstelsekunden (bei 20 fps 5 cs), das letzte Frame 100 cs (1 s). Ist das letzte Frame identisch mit dem vorletzten, werden beide zusammengefasst und die Standzeit ist entsprechend länger als 1 s.
 
+**Delay und Loop je Modus:**
+
+| | Splitflap | Frame-Modus |
+|---|---|---|
+| Delay je Frame | `round(100/fps)` cs | `frame_delay` (in cs) |
+| letztes Frame | 100 cs (Halte-Frame) | wie alle anderen (kein Halten) |
+| Wiederholung | `loop: true` = endlos, sonst einmal | `loop: true` = endlos, sonst einmal |
+
+Palette und Delta-Frames sind in beiden Modi gleich. Im Frame-Modus werden aufeinanderfolgende identische Frames ebenfalls zusammengefasst (Verzögerung addiert).
+
+**Cache:** Templates, deren Ausgabe von der Zeit abhängt (irgendein `{{…}}` enthält `now` oder den Filter `format(…)`, auch in `if`/`elif`), werden vom Server nicht gecacht. Die Antwort trägt `X-Cache: BYPASS` und `Cache-Control: no-store`. Das gilt für PNG und GIF.
+
 ---
+
+## Frame-Animation
+
+Jedes Template kann ohne `splitflap` als Frame-Animation gerendert werden, z.B. für einen laufenden Sekundenzeiger. Aktiviert wird sie durch `meta.animation.frames` (Felder und Grenzen: siehe [meta](#1-meta)).
+
+```yaml
+meta:
+  timezone: "Europe/Berlin"
+  animation:
+    frames: 60        # eine Minute …
+    frame_delay: 1    # … in Sekundenschritten
+    loop: true        # danach von vorn
+```
+
+**Ablauf:** Bei `?format=gif` wird die komplette Layer-Liste `frames`-mal durchlaufen, jedes Frame mit eigener `anim.frame`. `copy`-Layer übernehmen den Zustand des jeweiligen Frames. Es gibt keinen zusätzlichen Halte-Frame am Ende. Gleiche aufeinanderfolgende Frames werden zusammengefasst (Verzögerung addiert).
+
+**`now` ist eingefroren:** Die Uhrzeit wird einmal pro Render gelesen und gilt für alle Frames. Stunden- und Minutenzeiger stehen im GIF also still, nur Ausdrücke mit `anim.*` ändern sich. Der Sekundenzeiger beginnt bei der aktuellen Sekunde (`now.second`) und läuft pro Frame weiter.
+
+**PNG = Frame 0:** `?format=png` (und Vorschau) rendert das Template mit `anim.frame = 0`, also pixelgleich zu Frame 0 des GIFs.
+
+### Animationsvariablen
+
+| Variable | GIF im Frame-Modus | PNG, Splitflap-GIF, nicht animiert |
+|---|---|---|
+| `anim.frame` | 0 … `frames`−1 | 0 |
+| `anim.frames` | `frames` | `frames` im Frame-Modus (PNG), sonst 1 |
+| `anim.time` | `frame × frame_delay` in Sekunden (`0`, `1`, `0.3`, …) | 0 |
+
+`anim.*` gibt es in allen interpolierten Feldern (`value`, `color`, `rotate`, …), in Bedingungen und in `loop`-Layern. `anim.frame` und `anim.frames` sind zusätzlich in Koordinaten-Ausdrücken nutzbar (`x: "{{anim.frame * 2}}"`). `anim` ist reserviert wie `now`: ein gleichnamiges JSON-Feld ist nicht erreichbar.
+
+### Beispiel: laufender Sekundenzeiger
+
+```yaml
+meta:
+  canvas: { width: 240, height: 240 }
+  animation:
+    frames: 60
+    frame_delay: 1
+    loop: true
+
+layers:
+  - type: image
+    file: zifferblatt.png
+    x: 0
+    y: 0
+  - type: image          # Drehpunkt = Bildmitte, bei 0° nach oben
+    file: clock-seconds.png
+    x: 120
+    y: 120
+    rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+```
+
+Nach 60 Frames steht der Zeiger wieder auf der Startposition, die Endlosschleife springt nicht.
 
 ### type: copy
 
@@ -387,6 +474,14 @@ Variablen aus dem JSON-Input werden mit `{{` und `}}` eingebettet.
 {{now.weekday}}      Wochentag          z.B. "Dienstag"
 ```
 
+`now` wird in der Zeitzone `meta.timezone` ausgewertet (Standard `Europe/Berlin`) und ist pro Render (bzw. pro GIF) eingefroren.
+
+```
+{{anim.frame}}       Frame-Nummer       0 … frames−1 (sonst 0)
+{{anim.frames}}      Anzahl Frames      z.B. 60 (sonst 1)
+{{anim.time}}        Sekunden seit Start  z.B. 12 (sonst 0)
+```
+
 Datum/Zeit lässt sich auch formatieren:
 ```yaml
 value: "{{now | format('HH:mm')}}"     # → "15:51"
@@ -425,6 +520,8 @@ value: "{{zug1.hinweis | strip('*') | upper}}"      # Kombination: erst strip, d
 | `div(x)`                    | Dividiert Zahlenwert durch x                              |
 | `add(x)`                    | Addiert x zum Zahlenwert                                  |
 | `sub(x)`                    | Subtrahiert x vom Zahlenwert                              |
+| `mod(x)`                    | Modulo, Vorzeichen des Teilers (`-3 \| mod(1440)` → 1437); `mod(0)` → 0 |
+| `minutes`                   | `"H:MM"`/`"HH:MM"` → Minuten seit Mitternacht (`10:15` → 615); sonst `""` |
 | `round`                     | Rundet auf ganze Zahl                                     |
 | `before('x')`               | Teil vor dem ersten Vorkommen von `x`; ohne `x` im Wert der ganze Wert |
 | `after('x')`                | Teil nach dem ersten Vorkommen von `x`; ohne `x` im Wert leer (`""`)  |
@@ -436,13 +533,28 @@ value: "{{zug1.zeit | after(':')}}"    # 13:30 → 30
 ```
 Enthält der Wert den Trenner nicht (z.B. `1330`), liefert `before` den ganzen Wert und `after` einen leeren String.
 
+**Grammatik:** `{{ operand | filter | filter(arg, …) }}`. `|` und `,` trennen nur auf oberster Ebene, also außerhalb von Anführungszeichen und Klammern (`stripAll('|')` ist damit möglich). Leerzeichen um `|` sind optional.
+
+**Argumente der Mathe-Filter** (`add`, `sub`, `mul`, `div`, `mod`):
+
+| Argument | Bedeutung |
+|---|---|
+| `'6'`, `"6"` oder `6`, `-0.5` | Literal |
+| alles andere, z.B. `anim.frame` oder `zug1.zeit \| minutes` | wird als Variable bzw. Pipeline ausgewertet (höchstens 4 Ebenen tief); ist das Ergebnis keine Zahl, ist das Gesamtergebnis `""` |
+
+Ist der Wert links keine Zahl, bleibt er unverändert; ein leerer Wert (z.B. eine leere Zeit) pflanzt sich so durch die ganze Kette fort und ergibt eine leere Ausgabe. Text-Filter (`strip`, `prefix`, …) akzeptieren nur Literale als Argument.
+
 **Mathe-Filter Beispiele** (typisch für analoge Uhren):
 ```yaml
-rotate: "{{now.minute | mul(6)}}"           # Minutenzeiger: 0–354°
-rotate: "{{now.hour12 | mul(30)}}"          # Stundenzeiger grob: 0–330°
-rotate: "{{now.second | mul(6)}}"           # Sekundenzeiger: 0–354°
-value:  "{{now.hour | mul(30) | round}}"    # Winkel als Zahl ausgeben
+rotate: "{{now.minute | mul(6)}}"                                    # Minutenzeiger: 0–354°
+rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"        # Stundenzeiger mit Minutenanteil (10:15 → 307.5°)
+rotate: "{{now.second | add(anim.frame) | mul(6)}}"                  # Sekundenzeiger, läuft im GIF
+value:  "{{now.hour | mul(30) | round}}"                             # Winkel als Zahl ausgeben
+# Minuten bis zur Abfahrt relativ zu Zug 1 (+5 wie im Original); über Mitternacht positiv:
+value:  "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"   # 10:15/10:18 → 8
 ```
+
+**`minutes`:** Nach dem Entfernen von Leerraum muss der Wert mit `Ziffern:Ziffern` beginnen (ein- oder zweistellig, Rest egal): `10:15 Uhr` → 615, `10:5` → 605. Keine Bereichsprüfung. Passt das Muster nicht (`""`, `ca. 10`, `1015`), ist das Ergebnis `""`.
 
 ---
 
@@ -573,6 +685,8 @@ layers:                          # äußere layers-Liste des Templates
 
 ## Verfügbare Bedingungsfunktionen
 
+Das **erste Argument** darf auch eine Filter-Pipeline sein: `greaterThan(zug1.zeit | minutes, 600)`. Das zweite Argument bleibt ein Literal.
+
 | Funktion                        | Beschreibung                              |
 |---------------------------------|-------------------------------------------|
 | `startsWith(feld, 'zeichen')`   | Beginnt der Wert mit diesem Zeichen?      |
@@ -693,6 +807,9 @@ layers:
 | `elif`/`else` auf Layer-Ebene | `elif: "bedingung"` / `else: true` als Layer-Felder; bilden exklusive Kette |
 | Rotation: Koordinaten | `x`/`y` bei gesetztem `rotate` = Mittelpunkt des Bildes auf dem Canvas; kein `pivot_x`/`pivot_y` |
 | Rotation: Richtung | Uhrzeigersinn (positiver Winkel = CW) |
+| Rotation: Drehachse | Liegt für jeden Winkel exakt auf `x`/`y` |
+| Frame-Animation | `meta.animation.frames`/`frame_delay`/`loop`; `anim.*`-Variablen; `now` pro Render eingefroren; nicht mit `splitflap` kombinierbar |
+| Zeitzone | `meta.timezone`, Standard `Europe/Berlin` |
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |
 | Repeat/Loop | `type: loop` mit `split_by` — kein `step_y`, kein relatives Y; Positionierung via `{{i * step + base}}`-Ausdrücke |

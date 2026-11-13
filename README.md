@@ -54,14 +54,18 @@ curl -X POST http://localhost:18080/sbb-096-v1/render -H 'Content-Type: applicat
 
 # Animiertes GIF (Faltblatt-Animation)
 curl -X POST 'http://localhost:18080/faltblatt-105-v1/render?format=gif' -H 'Content-Type: application/json' --data-binary @templates/faltblatt-105-v1/default.json -o out.gif
+
+# Uhr mit laufendem Sekundenzeiger (Frame-Animation, 60 Frames, Endlosschleife)
+curl -X POST 'http://localhost:18080/umuc-105-v1/render?format=gif' -H 'Content-Type: application/json' --data-binary @templates/umuc-105-v1/default.json -o umuc.gif
 ```
 
 - `POST /{template}/render` und `GET /{template}/preview` akzeptieren `?format=png|gif`. Ohne Angabe oder mit `png` kommt ein PNG wie bisher; jeder andere Wert ergibt 400.
-- `format=gif` liefert `Content-Type: image/gif`. Das GIF spielt einmal ab und endet auf dem Standbild (identisch zum PNG). Templates ohne `splitflap`-Layer ergeben ein GIF mit einem Frame.
+- `format=gif` liefert `Content-Type: image/gif`. Faltblatt-Templates (`splitflap`) spielen einmal ab und enden mit einem Halte-Frame auf dem Standbild (identisch zum PNG). Templates mit `meta.animation.frames` (Frame-Animation, z.B. `umuc-105-v1`) ergeben `frames` Frames à `frame_delay` Sekunden, ohne Halte-Frame und mit `loop: true` als Endlosschleife. Templates ohne Animation ergeben ein GIF mit einem Frame.
 - Gleiches Template und exakt gleicher Request-Body (Bytes) ergeben ein bytegleiches GIF (Ausnahme: Templates mit `{{now.*}}`). PNG und GIF werden getrennt gecacht (`X-Cache: HIT|MISS`).
+- Zeitabhängige Templates (`now` oder `format(…)` in einem Ausdruck) werden nicht gecacht: `X-Cache: BYPASS` und `Cache-Control: no-store`, für PNG und GIF. `now` läuft in `meta.timezone` (Standard `Europe/Berlin`).
 - Es laufen höchstens 2 GIF-Renders gleichzeitig, weitere warten bis zu 15 s und bekommen danach `503` mit `Retry-After`. Template-Fehler (z.B. Limits überschritten) ergeben 422.
 - `POST …/render` bleibt auch mit `?format=gif` vom HTTPS-Redirect ausgenommen (Microcontroller ohne TLS).
-- Format des GIFs und Template-Syntax: `docs/yaml-template-spec.md` (`type: splitflap`, „GIF-Ausgabe").
+- Format des GIFs und Template-Syntax: `docs/yaml-template-spec.md` (`type: splitflap`, „Frame-Animation", „GIF-Ausgabe").
 
 ## Tests
 
@@ -132,6 +136,8 @@ Nach `./build.sh` die ZIPs aus `dist/release/` als GitHub-Release hochladen — 
 | `docs/superpowers/plans/2026-04-22-dual-build-architecture-manual-tests.md` | Manueller Test-Plan vor jedem Release |
 | `docs/superpowers/specs/2026-11-13-splitflap-animation-design.md` | Design-Spec der Faltblatt-Animation (GIF) |
 | `docs/superpowers/plans/2026-11-13-splitflap-animation-manual-tests.md` | Manueller Test-Plan der Faltblatt-Animation |
-| `docs/yaml-template-spec.md` | YAML-Template-Format (inkl. `splitflap`, GIF-Ausgabe) |
+| `docs/superpowers/specs/2026-11-13-clock-animation-design.md` | Design-Spec Frame-Animation, Zeitzone, Filter-Argumente, Uhr `umuc-105-v1` |
+| `docs/superpowers/plans/2026-11-13-clock-animation-manual-tests.md` | Manueller Test-Plan der Frame-Animation |
+| `docs/yaml-template-spec.md` | YAML-Template-Format (inkl. `splitflap`, Frame-Animation, GIF-Ausgabe) |
 | `docs/user-guide-templates.md` | User-Guide Template-Erstellung |
 | `CLAUDE.md` | Hinweise für Claude Code beim Arbeiten am Repo |
