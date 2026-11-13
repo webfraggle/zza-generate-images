@@ -13,10 +13,13 @@ import (
 const (
 	gifMaxSampleFrames = 8   // first + last + up to 6 in between
 	gifFinalDelay      = 100 // hundredths of a second: the still image stays 1 s
+	maxGIFDelay        = 1000
 )
 
-// EncodeGIF writes anim as a GIF that plays exactly once and ends on the last
-// frame. colors is the number of real colours in the global palette (0 means
+// EncodeGIF writes anim as a GIF. With Loop == false it plays exactly once and
+// ends on the last frame; with Loop == true it repeats forever. Timing is
+// either FPS-based (splitflap: the last frame is held gifFinalDelay) or, when
+// Delay > 0, a fixed Delay per frame without a final hold. colors is the number of real colours in the global palette (0 means
 // 256, otherwise 2–256), capped at 255; the transparent entry is added on top,
 // so colors: 2 gives two real colours plus transparency (palette length 3) and
 // 256 gives 255 + 1.
@@ -33,7 +36,10 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 	if anim == nil || len(anim.Frames) == 0 {
 		return fmt.Errorf("renderer: EncodeGIF: animation has no frames")
 	}
-	if anim.FPS <= 0 {
+	if anim.Delay < 0 || anim.Delay > maxGIFDelay {
+		return fmt.Errorf("renderer: EncodeGIF: delay must be between 0 and %d (got %d)", maxGIFDelay, anim.Delay)
+	}
+	if anim.Delay == 0 && anim.FPS <= 0 {
 		return fmt.Errorf("renderer: EncodeGIF: fps must be positive (got %d)", anim.FPS)
 	}
 	if colors == 0 {
@@ -65,12 +71,19 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 	realPal := pal[:transparent]          // the transparent entry is never a nearest match
 	lookup := make(map[color.NRGBA]uint8) // only used for lookups, never iterated
 
-	delay := (100 + anim.FPS/2) / anim.FPS
-	if delay < 1 {
-		delay = 1
+	delay := 1
+	if anim.FPS > 0 {
+		delay = (100 + anim.FPS/2) / anim.FPS
+		if delay < 1 {
+			delay = 1
+		}
+	}
+	loopCount := -1
+	if anim.Loop {
+		loopCount = 0
 	}
 
-	out := &gif.GIF{LoopCount: -1, Config: image.Config{ColorModel: pal, Width: bounds.Dx(), Height: bounds.Dy()}}
+	out := &gif.GIF{LoopCount: loopCount, Config: image.Config{ColorModel: pal, Width: bounds.Dx(), Height: bounds.Dy()}}
 	var prev *image.Paletted
 	for i, f := range anim.Frames {
 		cur := image.NewPaletted(bounds, pal)
@@ -87,7 +100,9 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 		}
 
 		d := delay
-		if i == len(anim.Frames)-1 {
+		if anim.Delay > 0 {
+			d = anim.Delay
+		} else if i == len(anim.Frames)-1 {
 			d = gifFinalDelay
 		}
 

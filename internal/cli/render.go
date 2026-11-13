@@ -29,7 +29,7 @@ func RenderCmd() *cobra.Command {
 		Short: "Render a template with JSON input data to a PNG image or animated GIF",
 		Long: "Render a template with JSON input data to a PNG image or an animated GIF.\n" +
 			"The format is taken from --format, else from the extension of -o (.gif or .png, case-insensitive), else PNG.\n" +
-			"A GIF of a template without splitflap layers has a single frame.",
+			"A GIF of a template without animation (splitflap or meta.animation.frames) has a single frame.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Resolve output format: --format wins over the -o extension.
 			if format == "" {

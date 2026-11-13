@@ -35,26 +35,37 @@ layers:
         layers: [{type: rect, x: 0, y: 0, width: 10, height: 10, color: "#ff0000"}]
 `
 
-// newFlapServer starts a server on a temp templates dir holding the
-// splitflap template "t" (with default.json).
-func newFlapServer(t *testing.T) *Server {
+// newTemplateServer starts a server on a temp templates dir holding the
+// given templates: name -> template.yaml content (each with default.json {}).
+// It returns the server and its cache directory.
+func newTemplateServer(t *testing.T, files map[string]string) (*Server, string) {
 	t.Helper()
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "t"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for name, content := range map[string]string{"template.yaml": flapTemplateYAML, "default.json": `{}`} {
-		if err := os.WriteFile(filepath.Join(dir, "t", name), []byte(content), 0o644); err != nil {
+	dir, cacheDir := t.TempDir(), t.TempDir()
+	for name, yaml := range files {
+		if err := os.MkdirAll(filepath.Join(dir, name), 0o755); err != nil {
 			t.Fatal(err)
+		}
+		for fn, content := range map[string]string{"template.yaml": yaml, "default.json": `{}`} {
+			if err := os.WriteFile(filepath.Join(dir, name, fn), []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	srv, err := New(&config.Config{
-		Port: "8080", TemplatesDir: dir, CacheDir: t.TempDir(),
+		Port: "8080", TemplatesDir: dir, CacheDir: cacheDir,
 		CacheMaxAgeHours: 1, CacheMaxSizeMB: 10,
 	}, web.FS)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return srv, cacheDir
+}
+
+// newFlapServer starts a server on a temp templates dir holding the
+// splitflap template "t" (with default.json).
+func newFlapServer(t *testing.T) *Server {
+	t.Helper()
+	srv, _ := newTemplateServer(t, map[string]string{"t": flapTemplateYAML})
 	return srv
 }
 
@@ -327,5 +338,110 @@ func TestRender_GIF_WaitTimeout(t *testing.T) {
 	}
 	if rr.Header().Get("Retry-After") == "" {
 		t.Error("503 without Retry-After")
+	}
+}
+
+const nowTemplateYAML = `meta:
+  canvas: {width: 4, height: 4}
+layers:
+  - type: rect
+    x: 0
+    y: 0
+    width: 4
+    height: 4
+    color: {if: "greaterThan(now.second, -1)", then: "#ff0000", else: "#00ff00"}
+`
+
+const frameTemplateYAML = `meta:
+  canvas: {width: 4, height: 1}
+  animation: {frames: 4, frame_delay: 1, loop: true}
+layers:
+  - {type: rect, x: 0, y: 0, width: 4, height: 1, color: "#000000"}
+  - {type: rect, x: "{{anim.frame}}", y: 0, width: 1, height: 1, color: "#ff0000"}
+`
+
+func newTimeServer(t *testing.T) (*Server, string) {
+	return newTemplateServer(t, map[string]string{"n": nowTemplateYAML, "f": frameTemplateYAML})
+}
+
+func TestRender_UsesNow_BypassesCache(t *testing.T) {
+	srv, cacheDir := newTimeServer(t)
+	for _, path := range []string{"/n/render", "/n/render?format=gif"} {
+		for i := 0; i < 2; i++ {
+			rr := doRender(srv, path, `{}`, nil)
+			if rr.Code != 200 {
+				t.Fatalf("%s: status %d: %s", path, rr.Code, rr.Body.String())
+			}
+			if got := rr.Header().Get("X-Cache"); got != "BYPASS" {
+				t.Errorf("%s: X-Cache = %q, want BYPASS", path, got)
+			}
+			if got := rr.Header().Get("Cache-Control"); got != "no-store" {
+				t.Errorf("%s: Cache-Control = %q, want no-store", path, got)
+			}
+		}
+	}
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/n/preview", nil))
+	if rr.Code != 200 || rr.Header().Get("X-Cache") != "BYPASS" {
+		t.Errorf("preview: %d, X-Cache %q, want 200 BYPASS", rr.Code, rr.Header().Get("X-Cache"))
+	}
+	_ = filepath.WalkDir(cacheDir, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && (strings.HasSuffix(p, ".png") || strings.HasSuffix(p, ".gif")) {
+			t.Errorf("cache contains %s", p)
+		}
+		return nil
+	})
+}
+
+func TestRender_UsesNow_GIFStillLimited(t *testing.T) {
+	srv, _ := newTimeServer(t)
+	srv.gifWaitTimeout = 50 * time.Millisecond
+	for i := 0; i < cap(srv.gifSem); i++ {
+		srv.gifSem <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < cap(srv.gifSem); i++ {
+			<-srv.gifSem
+		}
+	}()
+	rr := doRender(srv, "/n/render?format=gif", `{}`, nil)
+	if rr.Code != http.StatusServiceUnavailable || rr.Header().Get("Retry-After") == "" {
+		t.Errorf("got %d, Retry-After %q; want 503 with Retry-After", rr.Code, rr.Header().Get("Retry-After"))
+	}
+}
+
+func TestRender_FrameMode_GIF(t *testing.T) {
+	srv, _ := newTimeServer(t)
+	rr := doRender(srv, "/f/render?format=gif", `{}`, nil)
+	if rr.Code != 200 {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+	g, err := gif.DecodeAll(bytes.NewReader(rr.Body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Image) != 4 || g.LoopCount != 0 {
+		t.Fatalf("frames = %d, LoopCount = %d, want 4 and 0", len(g.Image), g.LoopCount)
+	}
+	for i, d := range g.Delay {
+		if d != 100 {
+			t.Errorf("delay[%d] = %d, want 100", i, d)
+		}
+	}
+	if r2 := doRender(srv, "/f/render?format=gif", `{}`, nil); r2.Header().Get("X-Cache") != "HIT" {
+		t.Errorf("second X-Cache = %q, want HIT", r2.Header().Get("X-Cache"))
+	}
+}
+
+func TestDetail_AnimatedFlag_FrameMode(t *testing.T) {
+	srv, _ := newTimeServer(t)
+	page := getPage(srv, "/f")
+	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`} {
+		if !strings.Contains(page, id) {
+			t.Errorf("detail page lacks %s", id)
+		}
+	}
+	if !strings.Contains(getEditorPage(srv, "f"), `id="preview-mode"`) {
+		t.Error("editor page lacks preview-mode")
 	}
 }

@@ -179,11 +179,11 @@ type editorPageData struct {
 	Animated     bool
 }
 
-// isAnimated reports whether the template has splitflap layers. A template
-// that fails to load counts as not animated.
+// isAnimated reports whether the template is animated (splitflap or frame
+// mode). A template that fails to load counts as not animated.
 func (s *Server) isAnimated(name string) bool {
 	tmpl, err := renderer.LoadTemplate(s.templatesDir, name)
-	return err == nil && tmpl.HasSplitflap()
+	return err == nil && tmpl.IsAnimated()
 }
 
 func (s *Server) handleEditorPage(w http.ResponseWriter, r *http.Request) {
@@ -291,7 +291,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		DefaultJSON:   string(jsonBytes),
 		HasDefault:    len(jsonBytes) > 0,
 		EditorEnabled: s.editorEnabled,
-		Animated:      tmpl.HasSplitflap(),
+		Animated:      tmpl.IsAnimated(),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.htmlTmpl.ExecuteTemplate(w, "detail.html", d); err != nil {
@@ -370,11 +370,16 @@ func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
 
 // renderAndServe renders templateName with the given JSON body and writes the
 // result to w as PNG or, for formatGIF, as an animated GIF (a single frame for
-// templates without splitflap layers). format must be formatPNG or formatGIF.
+// templates that are not animated). format must be formatPNG or formatGIF.
 // It checks and populates the cache automatically; both formats share one
 // cache key and differ in file extension. GIF cache misses wait for a slot
 // in gifSem (503 if ctx ends or the wait times out) and then check the cache
 // again; cache hits never wait.
+//
+// The template is loaded before the cache lookup. Time-dependent templates
+// (UsesNow) bypass the cache completely: no lookup, no store, not even after
+// the GIF wait; the response carries X-Cache: BYPASS and Cache-Control:
+// no-store. GIF renders still go through gifSem.
 func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, templateName string, body []byte, format string) {
 	// Cache lookup.
 	// Note: there is no lock between Get and Set, so concurrent requests with
@@ -389,9 +394,21 @@ func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, temp
 		modStamp = strconv.AppendInt(nil, info.ModTime().UnixNano(), 10)
 	}
 	key := s.cache.Key(templateName, append(body, modStamp...))
-	if cached, hit := s.cache.GetExt(key, format); hit {
-		writeImage(w, format, "HIT", cached)
+
+	// Load template (404 if missing); it decides whether the cache is usable.
+	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
+	if err != nil {
+		log.Printf("render: load template %q: %v", templateName, err)
+		http.Error(w, "template not found", http.StatusNotFound)
 		return
+	}
+	cacheable := !tmpl.UsesNow()
+
+	if cacheable {
+		if cached, hit := s.cache.GetExt(key, format); hit {
+			writeImage(w, format, "HIT", cached)
+			return
+		}
 	}
 
 	// Parse JSON data.
@@ -401,16 +418,8 @@ func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, temp
 		return
 	}
 
-	// Load template.
-	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
-	if err != nil {
-		log.Printf("render: load template %q: %v", templateName, err)
-		http.Error(w, "template not found", http.StatusNotFound)
-		return
-	}
-
 	if format == formatGIF {
-		s.renderGIF(ctx, w, templateName, body, key, tmpl, data)
+		s.renderGIF(ctx, w, templateName, body, key, tmpl, data, cacheable)
 		return
 	}
 
@@ -437,21 +446,24 @@ func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, temp
 	}
 	pngBytes := buf.Bytes()
 
-	// Persist to cache (best-effort).
-	if err := s.cache.Set(key, pngBytes); err != nil {
-		log.Printf("cache: set %q: %v", key, err)
+	cacheState := "BYPASS"
+	if cacheable {
+		cacheState = "MISS"
+		// Persist to cache (best-effort).
+		if err := s.cache.Set(key, pngBytes); err != nil {
+			log.Printf("cache: set %q: %v", key, err)
+		}
 	}
-
-	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Content-Length", strconv.Itoa(len(pngBytes)))
-	w.Header().Set("X-Cache", "MISS")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(pngBytes)
+	writeImage(w, formatPNG, cacheState, pngBytes)
 }
 
 // writeImage writes data as an image response; format is formatPNG or formatGIF,
-// which are also the MIME subtypes.
+// which are also the MIME subtypes. cacheState "BYPASS" also forbids caching
+// by clients and proxies.
 func writeImage(w http.ResponseWriter, format, cacheState string, data []byte) {
+	if cacheState == "BYPASS" {
+		w.Header().Set("Cache-Control", "no-store")
+	}
 	w.Header().Set("Content-Type", "image/"+format)
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Header().Set("X-Cache", cacheState)
@@ -459,8 +471,9 @@ func writeImage(w http.ResponseWriter, format, cacheState string, data []byte) {
 	_, _ = w.Write(data)
 }
 
-// renderGIF renders the animation of tmpl, caches it under key and writes it.
-func (s *Server) renderGIF(ctx context.Context, w http.ResponseWriter, templateName string, body []byte, key string, tmpl *renderer.Template, data map[string]interface{}) {
+// renderGIF renders the animation of tmpl and writes it; when cacheable it
+// caches the result under key, otherwise it never touches the cache.
+func (s *Server) renderGIF(ctx context.Context, w http.ResponseWriter, templateName string, body []byte, key string, tmpl *renderer.Template, data map[string]interface{}, cacheable bool) {
 	wait := time.NewTimer(s.gifWaitTimeout)
 	defer wait.Stop()
 	select {
@@ -478,9 +491,11 @@ func (s *Server) renderGIF(ctx context.Context, w http.ResponseWriter, templateN
 		return // client gone: do not spend the slot on it
 	}
 	// Another request may have rendered the same GIF while this one waited.
-	if cached, hit := s.cache.GetExt(key, formatGIF); hit {
-		writeImage(w, formatGIF, "HIT", cached)
-		return
+	if cacheable {
+		if cached, hit := s.cache.GetExt(key, formatGIF); hit {
+			writeImage(w, formatGIF, "HIT", cached)
+			return
+		}
 	}
 
 	anim, err := s.rend.RenderAnimation(tmpl, data, renderer.AnimationSeed(templateName, body))
@@ -497,6 +512,10 @@ func (s *Server) renderGIF(ctx context.Context, w http.ResponseWriter, templateN
 	}
 	gifBytes := buf.Bytes()
 
+	if !cacheable {
+		writeImage(w, formatGIF, "BYPASS", gifBytes)
+		return
+	}
 	if err := s.cache.SetExt(key, formatGIF, gifBytes); err != nil {
 		log.Printf("cache: set %q: %v", key, err)
 	}

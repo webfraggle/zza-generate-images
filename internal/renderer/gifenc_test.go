@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/gif"
+	"strings"
 	"testing"
 )
 
@@ -458,5 +459,86 @@ func TestEncodeGIF_FullPalette(t *testing.T) {
 	g := encodeAndDecode(t, &Animation{FPS: 10, Frames: []*image.NRGBA{img, img}}, 256)
 	if n := len(g.Image[0].Palette); n > 256 {
 		t.Errorf("palette len = %d > 256", n)
+	}
+}
+
+func gifTestFrames3() []*image.NRGBA {
+	bg, fg := color.NRGBA{A: 255}, color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	return []*image.NRGBA{
+		gifSquare(16, 16, 0, 0, 4, bg, fg),
+		gifSquare(16, 16, 4, 0, 4, bg, fg),
+		gifSquare(16, 16, 8, 0, 4, bg, fg),
+	}
+}
+
+func TestEncodeGIF_FrameDelay(t *testing.T) {
+	g := encodeAndDecode(t, &Animation{Frames: gifTestFrames3(), Delay: 100}, 0)
+	if len(g.Delay) != 3 || g.Delay[0] != 100 || g.Delay[1] != 100 || g.Delay[2] != 100 {
+		t.Errorf("delays = %v, want [100 100 100]", g.Delay)
+	}
+	if g.LoopCount != -1 {
+		t.Errorf("LoopCount = %d, want -1", g.LoopCount)
+	}
+}
+
+func TestEncodeGIF_Loop(t *testing.T) {
+	bg, fg := color.NRGBA{A: 255}, color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	var frames []*image.NRGBA
+	for i := 0; i < 60; i++ {
+		frames = append(frames, gifSquare(16, 16, i%16, i/16, 1, bg, fg))
+	}
+	g := encodeAndDecode(t, &Animation{Frames: frames, Delay: 100, Loop: true}, 0)
+	if g.LoopCount != 0 {
+		t.Errorf("LoopCount = %d, want 0", g.LoopCount)
+	}
+	if len(g.Image) != 60 {
+		t.Fatalf("got %d frames, want 60", len(g.Image))
+	}
+	for i, d := range g.Delay {
+		if d != 100 {
+			t.Errorf("delay[%d] = %d, want 100", i, d)
+		}
+	}
+	for i, rc := range reconstruct(g) {
+		if !samePixels(rc, frames[i]) {
+			t.Errorf("frame %d differs after reconstruction", i)
+		}
+	}
+}
+
+func TestEncodeGIF_LoopSplitflapTiming(t *testing.T) {
+	g := encodeAndDecode(t, &Animation{Frames: gifTestFrames3(), FPS: 20, Loop: true}, 0)
+	if len(g.Delay) != 3 || g.Delay[0] != 5 || g.Delay[1] != 5 || g.Delay[2] != 100 {
+		t.Errorf("delays = %v, want [5 5 100]", g.Delay)
+	}
+	if g.LoopCount != 0 {
+		t.Errorf("LoopCount = %d, want 0", g.LoopCount)
+	}
+}
+
+func TestEncodeGIF_FrameDelayMergesIdentical(t *testing.T) {
+	f := gifTestFrames3()
+	g := encodeAndDecode(t, &Animation{Frames: []*image.NRGBA{f[0], f[0], f[1]}, Delay: 100}, 0)
+	if len(g.Image) != 2 || g.Delay[0] != 200 || g.Delay[1] != 100 {
+		t.Errorf("frames=%d delays=%v, want 2 frames [200 100]", len(g.Image), g.Delay)
+	}
+}
+
+func TestEncodeGIF_DelayErrors(t *testing.T) {
+	f := gifTestFrames3()
+	cases := []struct {
+		name string
+		a    *Animation
+		want string
+	}{
+		{"too large", &Animation{Frames: f, Delay: 1001}, "delay must be between"},
+		{"negative", &Animation{Frames: f, Delay: -1}, "delay must be between"},
+		{"no timing", &Animation{Frames: f}, "fps must be positive"},
+	}
+	for _, c := range cases {
+		err := EncodeGIF(&bytes.Buffer{}, c.a, 0)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want containing %q", c.name, err, c.want)
+		}
 	}
 }

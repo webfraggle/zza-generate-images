@@ -14,7 +14,9 @@ export const FILTER_DEFS = [
   { fn: 'div',          label: 'div',           hasArg: true,  category: 'math' },
   { fn: 'add',          label: 'add',           hasArg: true,  category: 'math' },
   { fn: 'sub',          label: 'sub',           hasArg: true,  category: 'math' },
+  { fn: 'mod',          label: 'mod',           hasArg: true,  category: 'math' },
   { fn: 'round',        label: 'round',         hasArg: false, category: 'math' },
+  { fn: 'minutes',      label: 'minutes',       hasArg: false, category: 'time' },
   { fn: 'format',       label: 'format',        hasArg: true,  category: 'time' },
 ];
 
@@ -29,19 +31,52 @@ export function parseValueAndFilters(str) {
   if (!match) return { base: str, filters: [] };
 
   const inner = match[1];
-  const parts = inner.split(' | ');
+  const parts = splitTopLevel(inner, '|').map(p => p.trim());
   if (parts.length === 1) return { base: str, filters: [] };
 
   const [expr, ...filterParts] = parts;
-  const filters = filterParts.map(part => {
-    const parenIdx = part.indexOf('(');
-    if (parenIdx === -1) return { fn: part.trim(), arg: null };
-    const fn  = part.slice(0, parenIdx).trim();
-    const arg = part.slice(parenIdx + 1, part.lastIndexOf(')'));
-    return { fn, arg };
-  });
+  const filters = filterParts.map(_parseFilterStage);
 
   return { base: `{{${expr}}}`, filters };
+}
+
+function _parseFilterStage(part) {
+  const parenIdx = part.indexOf('(');
+  // Wie Go parseFilterCall: ohne schließende Klammer gilt alles als Name.
+  if (parenIdx === -1 || !part.trim().endsWith(')')) return { fn: part.trim(), arg: null };
+  const fn  = part.slice(0, parenIdx).trim();
+  const arg = part.slice(parenIdx + 1, part.lastIndexOf(')'));
+  return { fn, arg };
+}
+
+/**
+ * Teilt str an sep außerhalb von Quotes ('/") und Klammern. Die Klammertiefe
+ * fällt nie unter 0. Teile werden nicht getrimmt (wie Go splitTopLevel).
+ * @param {string} str
+ * @param {string} sep
+ * @returns {string[]}
+ */
+export function splitTopLevel(str, sep) {
+  const parts = [];
+  let depth = 0;
+  let quote = '';
+  let start = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (quote) {
+      if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === "'" || ch === '"') quote = ch;
+    else if (ch === '(') depth++;
+    else if (ch === ')') { if (depth > 0) depth--; }
+    else if (ch === sep && depth === 0) {
+      parts.push(str.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(str.slice(start));
+  return parts;
 }
 
 /**
@@ -79,9 +114,104 @@ export function evaluatePreview(base, filters, testJson) {
 
   let value = String(raw);
   for (const { fn, arg } of filters) {
-    value = _applyFilter(value, fn, arg);
+    value = _applyFilter(value, fn, arg, testJson);
   }
   return value;
+}
+
+const MAX_PIPELINE_DEPTH = 4;
+const MATH_FNS = new Set(['mul', 'div', 'add', 'sub', 'mod']);
+
+// Wertet "var | f1 | f2(arg)" gegen testJson aus (für Variablen-Argumente).
+// depth zählt verschachtelte Argument-Pipelines (wie Go evalPipelineDepth).
+function _evalPipeline(expr, testJson, depth) {
+  if (depth > MAX_PIPELINE_DEPTH || !testJson) return '';
+  const [first, ...rest] = splitTopLevel(expr, '|');
+  const raw = _resolvePath(first.trim(), testJson);
+  if (raw === undefined || raw === null) return '';
+  let value = String(raw);
+  for (const stage of rest) {
+    const { fn, arg } = _parseFilterStage(stage.trim());
+    value = _applyFilter(value, fn, arg, testJson, depth);
+  }
+  return value;
+}
+
+const NUM_LITERAL_RE = /^[+-]?(\d+\.?\d*|\.\d+)$/;
+// Wie Go strconv.ParseFloat (nach TrimSpace); NaN-Ergebnis = nicht parsbar,
+// "NaN" selbst wird über die Sonderfälle als echter NaN-Wert geliefert.
+const GO_FLOAT_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+const GO_SPECIAL_RE = /^([+-]?(inf|infinity)|[+-]?nan)$/i;
+function _parseGoFloat(str) {
+  const t = String(str).trim();
+  if (GO_FLOAT_RE.test(t)) return { ok: true, v: parseFloat(t) };
+  if (GO_SPECIAL_RE.test(t)) {
+    if (/nan/i.test(t)) return { ok: true, v: NaN };
+    return { ok: true, v: t.startsWith('-') ? -Infinity : Infinity };
+  }
+  return { ok: false, v: NaN };
+}
+
+// Numerisches Argument (Go numericArg): Literal → strict=false, sonst
+// Variablen-Pipeline (depth + 1) → strict=true.
+function _numericArg(arg, testJson, depth) {
+  const t = arg.trim();
+  const quoted = t.length >= 2 &&
+    ((t.startsWith("'") && t.endsWith("'")) || (t.startsWith('"') && t.endsWith('"')));
+  if (quoted) return { val: t.slice(1, -1), strict: false };
+  if (NUM_LITERAL_RE.test(t)) return { val: t, strict: false };
+  return { val: _evalPipeline(t, testJson, depth + 1), strict: true };
+}
+
+// Zahlformatierung wie Go doMath: ganzzahlig im int64-Bereich → Integer,
+// sonst FormatFloat('f', -1) (nie Exponentialschreibweise).
+function _formatNumber(x) {
+  if (Number.isNaN(x)) return 'NaN';
+  if (x === Infinity) return '+Inf';
+  if (x === -Infinity) return '-Inf';
+  if (x === 0) return '0';
+  let str = String(x);
+  const m = str.match(/^(-?)(\d+)(?:\.(\d+))?e([+-]\d+)$/);
+  if (!m) return str;
+  const [, sign, ip, fp = '', ex] = m;
+  const digits = ip + fp;
+  const point = ip.length + parseInt(ex, 10);
+  if (point <= 0) return `${sign}0.${'0'.repeat(-point)}${digits}`;
+  if (point >= digits.length) return sign + digits + '0'.repeat(point - digits.length);
+  return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`;
+}
+
+// Go parseFilterCall + parseArgs: genau ein Argument, sonst null.
+function _singleArg(arg) {
+  if (arg == null) return null;
+  const parts = splitTopLevel(arg, ',').map(p => p.trim()).filter(p => p !== '');
+  return parts.length === 1 ? parts[0] : null;
+}
+
+// Go doMath: nicht-numerischer Wert → unverändert; nicht-numerisches Argument
+// → '' (Ausdruck) bzw. Wert unverändert (Literal).
+function _doMath(fn, value, arg, testJson, depth) {
+  const single = _singleArg(arg);
+  if (single === null) return value;
+  const { val, strict } = _numericArg(single, testJson, depth);
+  const pv = _parseGoFloat(value);
+  if (!pv.ok) return value;
+  const pa = _parseGoFloat(val);
+  if (!pa.ok) return strict ? '' : value;
+  const a = pv.v, b = pa.v;
+  switch (fn) {
+    case 'mul': return _formatNumber(a * b);
+    case 'div': return _formatNumber(b === 0 ? 0 : a / b);
+    case 'add': return _formatNumber(a + b);
+    case 'sub': return _formatNumber(a - b);
+    default: { // mod (floored)
+      if (b === 0) return '0';
+      let r = a % b;
+      if (r !== 0 && (r < 0) !== (b < 0)) r += b;
+      if (r === b) r = 0; // Float-Rundung, z.B. -1e-20 mod 1440
+      return _formatNumber(r);
+    }
+  }
 }
 
 function _resolvePath(path, obj) {
@@ -102,7 +232,8 @@ function _parseTwoArgs(arg) {
   return parts.map(_parseArg);
 }
 
-function _applyFilter(value, fn, arg) {
+function _applyFilter(value, fn, arg, testJson = null, depth = 0) {
+  if (MATH_FNS.has(fn)) return _doMath(fn, value, arg, testJson, depth);
   switch (fn) {
     case 'strip': {
       const c = _parseArg(arg);
@@ -129,10 +260,10 @@ function _applyFilter(value, fn, arg) {
     case 'trim':   return value.trim();
     case 'prefix': return _parseArg(arg) + value;
     case 'suffix': return value + _parseArg(arg);
-    case 'mul':    return String(parseFloat(value) * parseFloat(_parseArg(arg)));
-    case 'div':    return String(parseFloat(value) / parseFloat(_parseArg(arg)));
-    case 'add':    return String(parseFloat(value) + parseFloat(_parseArg(arg)));
-    case 'sub':    return String(parseFloat(value) - parseFloat(_parseArg(arg)));
+    case 'minutes': {
+      const m = value.trim().match(/^(\d{1,2}):(\d{1,2})/);
+      return m ? String(parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : '';
+    }
     case 'round':  return String(Math.round(parseFloat(value)));
     case 'format': return '[format]';
     default:       return value;

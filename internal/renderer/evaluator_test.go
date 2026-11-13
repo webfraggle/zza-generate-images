@@ -2,6 +2,8 @@ package renderer
 
 import (
 	"fmt"
+	"math/rand"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -490,5 +492,158 @@ func TestFormatTime_EE(t *testing.T) {
 	}
 	if got := formatTime(t1, "EEEE"); got != "Dienstag" {
 		t.Errorf("got %q, want %q", got, "Dienstag")
+	}
+}
+
+// --- pipeline parser, variable arguments, mod/minutes ---
+
+func pipeData() map[string]interface{} {
+	return map[string]interface{}{
+		"a": "5", "b": "2.5", "n": "-3",
+		"z1": "10:15", "z2": "10:18", "z3": "10:26",
+		"t1": "23:58", "t2": "00:04",
+		"empty": "", "txt": "abc", "v": "a|b",
+		"seven": "7", "sevenhalf": "7.5", "mseven": "-7",
+	}
+}
+
+func checkInterp(t *testing.T, e *Evaluator, expr, want string) {
+	t.Helper()
+	if got := e.Interpolate(expr); got != want {
+		t.Errorf("%s = %q, want %q", expr, got, want)
+	}
+}
+
+func TestPipeline_VariableArgs(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]string{
+		"{{a | add(b)}}":         "7.5",
+		"{{a|add(b)}}":           "7.5",
+		"{{a | mul(b) | round}}": "13",
+		"{{a | add('3')}}":       "8",
+		"{{a | sub(missing)}}":   "",
+		"{{txt | add(a)}}":       "abc",
+		"{{a | add(txt)}}":       "",
+	} {
+		checkInterp(t, e, expr, want)
+	}
+}
+
+func TestFilter_Minutes(t *testing.T) {
+	for in, want := range map[string]string{
+		"10:15": "615", "0:04": "4", "23:58": "1438", " 10:15 Uhr": "615", "10:5": "605",
+		"": "", "ca. 10": "", "1015": "", ":15": "",
+	} {
+		e := fixedEval(map[string]interface{}{"t": in})
+		if got := e.Interpolate("{{t | minutes}}"); got != want {
+			t.Errorf("minutes(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFilter_Mod(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]string{
+		"{{n | mod(1440)}}":      "1437",
+		"{{seven | mod(3)}}":     "1",
+		"{{sevenhalf | mod(2)}}": "1.5",
+		"{{mseven | mod(-3)}}":   "-1",
+		"{{a | mod(0)}}":         "0",
+		"{{txt | mod(3)}}":       "abc",
+	} {
+		checkInterp(t, e, expr, want)
+	}
+}
+
+func TestPipeline_MinutesColumn(t *testing.T) {
+	const expr = "{{Z | minutes | sub(R | minutes) | mod(1440) | add(5)}}"
+	cases := []struct{ z, r, want string }{
+		{"z1", "z1", "5"}, {"z2", "z1", "8"}, {"z3", "z1", "16"}, {"t2", "t1", "11"},
+		{"empty", "z1", ""}, {"z2", "empty", ""}, {"txt", "z1", ""},
+	}
+	e := fixedEval(pipeData())
+	for _, c := range cases {
+		x := strings.NewReplacer("Z", c.z, "R", c.r).Replace(expr)
+		checkInterp(t, e, x, c.want)
+	}
+}
+
+func TestPipeline_ClockAngles(t *testing.T) {
+	const expr = "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"
+	cases := []struct {
+		h, m int
+		want string
+	}{{10, 15, "307.5"}, {12, 0, "360"}, {0, 30, "375"}, {3, 0, "90"}}
+	for _, c := range cases {
+		e := NewEvaluator(map[string]interface{}{})
+		e.now = time.Date(2026, 11, 13, c.h, c.m, 0, 0, time.UTC)
+		checkInterp(t, e, expr, c.want)
+	}
+}
+
+func TestPipeline_QuotedPipeAndParens(t *testing.T) {
+	e := fixedEval(pipeData())
+	checkInterp(t, e, "{{v | stripAll('|')}}", "ab")
+	checkInterp(t, e, "{{v | before('|')}}", "a")
+}
+
+func TestPipeline_DepthLimit(t *testing.T) {
+	e := fixedEval(pipeData())
+	checkInterp(t, e, "{{a | add(a | add(a | add(a | add(a))))}}", "25")
+	checkInterp(t, e, "{{a | add(a | add(a | add(a | add(a | add(a)))))}}", "")
+}
+
+func TestPipeline_Malformed(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]string{
+		"{{a | add(b}}":   "5",
+		"{{a | add()}}":   "5",
+		"{{a | add(b))}}": "",
+		"{{a | add('x)}}": "",
+		"{{ | }}":         "",
+	} {
+		checkInterp(t, e, expr, want)
+	}
+	rng := rand.New(rand.NewSource(42))
+	const alphabet = "a|(),'\"0 ."
+	for i := 0; i < 2000; i++ {
+		b := make([]byte, rng.Intn(24))
+		for j := range b {
+			b[j] = alphabet[rng.Intn(len(alphabet))]
+		}
+		e.Interpolate("{{" + string(b) + "}}")
+	}
+}
+
+func TestCondition_PipelineArg(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]bool{
+		"greaterThan(z2 | minutes, 600)": true,
+		"greaterThan(z1 | minutes, 615)": false,
+		"equals(z1 | minutes, '615')":    true,
+		"isEmpty(empty | minutes)":       true,
+		"startsWith(txt, 'a')":           true,
+	} {
+		if got := e.EvalCondition(expr); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
+	}
+}
+
+func TestSplitTopLevel(t *testing.T) {
+	cases := []struct {
+		in   string
+		sep  byte
+		want []string
+	}{
+		{"a | b(c | d) | e", '|', []string{"a ", " b(c | d) ", " e"}},
+		{"'x|y' | z", '|', []string{"'x|y' ", " z"}},
+		{"a)|b", '|', []string{"a)", "b"}},
+		{"x, f(a, b), 'c,d'", ',', []string{"x", " f(a, b)", " 'c,d'"}},
+	}
+	for _, c := range cases {
+		if got := splitTopLevel(c.in, c.sep); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("splitTopLevel(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }

@@ -21,6 +21,13 @@ const (
 	maxAnimDuration     = 5.0
 	maxAnimFrames       = 125 // frames per animation, including the final still
 
+	// Frame mode (meta.animation.frames).
+	minAnimFrames     = 2
+	defaultFrameDelay = 1.0 // seconds
+	minFrameDelay     = 0.02
+	maxFrameDelay     = 10.0
+	maxAnimSeconds    = 120.0 // frames × frame_delay
+
 	// maxAnimPixels bounds frames × canvas width × canvas height of one
 	// animation (≈ 128 MB of NRGBA), checked before any frame is rendered.
 	maxAnimPixels = 32_000_000
@@ -37,10 +44,12 @@ const (
 	flapShadeLower = 0.15 // lower half of the new value, unfolding below the hinge
 )
 
-// Animation is a rendered frame sequence. The last frame is the still image.
+// Animation is a rendered frame sequence.
 type Animation struct {
 	Frames []*image.NRGBA
-	FPS    int
+	FPS    int  // splitflap mode: every frame lasts round(100/FPS) cs, the last frame gifFinalDelay
+	Delay  int  // frame mode: every frame lasts Delay cs (1–1000); when > 0, FPS is ignored and the last frame is not held
+	Loop   bool // GIF repeats forever (NETSCAPE loop count 0); false = plays once
 }
 
 // resolve returns the effective animation settings, applying defaults for
@@ -60,6 +69,53 @@ func (a AnimationMeta) resolve() (fps int, duration float64, err error) {
 	return fps, duration, nil
 }
 
+// frameDelayCS returns the frame-mode delay per frame in hundredths of a
+// second (0 = default of 1 s).
+func (a AnimationMeta) frameDelayCS() int {
+	if a.FrameDelay == 0 {
+		return int(math.Round(defaultFrameDelay * 100))
+	}
+	return int(math.Round(a.FrameDelay * 100))
+}
+
+// validateAnimation checks meta.animation: ranges and the rules of frame mode,
+// splitflap mode and non-animated templates.
+func (t *Template) validateAnimation() error {
+	a := t.Meta.Animation
+	if _, _, err := a.resolve(); err != nil {
+		return err
+	}
+	if a.Frames == 0 {
+		if a.FrameDelay != 0 {
+			return fmt.Errorf("animation.frame_delay requires animation.frames")
+		}
+		return nil
+	}
+	if a.Frames < minAnimFrames || a.Frames > maxAnimFrames {
+		return fmt.Errorf("animation.frames must be between %d and %d (got %d)", minAnimFrames, maxAnimFrames, a.Frames)
+	}
+	if a.FPS != 0 || a.Duration != 0 {
+		return fmt.Errorf("animation.frames cannot be combined with animation.fps or animation.duration")
+	}
+	if t.HasSplitflap() {
+		return fmt.Errorf("animation.frames cannot be used in a template with splitflap layers")
+	}
+	d := a.FrameDelay
+	if d == 0 {
+		d = defaultFrameDelay
+	}
+	if !(d >= minFrameDelay && d <= maxFrameDelay) {
+		return fmt.Errorf("animation.frame_delay must be between %g and %g seconds in steps of 0.01 (got %g)", minFrameDelay, maxFrameDelay, a.FrameDelay)
+	}
+	if math.Abs(d*100-math.Round(d*100)) >= 1e-9 {
+		return fmt.Errorf("animation.frame_delay must be between %g and %g seconds in steps of 0.01 (got %g)", minFrameDelay, maxFrameDelay, a.FrameDelay)
+	}
+	if total := float64(a.Frames) * d; total > maxAnimSeconds {
+		return fmt.Errorf("animation.frames × animation.frame_delay must not exceed %g seconds (got %g)", maxAnimSeconds, total)
+	}
+	return nil
+}
+
 // AnimationSeed derives the seed of an animation from the template name and
 // the request body: sha256(templateName ‖ 0x00 ‖ body).
 func AnimationSeed(templateName string, body []byte) []byte {
@@ -70,7 +126,10 @@ func AnimationSeed(templateName string, body []byte) []byte {
 	return h.Sum(nil)
 }
 
-// RenderAnimation renders the split-flap animation of a template: every
+// RenderAnimation renders the animation of a template. In frame mode
+// (meta.animation.frames) it renders N frames with anim.frame = 0 … N−1 and
+// a fixed Delay; frame 0 equals Render's output. Otherwise it renders the
+// split-flap animation: every
 // module starts flipping in frame 0 and comes to rest on its target value
 // after a seeded number of flips. The last frame equals Render's output.
 // A template without splitflap layers yields exactly one frame.
@@ -84,6 +143,10 @@ func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, 
 		return nil, fmt.Errorf("renderer: RenderAnimation: %w", err)
 	}
 
+	if tmpl.Meta.Animation.Frames > 0 {
+		return r.renderFrameMode(tmpl, data)
+	}
+
 	// Reject oversized animations up front, using the upper bound on frames.
 	if tmpl.HasSplitflap() {
 		maxFrames := min(int(math.Floor(duration*float64(fps)+1e-9)), maxAnimFrames-1) + 1
@@ -93,7 +156,7 @@ func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, 
 		}
 	}
 
-	eval := NewEvaluator(data) // one evaluator, one `now`, for all frames
+	eval := r.newEvaluator(tmpl, data) // one evaluator, one `now`, for all frames
 	imgCache := make(map[string]image.Image)
 	newCtx := func(anim *animState) *renderCtx {
 		rc := newRenderCtx(tmpl, eval) // fresh maxLayers counter per frame
@@ -108,7 +171,7 @@ func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, 
 		return nil, fmt.Errorf("renderer: RenderAnimation: %w", err)
 	}
 	if !tmpl.HasSplitflap() {
-		return &Animation{Frames: []*image.NRGBA{final}, FPS: fps}, nil
+		return &Animation{Frames: []*image.NRGBA{final}, FPS: fps, Loop: false}, nil
 	}
 
 	budget := int(math.Floor(duration*float64(fps) + 1e-9))
@@ -131,7 +194,32 @@ func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, 
 		frames = append(frames, img)
 	}
 	frames = append(frames, final)
-	return &Animation{Frames: frames, FPS: fps}, nil
+	return &Animation{Frames: frames, FPS: fps, Loop: tmpl.Meta.Animation.Loop}, nil
+}
+
+// renderFrameMode renders the frames of a frame-mode template. now is frozen
+// for all frames; every frame runs the whole layer list.
+func (r *Renderer) renderFrameMode(tmpl *Template, data map[string]interface{}) (*Animation, error) {
+	a := tmpl.Meta.Animation
+	c := tmpl.Meta.Canvas
+	if px := int64(a.Frames) * int64(c.Width) * int64(c.Height); px > maxAnimPixels {
+		return nil, fmt.Errorf("renderer: RenderAnimation: animation too large: %d frames of %dx%d exceed %d pixels",
+			a.Frames, c.Width, c.Height, maxAnimPixels)
+	}
+	delay := tmpl.animDelayCS()
+	root := r.newEvaluator(tmpl, data) // one `now` for all frames
+	imgCache := make(map[string]image.Image)
+	frames := make([]*image.NRGBA, 0, a.Frames)
+	for f := 0; f < a.Frames; f++ {
+		rc := newRenderCtx(tmpl, root.withAnim(f, a.Frames, delay)) // fresh maxLayers counter
+		rc.imgCache = imgCache
+		img, err := r.renderFrame(rc)
+		if err != nil {
+			return nil, fmt.Errorf("renderer: RenderAnimation: frame %d: %w", f, err)
+		}
+		frames = append(frames, img)
+	}
+	return &Animation{Frames: frames, Delay: delay, Loop: a.Loop}, nil
 }
 
 // animState is the animation state shared by the frames of one
