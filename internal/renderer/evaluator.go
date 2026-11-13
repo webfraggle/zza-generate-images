@@ -19,7 +19,12 @@ type Evaluator struct {
 	data    map[string]interface{}
 	intVars map[string]int // integer variables for coordinate expressions (i, loop.index, …)
 	now     time.Time      // captured once at creation for consistent {{now.*}} values
+	anim    animVars       // {{anim.*}} values
 }
+
+// animVars holds the animation variables: current frame, frame count and
+// frame delay in hundredths of a second (0 outside frame mode).
+type animVars struct{ frame, frames, delayCS int }
 
 // NewEvaluator creates a new Evaluator with the given data map. It uses
 // time.Now in the local zone; the renderer uses newEvaluator (template time
@@ -30,7 +35,7 @@ func NewEvaluator(data map[string]interface{}) *Evaluator {
 
 // newEvaluatorAt creates an Evaluator with a fixed `now`.
 func newEvaluatorAt(data map[string]interface{}, now time.Time) *Evaluator {
-	return &Evaluator{data: data, now: now}
+	return &Evaluator{data: data, now: now, anim: animVars{frames: 1}}
 }
 
 // withLoopVars returns a new Evaluator with additional loop-scope variables.
@@ -52,7 +57,19 @@ func (e *Evaluator) withLoopVars(strVars map[string]string, loopIntVars map[stri
 	for k, v := range loopIntVars {
 		newIntVars[k] = v
 	}
-	return &Evaluator{data: newData, intVars: newIntVars, now: e.now}
+	return &Evaluator{data: newData, intVars: newIntVars, now: e.now, anim: e.anim}
+}
+
+// withAnim returns a copy of e (data and now are shared) with the animation
+// variables set: {{anim.*}} in strings and anim.frame / anim.frames in
+// coordinate expressions.
+func (e *Evaluator) withAnim(frame, frames, delayCS int) *Evaluator {
+	iv := make(map[string]int, len(e.intVars)+2)
+	for k, v := range e.intVars {
+		iv[k] = v
+	}
+	iv["anim.frame"], iv["anim.frames"] = frame, frames
+	return &Evaluator{data: e.data, intVars: iv, now: e.now, anim: animVars{frame, frames, delayCS}}
 }
 
 // Interpolate replaces all {{expr}} placeholders in s.
@@ -132,7 +149,24 @@ func (e *Evaluator) resolveVar(name string) string {
 	if name == "now" || strings.HasPrefix(name, "now.") {
 		return e.resolveNow(name)
 	}
+	if name == "anim" || strings.HasPrefix(name, "anim.") {
+		return e.resolveAnim(name)
+	}
 	return e.resolvePath(name)
+}
+
+// resolveAnim returns the animation variable values; unknown names give "".
+func (e *Evaluator) resolveAnim(name string) string {
+	switch name {
+	case "anim.frame":
+		return strconv.Itoa(e.anim.frame)
+	case "anim.frames":
+		return strconv.Itoa(e.anim.frames)
+	case "anim.time":
+		return strconv.FormatFloat(float64(e.anim.frame*e.anim.delayCS)/100, 'f', -1, 64)
+	default:
+		return ""
+	}
 }
 
 // resolveNow returns time-related variable values.

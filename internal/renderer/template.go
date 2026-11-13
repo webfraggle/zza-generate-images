@@ -32,10 +32,13 @@ type Meta struct {
 }
 
 // AnimationMeta holds the animation settings of a template (GIF output).
-// Zero values mean the defaults; see resolve.
+// Zero values mean the defaults; see resolve and validateAnimation.
 type AnimationMeta struct {
-	FPS      int     `yaml:"fps"`      // frames per second; 0 = 20, allowed 5–25
-	Duration float64 `yaml:"duration"` // maximum running time in seconds; 0 = 2.5, allowed 0.5–5
+	FPS        int     `yaml:"fps"`         // splitflap: frames per second; 0 = 20, allowed 5–25
+	Duration   float64 `yaml:"duration"`    // splitflap: max running time in s; 0 = 2.5, allowed 0.5–5
+	Frames     int     `yaml:"frames"`      // frame mode: number of frames; 0 = off, allowed 2–125
+	FrameDelay float64 `yaml:"frame_delay"` // frame mode: seconds per frame; 0 = 1, allowed 0.02–10 in 0.01 steps
+	Loop       bool    `yaml:"loop"`        // GIF repeats forever (both modes)
 }
 
 // Canvas defines the output image dimensions.
@@ -132,6 +135,19 @@ func (r *Reel) UnmarshalYAML(value *yaml.Node) error {
 // at top level or inside block nodes.
 func (t *Template) HasSplitflap() bool {
 	return hasSplitflap(t.Layers)
+}
+
+// IsAnimated reports whether the template is animated: frame mode or splitflap.
+func (t *Template) IsAnimated() bool {
+	return t.Meta.Animation.Frames > 0 || t.HasSplitflap()
+}
+
+// animFrames returns the number of frames of frame mode, else 1.
+func (t *Template) animFrames() int {
+	if t.Meta.Animation.Frames > 0 {
+		return t.Meta.Animation.Frames
+	}
+	return 1
 }
 
 func hasSplitflap(layers []Layer) bool {

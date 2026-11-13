@@ -43,7 +43,11 @@ func (r *Renderer) clock() time.Time {
 // newEvaluator creates an Evaluator whose `now` is the renderer clock in the
 // template's time zone.
 func (r *Renderer) newEvaluator(tmpl *Template, data map[string]interface{}) *Evaluator {
-	return newEvaluatorAt(data, r.clock().In(tmpl.location()))
+	delayCS := 0
+	if tmpl.Meta.Animation.Frames > 0 {
+		delayCS = tmpl.Meta.Animation.frameDelayCS()
+	}
+	return newEvaluatorAt(data, r.clock().In(tmpl.location())).withAnim(0, tmpl.animFrames(), delayCS)
 }
 
 // New creates a new Renderer with the given templates directory.
@@ -80,7 +84,7 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 	if c := tmpl.Meta.Canvas.Colors; c != 0 && (c < 2 || c > 256) {
 		return nil, fmt.Errorf("renderer: LoadTemplate: canvas.colors must be between 2 and 256 (got %d)", c)
 	}
-	if _, _, err := tmpl.Meta.Animation.resolve(); err != nil {
+	if err := tmpl.validateAnimation(); err != nil {
 		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
 	}
 
