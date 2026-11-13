@@ -136,12 +136,26 @@ func TestSbb105_Cases(t *testing.T) {
 				t.Error("red bar in info mode")
 			}
 		}},
-		{"abw 0 is not info only", map[string]interface{}{"abw": "0", "vonnach": "", "nr": "", "via": ""}, func(t *testing.T, img *image.NRGBA) {
+		// PHP: "0" is falsy, so abw 0 still means info only.
+		{"abw 0 is info only", map[string]interface{}{"abw": float64(0), "vonnach": "", "nr": "", "via": ""}, func(t *testing.T, img *image.NRGBA) {
+			if sbbCount(img, 0, 40, 160, 120, sbbIsYellow) == 0 {
+				t.Error("yellow info text missing")
+			}
+			if img.NRGBAAt(4, 106) == sbbRed {
+				t.Error("red bar in info mode")
+			}
+		}},
+		{"nr set is not info only", map[string]interface{}{"abw": "", "vonnach": "", "nr": "Bus", "via": ""}, func(t *testing.T, img *image.NRGBA) {
 			if sbbCount(img, 0, 0, 64, 35, sbbIsWhite) == 0 {
 				t.Error("time missing")
 			}
 			if img.NRGBAAt(4, 106) != sbbRed {
 				t.Error("red hinweis bar missing")
+			}
+		}},
+		{"abw with spaces counts as delay", map[string]interface{}{"abw": " 5", "hinweis": ""}, func(t *testing.T, img *image.NRGBA) {
+			if sbbCount(img, 0, 36, 64, 58, sbbIsYellow) == 0 {
+				t.Error("no yellow delay under the time")
 			}
 		}},
 	}

@@ -424,7 +424,7 @@ func (r *Renderer) renderRect(dst *image.NRGBA, layer Layer, eval *Evaluator) er
 
 // renderText draws a text layer.
 func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator) error {
-	text := eval.Interpolate(layer.Value.Resolve(eval))
+	text := capText(eval.Interpolate(layer.Value.Resolve(eval)))
 	colorStr := eval.Interpolate(layer.Color.Resolve(eval))
 
 	c, err := parseColor(colorStr)
@@ -522,8 +522,15 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 		}
 	}
 
+	canvasH := dst.Bounds().Max.Y
 	for i, line := range lines {
 		y := startY + ascent + i*lineHeight
+		if y-ascent >= canvasH {
+			break // this and all following lines lie below the canvas
+		}
+		if y+lineHeight < 0 {
+			continue // above the canvas
+		}
 
 		// Horizontal alignment.
 		// With width: align within the box [X, X+Width].
@@ -552,6 +559,25 @@ func (r *Renderer) renderText(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 	}
 
 	return nil
+}
+
+// maxTextRunes caps the text of a single text layer. Far more than fits on any
+// canvas, but it bounds wrapping cost for huge request fields (body ≤ 1 MiB).
+const maxTextRunes = 4096
+
+// capText truncates text to maxTextRunes runes.
+func capText(text string) string {
+	if len(text) <= maxTextRunes { // bytes ≥ runes: fast path
+		return text
+	}
+	n := 0
+	for i := range text {
+		if n == maxTextRunes {
+			return text[:i]
+		}
+		n++
+	}
+	return text
 }
 
 // maxTextVar bounds the published id variables so that following coordinate

@@ -211,6 +211,8 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
     gap: 2
 ```
 
+**Längenbegrenzung** — Der Text eines Layers wird nach dem Einsetzen der Variablen auf 4096 Zeichen gekürzt; umbrochene Zeilen unterhalb der Leinwand werden nicht gezeichnet. Sichtbar ändert sich dadurch nichts, aber sehr lange Eingaben bleiben billig.
+
 **`valign: baseline`** — `y` ist die Grundlinie der ersten Zeile (so rechnet das Legacy-PHP), nicht die Oberkante. `height` wird dabei nicht gebraucht.
 
 **`scale_x`** — Skaliert die Schrift horizontal (`0.5` = halbe Breite, `1` oder weglassen = unverändert). Erlaubt sind `0.05` bis `8`; andere Werte (auch negative, `.inf`, `.nan`) lehnt das Laden des Templates ab. Text, der skaliert weit über die Leinwand hinausragt, wird nur im sichtbaren Bereich gezeichnet. Ausrichtung, `width`, `max_width` und Zeilenumbruch rechnen mit der skalierten Breite. Das Legacy-Theme staucht fast alle Texte mit `xFactor 0.5`; das entspricht `scale_x: 0.5`.

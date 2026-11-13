@@ -30,8 +30,12 @@ fonts:
 #   ihn aber normal; hier wird mit der normalen Schrift gemessen (max_width
 #   entsprechend kleiner gewählt).
 # - Das PHP wandelt vonnach nach ISO-8859-1; hier entfällt das (UTF-8).
+# - Zugnummer: Das PHP fügt alle Ziffern von nr zusammen ("IC 8 12" → 812),
+#   hier zählt die erste Ziffernfolge (→ 8).
+# - Via: Leere Elemente (z. B. "A - - B") überspringt die Engine; das PHP
+#   zeichnet dafür einen Punkt ohne Text.
 #
-# Info-Modus (PHP: $mode = "infoOnly"): abw, vonnach, nr und via leer —
+# Info-Modus (PHP: $mode = "infoOnly"): abw ("" oder "0"), vonnach, nr und via leer —
 # dann nur der Hinweis groß in Gelb, ohne Abfahrtszeit.
 
 layers:
@@ -42,7 +46,7 @@ layers:
     y: 0
 
   # ── Info-Modus: nur Hinweis ─────────────────────────────────────────────────
-  - if: "and(isEmpty(zug1.abw | trim), isEmpty(zug1.vonnach | trim), isEmpty(zug1.nr | trim), isEmpty(zug1.via | trim))"
+  - if: "and(or(isEmpty(zug1.abw | trim), equals(zug1.abw | trim, '0')), isEmpty(zug1.vonnach | trim), isEmpty(zug1.nr | trim), isEmpty(zug1.via | trim))"
     layers:
       - type: text
         value: "{{zug1.hinweis | trim}}"
@@ -70,7 +74,10 @@ layers:
     layers:
       # Abfahrtszeit
       - type: text
-        value: "{{zug1.zeit}}"
+        value:
+          if: "contains(zug1.zeit, ':')"
+          then: "{{zug1.zeit | match('^[^:]*:[^:]*', 0)}}"
+          else: "{{zug1.zeit}}"
         x: 4
         y: 31
         valign: baseline
@@ -196,7 +203,7 @@ layers:
   # ── Verspätung ──────────────────────────────────────────────────────────────
   # Mit Hinweis: blaues Feld an der Stelle der Zuggattung (die dann entfällt).
   # Ohne Hinweis: unter der Abfahrtszeit, Zuggattung bleibt.
-  - if: "greaterThan(zug1.abw, 0)"
+  - if: "greaterThan(zug1.abw | trim, 0)"
     layers:
       - if: "not(isEmpty(zug1.hinweis | trim))"
         layers:
@@ -228,7 +235,7 @@ layers:
   # ── Zuggattung (nur wenn nicht durch die Verspätung verdeckt) ──────────────
   # Reihenfolge wie im PHP; Vergleiche ohne Groß-/Kleinschreibung.
   # Typ = erste Buchstabengruppe von nr, Nummer = Ziffern von nr.
-  - if: "not(and(greaterThan(zug1.abw, 0), not(isEmpty(zug1.hinweis | trim))))"
+  - if: "not(and(greaterThan(zug1.abw | trim, 0), not(isEmpty(zug1.hinweis | trim))))"
     layers:
       # IC (nicht ICE/ICN)
       - if: "and(startsWith(zug1.nr | lower, 'ic'), not(startsWith(zug1.nr | lower, 'ice')), not(startsWith(zug1.nr | lower, 'icn')))"

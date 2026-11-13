@@ -19,8 +19,8 @@ Render-CLI ohne Server starten — schnellster Smoke-Test:
 
 ```bash
 go run ./cmd/zza render \
-  -t sbb-096-v1 \
-  -i templates/sbb-096-v1/default.json \
+  -t sbb-105-v1 \
+  -i templates/sbb-105-v1/default.json \
   -o /tmp/out.png
 open /tmp/out.png
 ```
@@ -50,7 +50,7 @@ go run ./cmd/zza serve --port 18081
 
 ```bash
 # PNG (Standard)
-curl -X POST http://localhost:18080/sbb-096-v1/render -H 'Content-Type: application/json' --data-binary @templates/sbb-096-v1/default.json -o out.png
+curl -X POST http://localhost:18080/sbb-105-v1/render -H 'Content-Type: application/json' --data-binary @templates/sbb-105-v1/default.json -o out.png
 
 # Animiertes GIF (Faltblatt-Animation)
 curl -X POST 'http://localhost:18080/faltblatt-105-v1/render?format=gif' -H 'Content-Type: application/json' --data-binary @templates/faltblatt-105-v1/default.json -o out.gif
