@@ -21,6 +21,10 @@ const (
 	maxAnimDuration     = 5.0
 	maxAnimFrames       = 125 // frames per animation, including the final still
 
+	// maxAnimPixels bounds frames × canvas width × canvas height of one
+	// animation (≈ 128 MB of NRGBA), checked before any frame is rendered.
+	maxAnimPixels = 32_000_000
+
 	defaultFlipFrames = 2 // frames per flip
 	maxFlipFrames     = 6
 	defaultMinFlips   = 4
@@ -78,6 +82,15 @@ func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, 
 	}
 	if err := checkCanvas(tmpl.Meta.Canvas); err != nil {
 		return nil, fmt.Errorf("renderer: RenderAnimation: %w", err)
+	}
+
+	// Reject oversized animations up front, using the upper bound on frames.
+	if tmpl.HasSplitflap() {
+		maxFrames := min(int(math.Floor(duration*float64(fps)+1e-9)), maxAnimFrames-1) + 1
+		if px := int64(maxFrames) * int64(tmpl.Meta.Canvas.Width) * int64(tmpl.Meta.Canvas.Height); px > maxAnimPixels {
+			return nil, fmt.Errorf("renderer: RenderAnimation: animation too large: up to %d frames of %dx%d exceed %d pixels",
+				maxFrames, tmpl.Meta.Canvas.Width, tmpl.Meta.Canvas.Height, maxAnimPixels)
+		}
 	}
 
 	eval := NewEvaluator(data) // one evaluator, one `now`, for all frames

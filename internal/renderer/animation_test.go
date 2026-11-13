@@ -390,3 +390,33 @@ func TestRenderAnimation_FlipFramesShapeFrameCount(t *testing.T) {
 		t.Errorf("frames = %d, want 16", len(a.Frames))
 	}
 }
+
+func TestRenderAnimation_PixelLimit(t *testing.T) {
+	big := strings.Replace(animLimitsYAML, "canvas: {width: 20, height: 10}", "canvas: {width: 600, height: 600}", 1)
+	write := func(y string) (string, string) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "template.yaml"), []byte(y), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return filepath.Dir(dir), filepath.Base(dir)
+	}
+	rep := strings.NewReplacer("%FPS%", "25", "%DUR%", "5", "%FF%", "1")
+	root, name := write(rep.Replace(big))
+	tmpl, err := LoadTemplate(root, name)
+	if err != nil {
+		t.Fatalf("LoadTemplate: %v", err)
+	}
+	if _, err := New(root).RenderAnimation(tmpl, nil, []byte("x")); err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Errorf("err = %v, want 'too large' error", err)
+	}
+
+	// Same canvas with few frames stays under the limit.
+	root, name = write(strings.NewReplacer("%FPS%", "5", "%DUR%", "0.5", "%FF%", "1").Replace(big))
+	tmpl, err = LoadTemplate(root, name)
+	if err != nil {
+		t.Fatalf("LoadTemplate: %v", err)
+	}
+	if _, err := New(root).RenderAnimation(tmpl, nil, []byte("x")); err != nil {
+		t.Errorf("small animation: unexpected error %v", err)
+	}
+}

@@ -92,3 +92,68 @@ func TestCache_DirCreated(t *testing.T) {
 		t.Error("expected directory to be created")
 	}
 }
+
+func TestCache_KeyUnchanged(t *testing.T) {
+	c, _ := NewCache(t.TempDir(), time.Hour, 100)
+	const want = "59b271ae1bbcb1d31d41929817f4b16fb439eb4f31520b5ad1d5ce98920a7138" // sha256("a\x00b"), fixed before GIF support
+	if got := c.Key("a", []byte("b")); got != want {
+		t.Errorf("Key changed: got %s, want %s", got, want)
+	}
+}
+
+func TestCache_Ext(t *testing.T) {
+	dir := t.TempDir()
+	c, _ := NewCache(dir, time.Hour, 100)
+	k := c.Key("t", []byte("x"))
+	if err := c.Set(k, []byte("png")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetExt(k, "gif", []byte("gif")); err != nil {
+		t.Fatal(err)
+	}
+	if got, hit := c.Get(k); !hit || string(got) != "png" {
+		t.Errorf("Get = %q, %v", got, hit)
+	}
+	if got, hit := c.GetExt(k, "gif"); !hit || string(got) != "gif" {
+		t.Errorf("GetExt = %q, %v", got, hit)
+	}
+	if st := c.Stats(); st.FileCount != 2 {
+		t.Errorf("FileCount = %d, want 2", st.FileCount)
+	}
+	if err := c.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if _, hit := c.Get(k); hit {
+		t.Error("png survived Flush")
+	}
+	if _, hit := c.GetExt(k, "gif"); hit {
+		t.Error("gif survived Flush")
+	}
+}
+
+func TestCache_Ext_CleanupByAge(t *testing.T) {
+	dir := t.TempDir()
+	c, _ := NewCache(dir, time.Hour, 100)
+	k := c.Key("t", []byte("x"))
+	_ = c.SetExt(k, "gif", []byte("gif"))
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(filepath.Join(dir, k+".gif"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	if _, hit := c.GetExt(k, "gif"); hit {
+		t.Error("old gif not removed by cleanup")
+	}
+}
+
+func TestCache_Ext_RejectsBadExt(t *testing.T) {
+	c, _ := NewCache(t.TempDir(), time.Hour, 100)
+	if err := c.SetExt("k", "../x", []byte("a")); err == nil {
+		t.Error("expected error for unsafe extension")
+	}
+	if _, hit := c.GetExt("k", "../x"); hit {
+		t.Error("expected miss for unsafe extension")
+	}
+}

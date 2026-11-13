@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
@@ -18,12 +21,27 @@ func RenderCmd() *cobra.Command {
 		inputFile    string
 		outputFile   string
 		templatesDir string
+		format       string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "render",
-		Short: "Render a template with JSON input data to a PNG image",
+		Short: "Render a template with JSON input data to a PNG image or animated GIF",
+		Long: "Render a template with JSON input data to a PNG image or an animated GIF.\n" +
+			"The format is taken from --format, else from the extension of -o (.gif or .png, case-insensitive), else PNG.\n" +
+			"A GIF of a template without splitflap layers has a single frame.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Resolve output format: --format wins over the -o extension.
+			if format == "" {
+				format = "png"
+				if strings.EqualFold(filepath.Ext(outputFile), ".gif") {
+					format = "gif"
+				}
+			}
+			if format != "png" && format != "gif" {
+				return fmt.Errorf("render: unknown format %q (use png or gif)", format)
+			}
+
 			// Validate template name.
 			if err := renderer.ValidateTemplateName(templateName); err != nil {
 				return fmt.Errorf("render: %w", err)
@@ -47,18 +65,28 @@ func RenderCmd() *cobra.Command {
 
 			// Render.
 			r := renderer.New(templatesDir)
-			img, err := r.Render(tmpl, data)
-			if err != nil {
-				return fmt.Errorf("render: rendering: %w", err)
+			var encode func(io.Writer) error
+			if format == "gif" {
+				seed := renderer.AnimationSeed(templateName, jsonBytes)
+				anim, err := r.RenderAnimation(tmpl, data, seed)
+				if err != nil {
+					return fmt.Errorf("render: rendering: %w", err)
+				}
+				encode = func(w io.Writer) error { return renderer.EncodeGIF(w, anim, tmpl.Meta.Canvas.Colors) }
+			} else {
+				img, err := r.Render(tmpl, data)
+				if err != nil {
+					return fmt.Errorf("render: rendering: %w", err)
+				}
+				// Optionally reduce color palette.
+				var encImg image.Image = img
+				if tmpl.Meta.Canvas.Colors > 0 {
+					encImg = renderer.Quantize(img, tmpl.Meta.Canvas.Colors)
+				}
+				encode = func(w io.Writer) error { return png.Encode(w, encImg) }
 			}
 
-			// Optionally reduce color palette.
-			var encImg image.Image = img
-			if tmpl.Meta.Canvas.Colors > 0 {
-				encImg = renderer.Quantize(img, tmpl.Meta.Canvas.Colors)
-			}
-
-			// Write PNG output.
+			// Write output.
 			outF, err := os.Create(outputFile)
 			if err != nil {
 				return fmt.Errorf("render: creating output file: %w", err)
@@ -70,8 +98,8 @@ func RenderCmd() *cobra.Command {
 				}
 			}()
 
-			if err := png.Encode(outF, encImg); err != nil {
-				return fmt.Errorf("render: encoding PNG: %w", err)
+			if err := encode(outF); err != nil {
+				return fmt.Errorf("render: encoding %s: %w", strings.ToUpper(format), err)
 			}
 
 			f := outF
@@ -88,7 +116,8 @@ func RenderCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&templateName, "template", "t", "", "Template name (required)")
 	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "Input JSON file (required)")
-	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output PNG file (required)")
+	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file, .png or .gif (required)")
+	cmd.Flags().StringVar(&format, "format", "", "Output format: png or gif (default: from -o extension, else png)")
 	cmd.Flags().StringVar(&templatesDir, "templates-dir", "./templates", "Templates directory")
 
 	_ = cmd.MarkFlagRequired("template")
