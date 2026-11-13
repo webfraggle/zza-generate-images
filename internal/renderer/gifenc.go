@@ -16,14 +16,18 @@ const (
 )
 
 // EncodeGIF writes anim as a GIF that plays exactly once and ends on the last
-// frame. colors is the global palette size (0 means 256, otherwise 2–256).
+// frame. colors is the size of the global palette (0 means 256, otherwise
+// 2–256); one entry is reserved for transparency, so at most colors-1 real
+// colours are used (colors: 2 gives one real colour plus transparency).
 //
-// All frames share one global palette, built from a mosaic of sample frames.
-// Frames after the first are stored as delta rectangles (DisposalNone) covering
-// only the pixels that changed; consecutive identical frames are merged by
-// adding their delay. The palette is always opaque (Quantize never emits
-// transparency), so no index is ever a transparent "keep previous pixel" one.
-// The output is deterministic for identical input.
+// All frames share one global colour table and no local tables. If all frames
+// together use at most colors-1 distinct colours, exactly those form the
+// palette; otherwise a mosaic of sample frames is quantized with Quantize.
+// Frame 0 is stored in full. Later frames are delta rectangles (DisposalNone)
+// covering the bounding box of changed pixels; inside it, pixels equal to the
+// previous composited frame are written as the transparent index, which
+// compresses far better. Consecutive identical frames are merged by adding
+// their delay. The output is deterministic for identical input.
 func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 	if anim == nil || len(anim.Frames) == 0 {
 		return fmt.Errorf("renderer: EncodeGIF: animation has no frames")
@@ -56,6 +60,8 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 	}
 
 	pal := gifPalette(anim.Frames, colors)
+	transparent := uint8(len(pal) - 1)
+	realPal := pal[:transparent]          // the transparent entry is never a nearest match
 	lookup := make(map[color.NRGBA]uint8) // only used for lookups, never iterated
 
 	delay := (100 + anim.FPS/2) / anim.FPS
@@ -72,7 +78,7 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 				c := opaque(f.NRGBAAt(x, y))
 				idx, ok := lookup[c]
 				if !ok {
-					idx = uint8(pal.Index(c))
+					idx = uint8(realPal.Index(c))
 					lookup[c] = idx
 				}
 				cur.SetColorIndex(x, y, idx)
@@ -91,7 +97,16 @@ func EncodeGIF(w io.Writer, anim *Animation, colors int) error {
 		} else if r := changedRect(prev, cur); r.Empty() {
 			out.Delay[len(out.Delay)-1] += d
 		} else {
-			sub := cur.SubImage(r).(*image.Paletted)
+			sub := image.NewPaletted(r, pal)
+			for y := r.Min.Y; y < r.Max.Y; y++ {
+				for x := r.Min.X; x < r.Max.X; x++ {
+					if v := cur.ColorIndexAt(x, y); v != prev.ColorIndexAt(x, y) {
+						sub.SetColorIndex(x, y, v)
+					} else {
+						sub.SetColorIndex(x, y, transparent)
+					}
+				}
+			}
 			out.Image = append(out.Image, sub)
 			out.Delay = append(out.Delay, d)
 			out.Disposal = append(out.Disposal, gif.DisposalNone)
@@ -145,20 +160,19 @@ func distinctColors(frames []*image.NRGBA, limit int) (cols []color.NRGBA, ok bo
 	return cols, true
 }
 
-// gifPalette returns the global palette. If all frames together use at most
-// colors distinct colours, exactly those are used. Otherwise a side-by-side
-// mosaic of sample frames (first, last and up to six evenly spaced in between)
-// is quantized.
+// gifPalette returns the global palette: real colours followed by one fully
+// transparent entry (always last, never used for real pixels). With at most
+// colors-1 distinct colours in total those are used exactly; otherwise a
+// side-by-side mosaic of sample frames (first, last and up to six evenly
+// spaced in between) is quantized.
 func gifPalette(frames []*image.NRGBA, colors int) color.Palette {
-	if cols, ok := distinctColors(frames, colors); ok {
-		pal := make(color.Palette, len(cols))
-		for i, c := range cols {
-			pal[i] = c
+	real := colors - 1
+	var pal color.Palette
+	if cols, ok := distinctColors(frames, real); ok {
+		for _, c := range cols {
+			pal = append(pal, c)
 		}
-		for len(pal) < 2 {
-			pal = append(pal, color.NRGBA{A: 255})
-		}
-		return pal
+		return append(pal, color.NRGBA{})
 	}
 	n := len(frames)
 	idxs := []int{0}
@@ -187,11 +201,18 @@ func gifPalette(frames []*image.NRGBA, colors int) color.Palette {
 		draw.Draw(mosaic, dst, frames[fi], b.Min, draw.Src)
 	}
 
-	pal := Quantize(mosaic, colors).Palette
-	for len(pal) < 2 { // a GIF palette needs at least two entries
-		pal = append(pal, color.NRGBA{A: 255})
+	if real == 1 {
+		pix := make([]color.NRGBA, 0, mosaic.Bounds().Dx()*mosaic.Bounds().Dy())
+		for y := 0; y < mosaic.Bounds().Dy(); y++ {
+			for x := 0; x < mosaic.Bounds().Dx(); x++ {
+				pix = append(pix, mosaic.NRGBAAt(x, y))
+			}
+		}
+		pal = color.Palette{medianCut(pix, 1)[0]}
+	} else {
+		pal = Quantize(mosaic, real).Palette
 	}
-	return pal
+	return append(pal, color.NRGBA{})
 }
 
 // changedRect returns the bounding rectangle of pixels that differ between a

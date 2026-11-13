@@ -95,6 +95,9 @@ func TestEncodeGIF_Structure(t *testing.T) {
 			t.Fatalf("frame %d palette len differs from global", i)
 		}
 		for j := range cm {
+			if _, _, _, a := f.Palette[j].RGBA(); a == 0 {
+				continue // decoder turns the transparent entry into alpha 0
+			}
 			if f.Palette[j] != cm[j] {
 				t.Fatalf("frame %d palette differs at %d", i, j)
 			}
@@ -216,17 +219,25 @@ func TestEncodeGIF_Errors(t *testing.T) {
 	}
 }
 
-// Semi-transparent input must still reconstruct consistently: the palette is
-// always opaque, so no index can be mistaken for "transparent".
+// Semi-transparent input must still reconstruct consistently: input alpha is
+// dropped, so only the reserved entry is transparent.
 func TestEncodeGIF_TransparentInput(t *testing.T) {
 	a := gifSolid(8, 8, color.NRGBA{0, 0, 0, 0})
 	b := gifSquare(8, 8, 2, 2, 3, color.NRGBA{0, 0, 0, 0}, gifWhite)
 	g := encodeAndDecode(t, &Animation{FPS: 10, Frames: []*image.NRGBA{a, b}}, 0)
 	for _, f := range g.Image {
+		transparent := 0
 		for _, c := range f.Palette {
-			if _, _, _, al := c.RGBA(); al != 0xffff {
-				t.Fatalf("palette contains non-opaque color %v", c)
+			switch _, _, _, al := c.RGBA(); al {
+			case 0:
+				transparent++
+			case 0xffff:
+			default:
+				t.Fatalf("palette contains semi-transparent color %v", c)
 			}
+		}
+		if transparent != 1 {
+			t.Fatalf("palette has %d transparent entries, want exactly 1", transparent)
 		}
 	}
 	rec := reconstruct(g)
@@ -264,5 +275,161 @@ func TestEncodeGIF_QuantizeFallback(t *testing.T) {
 	}
 	if n := len(g.Image[0].Palette); n > 8 {
 		t.Errorf("palette len %d > 8", n)
+	}
+}
+
+func gifTransparentIndex(t *testing.T, p color.Palette) int {
+	t.Helper()
+	for i, c := range p {
+		if _, _, _, a := c.RGBA(); a == 0 {
+			return i
+		}
+	}
+	t.Fatal("palette has no transparent entry")
+	return -1
+}
+
+func TestEncodeGIF_UnchangedPixelsInDeltaRectAreTransparent(t *testing.T) {
+	f0 := gifSolid(20, 20, gifBlack)
+	f1 := gifSolid(20, 20, gifBlack)
+	draw.Draw(f1, image.Rect(2, 2, 4, 4), &image.Uniform{C: gifWhite}, image.Point{}, draw.Src)
+	draw.Draw(f1, image.Rect(15, 15, 18, 18), &image.Uniform{C: gifWhite}, image.Point{}, draw.Src)
+	g := encodeAndDecode(t, &Animation{FPS: 10, Frames: []*image.NRGBA{f0, f1}}, 0)
+	if len(g.Image) != 2 {
+		t.Fatalf("frames = %d", len(g.Image))
+	}
+	d := g.Image[1]
+	if d.Bounds() != image.Rect(2, 2, 18, 18) {
+		t.Fatalf("delta bounds = %v", d.Bounds())
+	}
+	tr := uint8(gifTransparentIndex(t, d.Palette))
+	if got := d.ColorIndexAt(10, 10); got != tr {
+		t.Errorf("unchanged pixel index = %d, want transparent %d", got, tr)
+	}
+	if got := d.ColorIndexAt(2, 2); got == tr {
+		t.Error("changed pixel is transparent")
+	}
+	if got := g.Image[0].ColorIndexAt(0, 0); got == tr {
+		t.Error("frame 0 must not use the transparent index")
+	}
+}
+
+// gifBlocks walks the GIF byte stream and returns whether a global colour
+// table exists and how many image descriptors carry a local colour table.
+func gifBlocks(t *testing.T, b []byte) (global bool, localTables, images int) {
+	t.Helper()
+	if len(b) < 13 {
+		t.Fatal("too short")
+	}
+	global = b[10]&0x80 != 0
+	pos := 13
+	if global {
+		pos += 3 << (int(b[10]&7) + 1)
+	}
+	skipSub := func() {
+		for b[pos] != 0 {
+			pos += int(b[pos]) + 1
+		}
+		pos++
+	}
+	for {
+		switch b[pos] {
+		case 0x3B:
+			return
+		case 0x21:
+			pos += 2
+			skipSub()
+		case 0x2C:
+			images++
+			packed := b[pos+9]
+			pos += 10
+			if packed&0x80 != 0 {
+				localTables++
+				pos += 3 << (int(packed&7) + 1)
+			}
+			pos++ // LZW min code size
+			skipSub()
+		default:
+			t.Fatalf("unexpected block 0x%x at %d", b[pos], pos)
+		}
+	}
+}
+
+func TestEncodeGIF_OneGlobalTableNoLocal(t *testing.T) {
+	anim := &Animation{FPS: 10, Frames: []*image.NRGBA{
+		gifSolid(20, 20, gifBlack),
+		gifSquare(20, 20, 5, 5, 4, gifBlack, gifWhite),
+		gifSquare(20, 20, 10, 10, 4, gifBlack, gifWhite),
+	}}
+	var buf bytes.Buffer
+	if err := EncodeGIF(&buf, anim, 0); err != nil {
+		t.Fatal(err)
+	}
+	global, local, images := gifBlocks(t, buf.Bytes())
+	if !global || local != 0 || images != 3 {
+		t.Errorf("global=%v local=%d images=%d, want true/0/3", global, local, images)
+	}
+	g, err := gif.DecodeAll(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gifTransparentIndex(t, g.Image[1].Palette)
+}
+
+func gifNoisyBackground(w, h int) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	seed := uint32(12345)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			seed = seed*1664525 + 1013904223
+			v := uint8((seed >> 24) % 100)
+			img.SetNRGBA(x, y, color.NRGBA{v, v * 2, 255 - v, 255})
+		}
+	}
+	return img
+}
+
+func TestEncodeGIF_SizeWithStaticNoisyBackground(t *testing.T) {
+	bg := gifNoisyBackground(240, 240)
+	var frames []*image.NRGBA
+	for i := 0; i < 10; i++ {
+		f := &image.NRGBA{Pix: append([]uint8(nil), bg.Pix...), Stride: bg.Stride, Rect: bg.Rect}
+		draw.Draw(f, image.Rect(5+i*3, 5, 15+i*3, 15), &image.Uniform{C: gifWhite}, image.Point{}, draw.Src)
+		draw.Draw(f, image.Rect(225-i*3, 225, 235-i*3, 235), &image.Uniform{C: color.NRGBA{250, 0, 0, 255}}, image.Point{}, draw.Src)
+		frames = append(frames, f)
+	}
+	var buf bytes.Buffer
+	if err := EncodeGIF(&buf, &Animation{FPS: 20, Frames: frames}, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("size = %d bytes", buf.Len())
+	if buf.Len() > 90000 {
+		t.Errorf("GIF is %d bytes, want <= 90000", buf.Len())
+	}
+	g, err := gif.DecodeAll(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := reconstruct(g)
+	for i := range frames {
+		if !samePixels(rec[i], frames[i]) {
+			t.Fatalf("frame %d not reconstructed", i)
+		}
+	}
+}
+
+// colors: 2 means one real colour plus the transparent entry.
+func TestEncodeGIF_TwoColors(t *testing.T) {
+	one := &Animation{FPS: 10, Frames: []*image.NRGBA{gifSolid(6, 6, gifWhite), gifSolid(6, 6, gifWhite)}}
+	g := encodeAndDecode(t, one, 2)
+	if len(g.Image[0].Palette) != 2 {
+		t.Errorf("palette len = %d, want 2", len(g.Image[0].Palette))
+	}
+	many := &Animation{FPS: 10, Frames: []*image.NRGBA{
+		gifSolid(6, 6, gifBlack), gifSquare(6, 6, 1, 1, 3, gifBlack, gifWhite),
+	}}
+	g = encodeAndDecode(t, many, 2)
+	if n := len(g.Image[0].Palette); n != 2 {
+		t.Errorf("fallback palette len = %d, want 2", n)
 	}
 }
