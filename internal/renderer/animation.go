@@ -1,0 +1,332 @@
+package renderer
+
+import (
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
+	"image"
+	"image/draw"
+	"math"
+
+	xdraw "golang.org/x/image/draw"
+)
+
+// Animation limits and defaults (template meta.animation, splitflap timing fields).
+const (
+	defaultAnimFPS      = 20
+	minAnimFPS          = 5
+	maxAnimFPS          = 25
+	defaultAnimDuration = 2.5 // seconds
+	minAnimDuration     = 0.5
+	maxAnimDuration     = 5.0
+	maxAnimFrames       = 125 // frames per animation, including the final still
+
+	defaultFlipFrames = 2 // frames per flip
+	maxFlipFrames     = 6
+	defaultMinFlips   = 4
+)
+
+// Look of a flip in progress (spec §6). The falling flap is darkened by these
+// fractions; its squash per phase is given by flipPhase.
+const (
+	flapShadeUpper = 0.25 // upper half of the old value, falling towards the hinge
+	flapShadeLower = 0.15 // lower half of the new value, unfolding below the hinge
+)
+
+// Animation is a rendered frame sequence. The last frame is the still image.
+type Animation struct {
+	Frames []*image.NRGBA
+	FPS    int
+}
+
+// resolve returns the effective animation settings, applying defaults for
+// zero values, or an error if a value is out of range.
+func (a AnimationMeta) resolve() (fps int, duration float64, err error) {
+	fps, duration = a.FPS, a.Duration
+	if fps == 0 {
+		fps = defaultAnimFPS
+	} else if fps < minAnimFPS || fps > maxAnimFPS {
+		return 0, 0, fmt.Errorf("animation.fps must be between %d and %d (got %d)", minAnimFPS, maxAnimFPS, fps)
+	}
+	if duration == 0 {
+		duration = defaultAnimDuration
+	} else if !(duration >= minAnimDuration && duration <= maxAnimDuration) {
+		return 0, 0, fmt.Errorf("animation.duration must be between %g and %g seconds (got %g)", minAnimDuration, maxAnimDuration, duration)
+	}
+	return fps, duration, nil
+}
+
+// AnimationSeed derives the seed of an animation from the template name and
+// the request body: sha256(templateName ‖ 0x00 ‖ body).
+func AnimationSeed(templateName string, body []byte) []byte {
+	h := sha256.New()
+	h.Write([]byte(templateName))
+	h.Write([]byte{0})
+	h.Write(body)
+	return h.Sum(nil)
+}
+
+// RenderAnimation renders the split-flap animation of a template: every
+// module starts flipping in frame 0 and comes to rest on its target value
+// after a seeded number of flips. The last frame equals Render's output.
+// A template without splitflap layers yields exactly one frame.
+// Equal inputs give identical frames; {{now.*}} is frozen for all frames.
+func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, seed []byte) (*Animation, error) {
+	fps, duration, err := tmpl.Meta.Animation.resolve()
+	if err != nil {
+		return nil, fmt.Errorf("renderer: RenderAnimation: %w", err)
+	}
+	if err := checkCanvas(tmpl.Meta.Canvas); err != nil {
+		return nil, fmt.Errorf("renderer: RenderAnimation: %w", err)
+	}
+
+	eval := NewEvaluator(data) // one evaluator, one `now`, for all frames
+	imgCache := make(map[string]image.Image)
+	newCtx := func(anim *animState) *renderCtx {
+		rc := newRenderCtx(tmpl, eval) // fresh maxLayers counter per frame
+		rc.imgCache = imgCache
+		rc.anim = anim
+		return rc
+	}
+
+	// The static pass applies exactly Render's checks and yields the final still.
+	final, err := r.renderFrame(newCtx(nil))
+	if err != nil {
+		return nil, fmt.Errorf("renderer: RenderAnimation: %w", err)
+	}
+	if !tmpl.HasSplitflap() {
+		return &Animation{Frames: []*image.NRGBA{final}, FPS: fps}, nil
+	}
+
+	budget := int(math.Floor(duration*float64(fps) + 1e-9))
+	anim := &animState{
+		seed:      seed,
+		budget:    min(budget, maxAnimFrames-1),
+		schedules: make(map[moduleKey]*flapSchedule),
+		leaves:    make(map[leafKey]*image.NRGBA),
+	}
+	var frames []*image.NRGBA
+	// Frame 0 schedules every module and so fixes anim.end.
+	for anim.frame = 0; anim.frame == 0 || anim.frame < anim.end; anim.frame++ {
+		img, err := r.renderFrame(newCtx(anim))
+		if err != nil {
+			return nil, fmt.Errorf("renderer: RenderAnimation: frame %d: %w", anim.frame, err)
+		}
+		if anim.end == 0 { // no module was drawn (splitflap only in untaken branches)
+			break
+		}
+		frames = append(frames, img)
+	}
+	frames = append(frames, final)
+	return &Animation{Frames: frames, FPS: fps}, nil
+}
+
+// animState is the animation state shared by the frames of one
+// RenderAnimation call; nil in renderCtx means static image.
+type animState struct {
+	frame     int    // index of the frame being rendered
+	seed      []byte // seeds the flip counts
+	budget    int    // frames available for flipping (duration·fps, capped)
+	end       int    // first frame in which all modules are at rest (max k·flipFrames)
+	schedules map[moduleKey]*flapSchedule
+	leaves    map[leafKey]*image.NRGBA // rendered flaps; each rendered at most once
+}
+
+type moduleKey struct{ layerIdx, cellIdx int }
+
+type leafKey struct {
+	layerIdx, cellIdx int
+	value             string
+}
+
+// flapSchedule is the motion of one module: it flips from seq[i] to seq[i+1]
+// during frames i·flipFrames … (i+1)·flipFrames−1 and rests on the last entry
+// (the target) from frame (len(seq)−1)·flipFrames on.
+type flapSchedule struct {
+	flipFrames int
+	seq        []string
+}
+
+// schedule returns the schedule of m, creating it in frame 0.
+func (a *animState) schedule(m flapModule) (*flapSchedule, error) {
+	key := moduleKey{m.layerIdx, m.cellIdx}
+	if s, ok := a.schedules[key]; ok {
+		return s, nil
+	}
+	if a.frame != 0 {
+		return nil, fmt.Errorf("module first appeared in frame %d, not in frame 0", a.frame)
+	}
+
+	f := m.layer.FlipFrames
+	if f == 0 {
+		f = defaultFlipFrames
+	}
+	maxK := max(1, a.budget/f)
+	minFlips, maxFlips := m.layer.MinFlips, m.layer.MaxFlips
+	if minFlips == 0 {
+		minFlips = defaultMinFlips
+	}
+	if maxFlips == 0 {
+		maxFlips = maxK
+	}
+	minFlips = min(max(minFlips, 1), maxK)
+	maxFlips = min(max(maxFlips, 1), maxK)
+	minFlips = min(minFlips, maxFlips)
+
+	k := flipCount(a.seed, m.layerIdx, m.cellIdx, minFlips, maxFlips)
+	s := &flapSchedule{flipFrames: f, seq: flipSequence(m.layer.Reel, m.target, k)}
+	a.schedules[key] = s
+	a.end = max(a.end, k*f)
+	return s, nil
+}
+
+// drawAnimatedModule draws module m in its state in the current frame.
+func (r *Renderer) drawAnimatedModule(rc *renderCtx, dst *image.NRGBA, m flapModule) error {
+	s, err := rc.anim.schedule(m)
+	if err != nil {
+		return err
+	}
+	fr := rc.anim.frame
+	k := len(s.seq) - 1
+	if fr >= k*s.flipFrames {
+		leaf, err := r.cachedLeaf(rc, dst, m, m.target)
+		if err != nil {
+			return err
+		}
+		draw.Draw(dst, m.rect, leaf, image.Point{}, draw.Src)
+		return nil
+	}
+	step, phase := fr/s.flipFrames, fr%s.flipFrames
+	from, err := r.cachedLeaf(rc, dst, m, s.seq[step])
+	if err != nil {
+		return err
+	}
+	to, err := r.cachedLeaf(rc, dst, m, s.seq[step+1])
+	if err != nil {
+		return err
+	}
+	composeFlip(dst, m.rect.Min, from, to, m.splitY, phase, s.flipFrames)
+	return nil
+}
+
+// cachedLeaf returns the flap of m showing value, rendering it on first use.
+// The background is taken from dst under the module; modules do not overlap
+// and the canvas under a module is the same in every frame, so the leaf is
+// valid for all frames.
+func (r *Renderer) cachedLeaf(rc *renderCtx, dst *image.NRGBA, m flapModule, value string) (*image.NRGBA, error) {
+	key := leafKey{m.layerIdx, m.cellIdx, value}
+	if leaf, ok := rc.anim.leaves[key]; ok {
+		return leaf, nil
+	}
+	leaf, err := r.renderLeaf(rc, m, snapshot(dst, m.rect), value)
+	if err != nil {
+		return nil, err
+	}
+	rc.anim.leaves[key] = leaf
+	return leaf, nil
+}
+
+// flipCount returns the seeded number of flips of a module, in
+// [minFlips, maxFlips]. It requires minFlips <= maxFlips.
+func flipCount(seed []byte, layerIdx, cellIdx, minFlips, maxFlips int) int {
+	if maxFlips <= minFlips {
+		return minFlips
+	}
+	var idx [16]byte
+	binary.BigEndian.PutUint64(idx[:8], uint64(layerIdx))
+	binary.BigEndian.PutUint64(idx[8:], uint64(cellIdx))
+	h := sha256.New()
+	h.Write(seed)
+	h.Write(idx[:])
+	sum := h.Sum(nil)
+	return minFlips + int(binary.BigEndian.Uint64(sum[:8])%uint64(maxFlips-minFlips+1))
+}
+
+// flipSequence returns the k+1 values a module shows during k flips, ending
+// with target. If target is in the reel (first occurrence), the run walks the
+// reel cyclically and arrives there; otherwise k reel entries in cyclic order
+// precede target, starting at an offset derived from k (which is seeded).
+// Without a reel the module flips through empty flaps ("").
+func flipSequence(reel []string, target string, k int) []string {
+	k = max(k, 0)
+	seq := make([]string, k+1)
+	seq[k] = target
+	n := len(reel)
+	if n == 0 {
+		return seq
+	}
+	start := k
+	for i, v := range reel {
+		if v == target {
+			start = i - k
+			break
+		}
+	}
+	for i := 0; i < k; i++ {
+		seq[i] = reel[((start+i)%n+n)%n]
+	}
+	return seq
+}
+
+// flipPhase maps a frame of a flip lasting phases frames to the half that is
+// falling and its progress p in (0, 1). The first ceil(phases/2) frames show
+// the upper half falling, the rest the lower half; progress is spaced evenly
+// within each half (p = 0.5 for a single frame).
+func flipPhase(phase, phases int) (upper bool, p float64) {
+	nUpper := (phases + 1) / 2
+	if phase < nUpper {
+		return true, float64(phase+1) / float64(nUpper+1)
+	}
+	nLower := phases - nUpper
+	return false, float64(phase-nUpper+1) / float64(nLower+1)
+}
+
+// composeFlip draws, at position at on dst, a module flipping from leaf from
+// to leaf to (same size, origin (0,0)) in frame phase ∈ [0, phases) of the flip.
+// splitY is the hinge line relative to the module.
+//
+// Upper half falling: the upper half shows to, overlaid by the upper half of
+// from, squashed to height upper·(1−p) and anchored at the hinge, darkened;
+// the lower half still shows from. Lower half falling: the upper half shows
+// to; below the hinge, the lower half of to, squashed to height lower·p,
+// lies over the lower half of from, slightly darkened.
+func composeFlip(dst *image.NRGBA, at image.Point, from, to *image.NRGBA, splitY int, phase, phases int) {
+	w, h := to.Bounds().Dx(), to.Bounds().Dy()
+	upperR := image.Rect(0, 0, w, splitY)
+	lowerR := image.Rect(0, splitY, w, h)
+	draw.Draw(dst, upperR.Add(at), to, upperR.Min, draw.Src)
+	draw.Draw(dst, lowerR.Add(at), from, lowerR.Min, draw.Src)
+
+	upper, p := flipPhase(phase, phases)
+	if upper {
+		hh := squashedHeight(splitY, 1-p)
+		r := image.Rect(0, splitY-hh, w, splitY).Add(at)
+		xdraw.ApproxBiLinear.Scale(dst, r, from, upperR, xdraw.Src, nil)
+		shade(dst, r, flapShadeUpper)
+		return
+	}
+	hh := squashedHeight(h-splitY, p)
+	r := image.Rect(0, splitY, w, splitY+hh).Add(at)
+	xdraw.ApproxBiLinear.Scale(dst, r, to, lowerR, xdraw.Src, nil)
+	shade(dst, r, flapShadeLower)
+}
+
+// squashedHeight returns full·frac rounded, at least 1 and at most full.
+func squashedHeight(full int, frac float64) int {
+	return min(max(int(math.Round(float64(full)*frac)), 1), full)
+}
+
+// shade darkens the colour channels of img inside r by the fraction amount.
+// Integer arithmetic keeps the result identical on every platform.
+func shade(img *image.NRGBA, r image.Rectangle, amount float64) {
+	r = r.Intersect(img.Bounds())
+	keep := uint32(math.Round((1 - amount) * 256))
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		i := img.PixOffset(r.Min.X, y)
+		for x := r.Min.X; x < r.Max.X; x, i = x+1, i+4 {
+			for c := 0; c < 3; c++ {
+				img.Pix[i+c] = uint8((uint32(img.Pix[i+c])*keep + 128) >> 8)
+			}
+		}
+	}
+}

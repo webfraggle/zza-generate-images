@@ -64,6 +64,9 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 	if c := tmpl.Meta.Canvas.Colors; c != 0 && (c < 2 || c > 256) {
 		return nil, fmt.Errorf("renderer: LoadTemplate: canvas.colors must be between 2 and 256 (got %d)", c)
 	}
+	if _, _, err := tmpl.Meta.Animation.resolve(); err != nil {
+		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
+	}
 
 	return &tmpl, nil
 }
@@ -85,9 +88,6 @@ type renderCtx struct {
 	imgCache     map[string]image.Image // decoded image files by filename, per render
 	anim         *animState             // nil = static image
 }
-
-// animState holds the animation state of a render; nil in renderCtx means static.
-type animState struct{}
 
 func newRenderCtx(tmpl *Template, eval *Evaluator) *renderCtx {
 	count := 0
@@ -191,18 +191,33 @@ func (r *Renderer) renderLayers(rc *renderCtx, dst *image.NRGBA, layers []Layer,
 
 // Render creates an image from the template and input data.
 func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.NRGBA, error) {
-	w, h := tmpl.Meta.Canvas.Width, tmpl.Meta.Canvas.Height
-	if w <= 0 || h <= 0 {
-		return nil, fmt.Errorf("renderer: Render: invalid canvas dimensions %dx%d", w, h)
-	}
-	if w > maxCanvasDimension || h > maxCanvasDimension {
-		return nil, fmt.Errorf("renderer: Render: canvas dimensions %dx%d exceed maximum %d", w, h, maxCanvasDimension)
-	}
-	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
-	eval := NewEvaluator(data)
-
-	if err := r.renderLayers(newRenderCtx(tmpl, eval), dst, tmpl.Layers, eval, false, 0); err != nil {
+	if err := checkCanvas(tmpl.Meta.Canvas); err != nil {
 		return nil, fmt.Errorf("renderer: Render: %w", err)
+	}
+	img, err := r.renderFrame(newRenderCtx(tmpl, NewEvaluator(data)))
+	if err != nil {
+		return nil, fmt.Errorf("renderer: Render: %w", err)
+	}
+	return img, nil
+}
+
+// checkCanvas validates the output image dimensions.
+func checkCanvas(c Canvas) error {
+	if c.Width <= 0 || c.Height <= 0 {
+		return fmt.Errorf("invalid canvas dimensions %dx%d", c.Width, c.Height)
+	}
+	if c.Width > maxCanvasDimension || c.Height > maxCanvasDimension {
+		return fmt.Errorf("canvas dimensions %dx%d exceed maximum %d", c.Width, c.Height, maxCanvasDimension)
+	}
+	return nil
+}
+
+// renderFrame renders all template layers onto a fresh canvas.
+// The canvas size must already be validated.
+func (r *Renderer) renderFrame(rc *renderCtx) (*image.NRGBA, error) {
+	dst := image.NewNRGBA(image.Rect(0, 0, rc.tmpl.Meta.Canvas.Width, rc.tmpl.Meta.Canvas.Height))
+	if err := r.renderLayers(rc, dst, rc.tmpl.Layers, rc.eval, false, 0); err != nil {
+		return nil, err
 	}
 	return dst, nil
 }

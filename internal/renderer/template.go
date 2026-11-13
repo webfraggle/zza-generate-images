@@ -18,13 +18,21 @@ type Template struct {
 
 // Meta holds the template metadata.
 type Meta struct {
-	Name         string `yaml:"name"`
-	Description  string `yaml:"description"`
-	Author       string `yaml:"author"`
-	Version      string `yaml:"version"`
-	Display      string `yaml:"display"`
-	Instructions string `yaml:"instructions"`
-	Canvas       Canvas `yaml:"canvas"`
+	Name         string        `yaml:"name"`
+	Description  string        `yaml:"description"`
+	Author       string        `yaml:"author"`
+	Version      string        `yaml:"version"`
+	Display      string        `yaml:"display"`
+	Instructions string        `yaml:"instructions"`
+	Canvas       Canvas        `yaml:"canvas"`
+	Animation    AnimationMeta `yaml:"animation"`
+}
+
+// AnimationMeta holds the animation settings of a template (GIF output).
+// Zero values mean the defaults; see resolve.
+type AnimationMeta struct {
+	FPS      int     `yaml:"fps"`      // frames per second; 0 = 20, allowed 5–25
+	Duration float64 `yaml:"duration"` // maximum running time in seconds; 0 = 2.5, allowed 0.5–5
 }
 
 // Canvas defines the output image dimensions.

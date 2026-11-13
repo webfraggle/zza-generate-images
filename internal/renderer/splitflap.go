@@ -22,7 +22,7 @@ type flapModule struct {
 }
 
 // renderSplitflap plans the modules of a splitflap layer and draws each one
-// with its target value.
+// with its target value, or in an animation frame with its state in that frame.
 func (r *Renderer) renderSplitflap(rc *renderCtx, dst *image.NRGBA, layer *Layer) error {
 	seq := rc.flapLayerSeq
 	rc.flapLayerSeq++
@@ -35,6 +35,14 @@ func (r *Renderer) renderSplitflap(rc *renderCtx, dst *image.NRGBA, layer *Layer
 		return fmt.Errorf("renderSplitflap: %w", err)
 	}
 
+	if rc.anim != nil {
+		for _, m := range mods {
+			if err := r.drawAnimatedModule(rc, dst, m); err != nil {
+				return fmt.Errorf("renderSplitflap: module %d: %w", m.cellIdx, err)
+			}
+		}
+		return nil
+	}
 	for _, m := range mods {
 		leaf, err := r.renderLeaf(rc, m, snapshot(dst, m.rect), m.target)
 		if err != nil {
@@ -67,6 +75,10 @@ func planModules(layer *Layer, layerIdx int, eval *Evaluator, canvas image.Recta
 
 	if n := len(layer.Reel); n > maxReelEntries {
 		return nil, fmt.Errorf("reel has %d entries, exceeds maximum %d", n, maxReelEntries)
+	}
+
+	if f := layer.FlipFrames; f != 0 && (f < 1 || f > maxFlipFrames) {
+		return nil, fmt.Errorf("flip_frames must be between 1 and %d (got %d)", maxFlipFrames, f)
 	}
 
 	pitch := layer.Pitch
