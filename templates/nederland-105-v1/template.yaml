@@ -1,14 +1,18 @@
 meta:
   name: "Nederland 1.05\""
-  description: "Nederlandse Spoorwegen, 1.05 Zoll Display"
-  instructions: "Nur die Anleitung"
+  description: "Nederlandse Spoorwegen, 240×240px, 1.05 Zoll, Bahnhofsuhr mit laufendem Sekundenzeiger"
   display: "1.05\" Zugzielanzeiger"
   author: "christoph"
-  version: "1.0"
+  version: "2.0"
   canvas:
     width: 240
     height: 240
     colors: 32
+  timezone: "Europe/Berlin"
+  animation:
+    frames: 60        # eine Minute …
+    frame_delay: 1    # … in Sekundenschritten, danach von vorn
+    loop: true
 
 fonts:
   - id: bold
@@ -16,45 +20,59 @@ fonts:
   - id: regular
     file: NimbusSanL-Reg.otf
 
+# Aufbau wie legacy/nederland-105-v1/index.php: Gezeichnet wird die obere
+# Bildhälfte (links Gleis, Mitte Abfahrtstafel, rechts Uhr); drei copy-Layer
+# am Ende setzen sie vertauscht in die untere Hälfte (Uhr links, Gleis
+# rechts). Alles vor den copy-Layern — auch die Uhrzeiger — erscheint deshalb
+# zweimal.
+# Schriftgrößen = Legacy-Größe × 4/3; Positionen = Oberkante der Schrift.
+
 layers:
-  # Hintergrund
+  # Hintergrund (240×120): Gleis-Schild „spoor", weiße Tafel mit NS-Logo,
+  # Zifferblatt
   - type: image
     file: bg.png
     x: 0
     y: 0
 
-  # Gleis (zentriert links, blau)
+  # Alles rechts der Tafel (Rahmen + Uhr, ab x 173) unberührt in der noch
+  # leeren unteren Hälfte parken (x 59–125, wird am Ende von der Tafel-Kopie
+  # überdeckt), bevor Text gezeichnet wird …
+  - type: copy
+    src_x: 173
+    src_y: 0
+    src_width: 67
+    src_height: 120
+    x: 59
+    y: 120
+
+  # Gleis, mittig im weißen Schild (x 3–31)
   - type: text
     value: "{{gleis}}"
-    x: 15
+    x: 18
     y: 20
     font: bold
     size: 21
     color: "#024ddc"
     align: center
 
-  # Zeit + Zugnummer (erste Zeile)
+  # --- Zug 1: Zeit + Zuggattung, Ziel, Via (bricht auf Tafelbreite um) ---
   - type: text
     value: "{{zug1.zeit}} {{zug1.nr}}"
-    x: 47
+    x: 48
     y: 15
     font: regular
     size: 15
     color: "#0415a1"
-    align: left
 
-  # Ziel (vonnach)
   - type: text
     value: "{{zug1.vonnach}}"
-    x: 47
+    x: 48
     y: 34
     font: regular
-    size: 20
+    size: 19.5
     color: "#0415a1"
-    align: left
-    max_width: 126
 
-  # Via-Stationen
   - type: text
     if: "not(isEmpty(zug1.via))"
     value: "{{zug1.via}}"
@@ -63,53 +81,59 @@ layers:
     font: regular
     size: 15
     color: "#0415a1"
-    align: left
     max_width: 126
+    line_height: 0.85
 
-  # Zweiter Zug (blauer Hintergrund)
+  # --- Zug 2: Folgezug als invertierte Fußzeile, nur wenn ein Ziel da ist ---
   - type: rect
     if: "not(isEmpty(zug2.vonnach))"
     x: 45
     y: 95
-    width: 129
-    height: 15
+    width: 128
+    height: 16
     color: "#0415a1"
 
   - type: text
     if: "not(isEmpty(zug2.vonnach))"
     value: "{{zug2.zeit}} {{zug2.nr}} {{zug2.vonnach}}"
-    x: 48
+    x: 49
     y: 97
     font: regular
     size: 12
     color: "#ffffff"
-    align: left
-    max_width: 124
 
-  # Uhrzeiger (Stunden) — rotiert um aktuelle Stunde
-  # Bild: 46×46px, Zentrum bei (211,56)
+  # … und jetzt zurück: schneidet Text ab, der rechts aus der Tafel läuft.
+  - type: copy
+    src_x: 59
+    src_y: 120
+    src_width: 67
+    src_height: 120
+    x: 173
+    y: 0
+
+  # Uhr: Zifferblatt-Mitte (211,33). Zeiger-PNGs 46×46, Drehpunkt = Bildmitte,
+  # bei 0° nach oben; rotate dreht im Uhrzeigersinn, x/y = Drehpunkt.
+  # now ist pro Render eingefroren: Stunde und Minute stehen im GIF still,
+  # nur der Sekundenzeiger läuft über anim.frame (60 Frames à 1 s).
   - type: image
     file: clock-hour.png
     x: 211
     y: 33
-    rotate: "{{now.hour12 | mul(30)}}"
+    rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"
 
-  # Uhrzeiger (Minuten)
   - type: image
     file: clock-minutes.png
     x: 211
     y: 33
     rotate: "{{now.minute | mul(6)}}"
 
-  # Sekunden-Zeiger
   - type: image
     file: clock-sec.png
     x: 211
     y: 33
-    rotate: "{{now.second | mul(6)}}"
+    rotate: "{{now.second | add(anim.frame) | mul(6)}}"
 
-  # Untere Hälfte: vertauschte Segmente für gespiegelten Look
-  # PHP: imagecopy($bg,$bg,205,120,0,0,35,120)
+  # Untere Hälfte: Gleis nach rechts unten …
   - type: copy
     src_x: 0
     src_y: 0
@@ -118,7 +142,7 @@ layers:
     x: 205
     y: 120
 
-  # PHP: imagecopy($bg,$bg,0,120,183,0,57,120)
+  # … Uhr nach links unten …
   - type: copy
     src_x: 183
     src_y: 0
@@ -127,7 +151,7 @@ layers:
     x: 0
     y: 120
 
-  # PHP: imagecopy($bg,$bg,59,120,37,0,144,120)
+  # … Abfahrtstafel dazwischen
   - type: copy
     src_x: 37
     src_y: 0
