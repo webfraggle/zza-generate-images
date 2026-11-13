@@ -73,9 +73,66 @@ type Layer struct {
 	SrcHeight int `yaml:"src_height"`
 	// type: loop
 	SplitBy  string  `yaml:"split_by"`  // delimiter for splitting Value
-	Var      string  `yaml:"var"`       // name of the loop item variable
+	Var      string  `yaml:"var"`       // name of the loop item variable (also used by splitflap)
 	MaxItems int     `yaml:"max_items"` // safety cap; 0 = default (20)
-	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration
+	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration (splitflap: per module)
+	// type: splitflap — X/Y/Width/Height are the first module, Value the target, Var the child variable
+	Cells      int    `yaml:"cells"`       // modules side by side; 0 = 1
+	Pitch      int    `yaml:"pitch"`       // x distance module to module; 0 = width
+	Split      string `yaml:"split"`       // "" = whole value in one module | "chars" = one rune per module
+	Reel       Reel   `yaml:"reel"`        // values a module flips through (animation)
+	SplitY     int    `yaml:"split_y"`     // hinge line relative to the module; 0 = height/2
+	FlipFrames int    `yaml:"flip_frames"` // animation: frames per flip
+	MinFlips   int    `yaml:"min_flips"`   // animation: minimum flips per module
+	MaxFlips   int    `yaml:"max_flips"`   // animation: maximum flips per module
+}
+
+// Reel is the ordered supply of values of a splitflap module. In YAML it is
+// either a string (one entry per rune) or a list of strings. Duplicates are kept.
+type Reel []string
+
+// UnmarshalYAML implements yaml.Unmarshaler for Reel.
+func (r *Reel) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := value.Decode(&s); err != nil {
+			return fmt.Errorf("renderer: Reel: %w", err)
+		}
+		entries := make(Reel, 0, len(s))
+		for _, ch := range s {
+			entries = append(entries, string(ch))
+		}
+		*r = entries
+		return nil
+	case yaml.SequenceNode:
+		var entries []string
+		if err := value.Decode(&entries); err != nil {
+			return fmt.Errorf("renderer: Reel: %w", err)
+		}
+		*r = entries
+		return nil
+	default:
+		return fmt.Errorf("renderer: Reel: expected string or list, got kind %v", value.Kind)
+	}
+}
+
+// HasSplitflap reports whether the template contains a splitflap layer,
+// at top level or inside block nodes.
+func (t *Template) HasSplitflap() bool {
+	return hasSplitflap(t.Layers)
+}
+
+func hasSplitflap(layers []Layer) bool {
+	for i := range layers {
+		switch {
+		case layers[i].Type == "splitflap":
+			return true
+		case layers[i].Type == "" && hasSplitflap(layers[i].Layers):
+			return true
+		}
+	}
+	return false
 }
 
 // FitItems makes a text layer split its value at SplitBy and place the items

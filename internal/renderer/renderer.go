@@ -75,22 +75,46 @@ const (
 	maxFontFileBytes   = 50 * 1024 * 1024 // 50 MB
 )
 
+// renderCtx carries the state of one Render call through the layer walk.
+type renderCtx struct {
+	tmpl         *Template
+	eval         *Evaluator             // root evaluator (splitflap is not allowed inside loops, so leaves use it)
+	layerCount   *int                   // total layers rendered so far, checked against maxLayers
+	flapLayerSeq int                    // running number of splitflap layers in walk order
+	flapRects    []image.Rectangle      // all splitflap modules placed so far (overlap/limit check)
+	imgCache     map[string]image.Image // decoded image files by filename, per render
+	anim         *animState             // nil = static image
+}
+
+// animState holds the animation state of a render; nil in renderCtx means static.
+type animState struct{}
+
+func newRenderCtx(tmpl *Template, eval *Evaluator) *renderCtx {
+	count := 0
+	return &renderCtx{
+		tmpl:       tmpl,
+		eval:       eval,
+		layerCount: &count,
+		imgCache:   make(map[string]image.Image),
+	}
+}
+
 // renderLayers renders a slice of layers in order, handling:
 //   - Layer-level if/elif/else chains on typed layers
 //   - Block-level if/elif/else nodes (Type == "", has Layers)
 //
-// layerCount tracks the total number of layers rendered across all recursive calls.
+// rc.layerCount tracks the total number of layers rendered across all recursive calls.
 // depth tracks the block-node nesting depth.
 // Set inLoop=true when called from renderLoop to prevent nested loops.
-func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer, eval *Evaluator, inLoop bool, layerCount *int, depth int) error {
+func (r *Renderer) renderLayers(rc *renderCtx, dst *image.NRGBA, layers []Layer, eval *Evaluator, inLoop bool, depth int) error {
 	if depth > maxBlockDepth {
 		return fmt.Errorf("block nesting depth exceeds maximum %d", maxBlockDepth)
 	}
 	chainSatisfied := false
 	inChain := false
 	for i, layer := range layers {
-		*layerCount++
-		if *layerCount > maxLayers {
+		*rc.layerCount++
+		if *rc.layerCount > maxLayers {
 			return fmt.Errorf("total layer count exceeds maximum %d", maxLayers)
 		}
 		render := false
@@ -128,7 +152,7 @@ func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer
 		// Note: inChain/chainSatisfied are NOT reset here — a block node participates
 		// in the same if/elif/else chain as its siblings in the parent layer list.
 		if layer.Type == "" {
-			if err := r.renderLayers(dst, tmpl, layer.Layers, eval, inLoop, layerCount, depth+1); err != nil {
+			if err := r.renderLayers(rc, dst, layer.Layers, eval, inLoop, depth+1); err != nil {
 				return fmt.Errorf("block layer %d: %w", i, err)
 			}
 			continue
@@ -138,18 +162,23 @@ func (r *Renderer) renderLayers(dst *image.NRGBA, tmpl *Template, layers []Layer
 		var err error
 		switch layer.Type {
 		case "image":
-			err = r.renderImage(dst, tmpl, layer, eval)
+			err = r.renderImage(rc, dst, layer, eval)
 		case "rect":
 			err = r.renderRect(dst, layer, eval)
 		case "text":
-			err = r.renderText(dst, tmpl, layer, eval)
+			err = r.renderText(dst, rc.tmpl, layer, eval)
 		case "copy":
 			err = renderCopy(dst, layer, eval)
 		case "loop":
 			if inLoop {
 				return fmt.Errorf("layer %d: nested loops are not supported", i)
 			}
-			err = r.renderLoop(dst, tmpl, layer, eval, layerCount, depth)
+			err = r.renderLoop(rc, dst, layer, eval, depth)
+		case "splitflap":
+			if inLoop {
+				return fmt.Errorf("layer %d: splitflap inside loop is not supported", i)
+			}
+			err = r.renderSplitflap(rc, dst, &layers[i])
 		default:
 			return fmt.Errorf("layer %d: unknown type %q", i, layer.Type)
 		}
@@ -172,15 +201,14 @@ func (r *Renderer) Render(tmpl *Template, data map[string]interface{}) (*image.N
 	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
 	eval := NewEvaluator(data)
 
-	layerCount := 0
-	if err := r.renderLayers(dst, tmpl, tmpl.Layers, eval, false, &layerCount, 0); err != nil {
+	if err := r.renderLayers(newRenderCtx(tmpl, eval), dst, tmpl.Layers, eval, false, 0); err != nil {
 		return nil, fmt.Errorf("renderer: Render: %w", err)
 	}
 	return dst, nil
 }
 
 // renderImage loads and draws an image layer.
-func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator) error {
+func (r *Renderer) renderImage(rc *renderCtx, dst *image.NRGBA, layer Layer, eval *Evaluator) error {
 	// Security: layer.File is intentionally NOT passed through eval.Interpolate().
 	// Allowing JSON input values to control file paths would be a path traversal vector.
 	// Asset filenames must be static values defined in the template YAML.
@@ -198,16 +226,9 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 		return fmt.Errorf("renderImage: file %q is not a permitted image type (only .png and .jpg)", filename)
 	}
 
-	imgPath := filepath.Join(tmpl.Dir, filename)
-	f, err := os.Open(imgPath)
+	src, err := rc.loadImage(filename)
 	if err != nil {
-		return fmt.Errorf("renderImage: opening %q: %w", filename, err)
-	}
-	defer f.Close()
-
-	src, _, err := image.Decode(f)
-	if err != nil {
-		return fmt.Errorf("renderImage: decoding %q: %w", filename, err)
+		return fmt.Errorf("renderImage: %w", err)
 	}
 
 	// Scale if Width or Height is specified.
@@ -259,6 +280,27 @@ func (r *Renderer) renderImage(dst *image.NRGBA, tmpl *Template, layer Layer, ev
 	r2 := src.Bounds().Add(pt)
 	draw.Draw(dst, r2, src, src.Bounds().Min, draw.Over)
 	return nil
+}
+
+// loadImage returns the decoded image file from the template directory,
+// decoding it at most once per render. filename must already be validated.
+// The cached image is shared and must not be modified.
+func (rc *renderCtx) loadImage(filename string) (image.Image, error) {
+	if img, ok := rc.imgCache[filename]; ok {
+		return img, nil
+	}
+	f, err := os.Open(filepath.Join(rc.tmpl.Dir, filename))
+	if err != nil {
+		return nil, fmt.Errorf("opening %q: %w", filename, err)
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("decoding %q: %w", filename, err)
+	}
+	rc.imgCache[filename] = img
+	return img, nil
 }
 
 // rotateImageCW rotates src clockwise by deg degrees around its own center
@@ -619,7 +661,7 @@ const (
 // renderLoop iterates over a split string and renders sub-layers for each item.
 // All sub-layer coordinates are absolute; use {{i * step + base}} expressions for positioning.
 // Loop variables available in sub-layers: i, loop.index (int); layer.Var (string item).
-func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eval *Evaluator, layerCount *int, depth int) error {
+func (r *Renderer) renderLoop(rc *renderCtx, dst *image.NRGBA, layer Layer, eval *Evaluator, depth int) error {
 	if len(layer.Layers) == 0 {
 		return nil
 	}
@@ -660,7 +702,7 @@ func (r *Renderer) renderLoop(dst *image.NRGBA, tmpl *Template, layer Layer, eva
 			"loop.index": displayIdx,
 		})
 
-		if err := r.renderLayers(dst, tmpl, layer.Layers, childEval, true, layerCount, depth); err != nil {
+		if err := r.renderLayers(rc, dst, layer.Layers, childEval, true, depth); err != nil {
 			return fmt.Errorf("renderLoop: item %d: %w", displayIdx, err)
 		}
 		displayIdx++
