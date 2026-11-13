@@ -321,10 +321,10 @@ layers:
 
 - Der Zielwert muss nicht im `reel` stehen; er wird am Ende trotzdem angezeigt (freier Via-Text, ungewöhnliche Zeichen). Zeichen außerhalb des `reel` werden einfach so gezeichnet.
 - `min_flips`, `max_flips` und `flip_frames` steuern, wie lange und wie schnell eine Klappe rattert. Ohne Angabe: mindestens 4 Schritte, höchstens so viele, wie in `duration` passen.
-- **Determinismus:** Gleiches Template + gleiche Daten ergibt immer dasselbe GIF (bytegleich), die Klappen stoppen aber zu unterschiedlichen Zeiten. Das gilt nicht für Templates, die `{{now.*}}` verwenden — die Uhrzeit wird einmal pro Animation eingefroren, ändert sich aber von Aufruf zu Aufruf.
+- **Determinismus:** Gleiches Template + exakt gleicher Request-Body (Bytes, also auch gleiche Leerzeichen und Schlüsselreihenfolge) ergibt immer dasselbe GIF (bytegleich); ein anders formatierter Body kann ein anderes Ablaufmuster ergeben. Die Klappen stoppen aber zu unterschiedlichen Zeiten. Das gilt nicht für Templates, die `{{now.*}}` verwenden — die Uhrzeit wird einmal pro Animation eingefroren, ändert sich aber von Aufruf zu Aufruf.
 - Das GIF spielt einmal ab und bleibt auf dem letzten Frame stehen. Dieses Bild ist identisch mit dem normalen PNG der gleichen Daten. Das erste Frame zeigt die Klappen bereits in Bewegung, weil das Display vorher das Standbild des alten Zugs zeigt.
 - Ein Template ohne `splitflap`-Layer liefert bei `?format=gif` ein GIF mit nur einem Frame.
-- Grenzen: max. 64 Klappen pro Template, max. 64 `reel`-Einträge pro Layer, max. 125 Frames, Frames × Breite × Höhe ≤ 32.000.000 Pixel.
+- Grenzen: max. 64 Klappen pro Template, max. 64 `reel`-Einträge pro Layer, max. 125 Frames, maximal mögliche Frames (`duration × fps`) × Breite × Höhe ≤ 32.000.000 Pixel (Obergrenze, vorab geprüft).
 
 ---
 

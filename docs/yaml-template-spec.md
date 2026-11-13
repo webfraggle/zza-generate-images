@@ -51,8 +51,8 @@ meta:
 
 - `display` (optional) — Bezeichnung des Ziel-Displays, z.B. `"0.96 Zoll OLED"`. Wird auf der Vorschau-Seite angezeigt.
 - `instructions` (optional) — Freitext-Anleitung für Nutzer des Templates. Wird auf der Vorschau-Seite angezeigt. Mehrzeilig möglich mit YAML Block-Scalar (`|`).
-- `canvas.colors` (optional) — Reduziert die Ausgabe auf eine Indexed-PNG mit maximal N Farben (2–256) via Median-Cut-Algorithmus. Verringert die Dateigröße bei einfachen Grafiken erheblich. Weglassen oder `0` = volle 32-Bit-Farbe. Bei GIF-Ausgabe ist es die Größe der globalen Palette (inkl. des Transparenz-Eintrags, siehe [GIF-Ausgabe](#gif-ausgabe)).
-- `animation` (optional) — Einstellungen für die Faltblatt-Animation, siehe [`type: splitflap`](#type-splitflap). Fehlt der Block, gelten die Standardwerte, sobald ein GIF angefordert wird. Werte außerhalb des erlaubten Bereichs (`fps` 5–25, `duration` 0.5–5) sind ein Template-Fehler. Zusätzlich gilt: Bilder × Breite × Höhe der Animation dürfen höchstens 32.000.000 Pixel ergeben.
+- `canvas.colors` (optional) — Reduziert die Ausgabe auf eine Indexed-PNG mit maximal N Farben (2–256) via Median-Cut-Algorithmus. Verringert die Dateigröße bei einfachen Grafiken erheblich. Weglassen oder `0` = volle 32-Bit-Farbe. Bei GIF-Ausgabe ist es die Zahl der echten Farben der globalen Palette (höchstens 255); der transparente Eintrag kommt zusätzlich dazu, siehe [GIF-Ausgabe](#gif-ausgabe).
+- `animation` (optional) — Einstellungen für die Faltblatt-Animation, siehe [`type: splitflap`](#type-splitflap). Fehlt der Block, gelten die Standardwerte, sobald ein GIF angefordert wird. Werte außerhalb des erlaubten Bereichs (`fps` 5–25, `duration` 0.5–5) sind ein Template-Fehler. Zusätzlich gilt (nur für Templates mit `splitflap`-Layer): Die **maximal möglichen** Bilder (`duration × fps`, höchstens 125) × Breite × Höhe dürfen höchstens 32.000.000 Pixel ergeben. Geprüft wird diese Obergrenze vor dem Rendern, nicht die tatsächliche Frame-Zahl; ein hoher `fps` bei langer `duration` auf großem Canvas kann also abgelehnt werden, auch wenn die Animation kürzer wäre.
 
 ---
 
@@ -180,7 +180,7 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   max_width: 80       # optional — nur Zeilenumbruch (alternativ zu width)
   line_height: 1.5    # optional — Zeilenabstand als Multiplikator (Standard: 1.0)
   scale_x: 0.5        # optional — horizontale Skalierung der Schrift (Standard: 1)
-  fit_items:          # optional — einzeilige Element-Einpassung (nur zusammen mit max_width)
+  fit_items:          # optional — einzeilige Element-Einpassung (Elemente entfallen nur mit max_width)
     split_by: "-"
     gap: 2
 ```
@@ -321,7 +321,7 @@ Beide Beispiele stammen aus `templates/faltblatt-105-v1/template.yaml` (dort ste
 - Kind-Koordinaten sind relativ zum Modul; gezeichnet wird auf das Modulrechteck geclippt. Feste Beschriftung auf einer Klappe (z.B. „Abfahrt" neben der Stunde) ist ein konstanter Kind-Layer und klappt mit.
 - `splitflap` darf in Block-Nodes stehen, nicht in `loop`.
 - Der Zielwert muss **nicht** im `reel` stehen; er wird am Ende trotzdem angezeigt. Bei `split: chars` werden Zeichen außerhalb des `reel` genau so gezeichnet, wie sie sind.
-- Limits: max. 64 Module pro Template (Summe aller `splitflap`-Layer), max. 64 `reel`-Einträge pro Layer, max. 125 Frames pro Animation, `meta.animation.fps` 5–25, `meta.animation.duration` 0.5–5 s, Frames × Breite × Höhe ≤ 32.000.000 Pixel. Überschreitungen sind Template-Fehler (HTTP 422 beim Rendern).
+- Limits: max. 64 Module pro Template (Summe aller `splitflap`-Layer), max. 64 `reel`-Einträge pro Layer, max. 125 Frames pro Animation, `meta.animation.fps` 5–25, `meta.animation.duration` 0.5–5 s, maximal mögliche Frames (`duration × fps`, höchstens 125) × Breite × Höhe ≤ 32.000.000 Pixel (Obergrenze, vorab geprüft). Überschreitungen sind Template-Fehler (HTTP 422 beim Rendern).
 
 **Animationsmodell (nur GIF)**
 
@@ -334,7 +334,7 @@ Beide Beispiele stammen aus `templates/faltblatt-105-v1/template.yaml` (dort ste
 
 #### GIF-Ausgabe
 
-Für Firmware-Autoren: Das GIF hat **eine globale Farbtabelle** (keine lokalen Tabellen) mit höchstens 255 echten Farben plus einem transparenten Index (`canvas.colors` verkleinert die Tabelle). Frame 0 ist vollständig; alle weiteren Frames sind **Delta-Frames** über das Rechteck der geänderten Pixel, mit Disposal „do not dispose" (Frames werden aufeinander komponiert). Unveränderte Pixel innerhalb eines Delta-Rechtecks sind transparent. Aufeinanderfolgende identische Frames werden zu einem zusammengefasst (Verzögerung addiert). Das letzte Frame bleibt 1 s stehen.
+Für Firmware-Autoren: Das GIF hat **eine globale Farbtabelle** (keine lokalen Tabellen) mit `min(canvas.colors, 255)` echten Farben (Standard 255) **plus** einem zusätzlichen transparenten Index (`canvas.colors: 32` ergibt also 33 Einträge). Frame 0 ist vollständig; alle weiteren Frames sind **Delta-Frames** über das Rechteck der geänderten Pixel, mit Disposal „do not dispose" (Frames werden aufeinander komponiert). Unveränderte Pixel innerhalb eines Delta-Rechtecks sind transparent. Aufeinanderfolgende identische Frames werden zu einem zusammengefasst (Verzögerung addiert). Verzögerung: jedes Frame vor dem letzten dauert `round(100/fps)` Hundertstelsekunden (bei 20 fps 5 cs), das letzte Frame 100 cs (1 s). Ist das letzte Frame identisch mit dem vorletzten, werden beide zusammengefasst und die Standzeit ist entsprechend länger als 1 s.
 
 ---
 

@@ -58,8 +58,8 @@ Daten des Beispiels: Zug `IC23`, `13:30`, Ziel `Frankfurt`, Via `Neuhof - Gelnha
 - [ ] Frame 0 ist bereits in Bewegung (kein ruhiges Startbild): obere Klappenhälften sind gestaucht/abgedunkelt.
 - [ ] Die Klappen stoppen zu **unterschiedlichen** Zeiten (Zielzeile, Zugart, Via, Stunde, Minute nacheinander); „Gleis 6" und die Leerklappe oben rechts bewegen sich nicht.
 - [ ] Letztes Frame sieht aus wie das PNG aus Test 1 (bis auf Palettierung). Optional: `ffmpeg -i anim.gif -vf "select=eq(n\,LAST)" …` bzw. letztes Frame exportieren und mit dem PNG vergleichen.
-- [ ] Gesamtdauer liegt bei höchstens ca. 2,5 s plus 1 s Standzeit des letzten Frames.
-- [ ] Optional, Firmware-Sicht: `gifsicle --info /tmp/zza-manual/anim.gif` bzw. `identify -verbose`: eine globale Farbtabelle (keine lokalen), Disposal „none/do not dispose", Frames nach dem ersten kleiner als 240×240 und mit transparenten Pixeln, keine Loop-Extension.
+- [ ] Gesamtdauer liegt bei höchstens ca. 2,5 s plus mindestens 1 s Standzeit des letzten Frames (länger, wenn das letzte Frame dem vorletzten gleicht; Frames davor je 5 cs bei 20 fps).
+- [ ] Optional, Firmware-Sicht: `gifsicle --info /tmp/zza-manual/anim.gif` bzw. `identify -verbose`: eine globale Farbtabelle (keine lokalen), Disposal „none/do not dispose", Frames nach dem ersten kleiner als 240×240 und mit transparenten Pixeln (unveränderte Pixel im Delta-Rechteck), Farbtabelle mit höchstens 255 echten Farben plus transparentem Eintrag, keine Loop-Extension.
 
 ## 5. Randdaten
 
@@ -72,13 +72,13 @@ Jeweils eine Kopie von `default.json` anpassen (`/tmp/zza-manual/edge-*.json`), 
 - [ ] **Ziel leer** (`"vonnach": ""`): alle 13 Klappen blättern auf Leer.
 - [ ] **Kleinschreibung/Mischung** (`"nr": "ice 71"`, dann `"Ice 71"`, `"RB 12"`): Zugart zeigt jeweils das ICE-Logo bzw. RB-Logo (Erkennung unabhängig von Groß/Kleinschreibung, `ice` vor `ic`).
 - [ ] **Unbekannte Zugart** (`"nr": "XYZ 1"`): Zugart-Klappe endet leer (kein passender Zweig), kein Fehler.
-- [ ] **Umlaute/Sonderzeichen** im Ziel (`"Düsseldorf-Köln."`): Zeichen aus dem `reel` (Ä Ö Ü - .) werden gezeichnet; Zeichen **außerhalb** des `reel` (z.B. `Ø` oder `ß`) erscheinen am Ende trotzdem so, wie sie sind.
+- [ ] **Umlaute/Sonderzeichen** im Ziel (`"Köln-Ü.Ä."`, kurz genug für 13 Zeichen): Zeichen aus dem `reel` (Ä Ö Ü - .) werden gezeichnet; Zeichen **außerhalb** des `reel` (z.B. `Ø` oder `ß`) erscheinen am Ende trotzdem so, wie sie sind.
 - [ ] **Ungültiges JSON** im Body → 400 (`invalid JSON …`).
 
 ## 6. Template ohne splitflap, Regression
 
 - [ ] `curl -s -X POST "$B/sbb-096-v1/render?format=gif" -H 'Content-Type: application/json' --data-binary @templates/sbb-096-v1/default.json -o /tmp/zza-manual/sbb.gif` → GIF mit **einem** Frame (`gifsicle --info` bzw. `identify sbb.gif | wc -l` = 1).
-- [ ] Display-Regression: PNG-Render **aller anderen** Templates ist bitgleich wie vor der Änderung. Vergleich mit `develop`: auf `develop` und auf dem Branch je `go run ./cmd/zza render -t <name> -i templates/<name>/default.json -o /tmp/zza-manual/<branch>-<name>.png --templates-dir ./templates` für jedes Template außer `faltblatt-105-v1`, danach `cmp` je Paar. Erwartung: keine Unterschiede.
+- [ ] Display-Regression: PNG-Render **aller anderen** Templates ist bitgleich wie vor der Änderung. Vergleich mit `develop`: auf `develop` und auf dem Branch je `go run ./cmd/zza render -t <name> -i templates/<name>/default.json -o /tmp/zza-manual/<label>-<name>.png --templates-dir ./templates` für jedes Template außer `faltblatt-105-v1`, danach `cmp` je Paar. `<label>` ist `develop` bzw. `branch` (kein Branch-Name mit Schrägstrich). Erwartung: keine Unterschiede.
 - [ ] `POST /{template}/render` ohne Query liefert für alle Templates `image/png`, `X-Cache` MISS/HIT wie gewohnt.
 - [ ] `GET /`, `GET /{template}`, `GET /{template}.zip`, `GET /health` unverändert (siehe Dual-Build-Testplan).
 
@@ -91,7 +91,7 @@ Jeweils eine Kopie von `default.json` anpassen (`/tmp/zza-manual/edge-*.json`), 
 - [ ] Zwei überlappende Module → 422 (`overlaps another splitflap module`).
 - [ ] `reel` mit mehr als 64 Einträgen → 422.
 - [ ] `loop`/`copy` als Kind-Layer eines `splitflap` → 422.
-- [ ] Der PNG-Render (ohne `format`) desselben fehlerhaften Templates schlägt ebenfalls fehl (gleiche Validierung im Standbild).
+- [ ] Bei Fehlern in den `splitflap`-Layern (`cells`, Überlappung, `reel`, Kind-Layer) schlägt auch der PNG-Render (ohne `format`) mit 422 fehl. Bei Fehlern in `meta.animation` (`fps`, `duration`) dagegen **nicht**: `meta.animation` wird nur beim GIF-Render gelesen, der PNG-Render bleibt 200.
 - [ ] Nebenläufigkeit: 6 GIF-Anfragen gleichzeitig mit jeweils anderem Body (`for i in 1..6 … & wait`) → alle liefern 200, es laufen höchstens 2 Renders parallel (Server-Last beobachten), keine Fehler.
 
 ## 8. Web: Detailseite (Server und Desktop)
@@ -99,10 +99,10 @@ Jeweils eine Kopie von `default.json` anpassen (`/tmp/zza-manual/edge-*.json`), 
 Browser auf `$B/faltblatt-105-v1`.
 
 - [ ] Standardansicht zeigt das **Standbild** (PNG), nicht das GIF.
-- [ ] Button „Animation abspielen" ist vorhanden, daneben neben dem PNG-Download ein **GIF-Download**-Button.
+- [ ] Button „Animation abspielen" ist vorhanden, außerdem „GIF herunterladen" neben „PNG herunterladen".
 - [ ] Klick auf „Animation abspielen": das GIF läuft einmal ab (in der gleichen Zwei-Hälften-Darstellung wie das Standbild) und bleibt auf dem Standbild stehen.
 - [ ] Erneuter Klick startet die Animation von vorn (kein Hängen auf dem letzten Frame).
-- [ ] GIF-Download liefert eine `.gif`-Datei, die sich abspielen lässt und mit Test 2 übereinstimmt.
+- [ ] GIF-Download liefert eine `.gif`-Datei, die sich abspielen lässt. Das Standbild am Ende entspricht Test 1; das Ablaufmuster kann von Test 2 abweichen, weil die Seite den JSON-Body neu serialisiert (`JSON.stringify(JSON.parse(…))`) und der Seed vom Body abhängt.
 - [ ] PNG-Download liefert weiterhin das PNG.
 - [ ] JSON im Textfeld ändern (z.B. Ziel auf „Hanau"): die Ansicht wechselt zurück auf das **Standbild** mit den neuen Daten; erneutes „Animation abspielen" spielt die Animation für die neuen Daten.
 - [ ] Detailseite eines Templates **ohne** splitflap (`/sbb-096-v1`): weder „Animation abspielen" noch GIF-Download sind sichtbar.
@@ -118,7 +118,8 @@ Browser auf `$B/faltblatt-105-v1`.
 - [ ] Umschalten auf „Animation" spielt die Animation einmal ab, der Button **„Erneut abspielen"** startet sie wieder.
 - [ ] YAML ändern und speichern (z.B. `flip_frames` oder `max_flips` ändern): Vorschau aktualisiert sich, im Animationsmodus mit der geänderten Animation.
 - [ ] YAML mit Fehler speichern (z.B. `cells: 65`): Fehlermeldung wird angezeigt, kein Absturz; Datei ggf. wie beim Dual-Build-Test (400 bei Syntaxfehler).
-- [ ] Editor eines Templates ohne splitflap zeigt keinen Umschalter bzw. er ist wirkungslos (nur ein Frame).
+- [ ] Editor eines Templates ohne splitflap (z.B. `/edit/sbb-096-v1`) zeigt keinen Umschalter und keinen „Erneut abspielen"-Button. Ob der Umschalter erscheint, wird beim Laden der Seite bestimmt: ein erst im Editor ergänzter `splitflap`-Layer zeigt ihn erst nach Neuladen der Seite.
+- [ ] „Erneut abspielen" ist nur im Animationsmodus sichtbar.
 - [ ] In der Wails-App: Fenster schließen beendet den Prozess sauber; GIF-Download funktioniert über den nativen Download.
 
 ## 10. Desktop-CLI
