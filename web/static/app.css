@@ -152,8 +152,8 @@ header {
 
 .card-restart {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  bottom: 12px;
+  left: 14px;
   width: 26px;
   height: 26px;
   padding: 0;
@@ -209,6 +209,8 @@ header {
   gap: 3px;
   flex: 1;
 }
+/* Reserve room for the restart button in the bottom-left corner. */
+.card:has(.card-restart) .card-info { padding-bottom: 50px; }
 
 .card-name {
   font-family: var(--font-display);
