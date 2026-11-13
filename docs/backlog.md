@@ -8,7 +8,13 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 
 ## Renderer / Templates
 
-- Animierte GIFs
+- GIF-Render: Rate-Limit pro IP für `format=gif`; Cache-Größenlimit schon beim Schreiben prüfen (Aufräumen läuft nur alle 15 min); Request-Kontext bis in `RenderAnimation` durchreichen
+- Split-Flap: `copy`-Layer vor einem späteren `splitflap` auf derselben Fläche erkennen und ablehnen (Blatt-Hintergrund wird sonst aus Frame 0 eingefroren)
+- Split-Flap: fehlende Zellen bei `split: chars` auf die Leerklappe des Reels laufen lassen statt auf `""` zu springen
+- GIF: bei 1-Frame-GIFs keinen Transparenz-Eintrag anhängen (Palette bleibt dann bei `canvas.colors`)
+- Editor: Sequenzzähler für Vorschau-Antworten (späte GIF-Antwort überschreibt sonst „Standbild“); Animations-Umschalter ohne Reload nach dem ersten `splitflap`-Layer
+- Firmware: GIF/MJPEG-Wiedergabe auf dem Display (Abspielen der Faltblatt-GIFs bzw. MJPEG als Alternative)
+- Weitere Faltblatt-Templates animieren (z.B. das alte 240×270-Faltblatt)
 - `and()`/`or()` Funktionen im Evaluator — mehrere Bedingungen in einem `if:` verknüpfen, z.B. `if: "and(not(isEmpty(zug1.via)), isEmpty(zug1.hinweis))"`. Workaround heute: verschachtelte Block-Nodes.
 
 ## Galerie / UI
@@ -27,3 +33,7 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 - ✅ UI in Exe mit WebView (Wails-v2-Bootstrap + Browser-Fallback)
 - ✅ Server-Entschlackung: kein Auth, kein SMTP, kein SQLite, kein Admin
 - ✅ Editor-Konsolidierung: `admin-editor.html` ist gelöscht, einziger Editor ist `edit-editor.html`
+
+## Erledigt (Faltblatt-Animation, November 2026)
+
+- ✅ Animierte GIFs: `type: splitflap`, `meta.animation`, `?format=gif` (Server) und `--format gif` (CLI), erstes Template `faltblatt-105-v1`

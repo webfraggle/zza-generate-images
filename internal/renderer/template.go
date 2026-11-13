@@ -18,13 +18,21 @@ type Template struct {
 
 // Meta holds the template metadata.
 type Meta struct {
-	Name         string `yaml:"name"`
-	Description  string `yaml:"description"`
-	Author       string `yaml:"author"`
-	Version      string `yaml:"version"`
-	Display      string `yaml:"display"`
-	Instructions string `yaml:"instructions"`
-	Canvas       Canvas `yaml:"canvas"`
+	Name         string        `yaml:"name"`
+	Description  string        `yaml:"description"`
+	Author       string        `yaml:"author"`
+	Version      string        `yaml:"version"`
+	Display      string        `yaml:"display"`
+	Instructions string        `yaml:"instructions"`
+	Canvas       Canvas        `yaml:"canvas"`
+	Animation    AnimationMeta `yaml:"animation"`
+}
+
+// AnimationMeta holds the animation settings of a template (GIF output).
+// Zero values mean the defaults; see resolve.
+type AnimationMeta struct {
+	FPS      int     `yaml:"fps"`      // frames per second; 0 = 20, allowed 5–25
+	Duration float64 `yaml:"duration"` // maximum running time in seconds; 0 = 2.5, allowed 0.5–5
 }
 
 // Canvas defines the output image dimensions.
@@ -42,23 +50,27 @@ type FontDef struct {
 
 // Layer represents a single rendering layer.
 type Layer struct {
-	Type     string       `yaml:"type"`
-	If       string       `yaml:"if"`
-	Elif     string       `yaml:"elif"` // continues an if-chain at layer level
-	Else     ElseMarker   `yaml:"else"` // else: true — renders when preceding if/elif chain was not satisfied
-	X        IntOrExpr    `yaml:"x"`
-	Y        IntOrExpr    `yaml:"y"`
-	Width    IntOrExpr    `yaml:"width"`
-	Height   IntOrExpr    `yaml:"height"`
-	File     string       `yaml:"file"`
-	Color    StringOrCond `yaml:"color"`
-	Value    StringOrCond `yaml:"value"`
-	Font     string       `yaml:"font"`
-	Size     float64      `yaml:"size"`
-	Align      string    `yaml:"align"`       // left (default) | center | right
-	Valign     string    `yaml:"valign"`      // top (default) | middle | bottom — needs height
-	MaxWidth   IntOrExpr `yaml:"max_width"`
-	LineHeight float64   `yaml:"line_height"` // multiplier relative to font height; 0/1 = default
+	Type       string       `yaml:"type"`
+	If         string       `yaml:"if"`
+	Elif       string       `yaml:"elif"` // continues an if-chain at layer level
+	Else       ElseMarker   `yaml:"else"` // else: true — renders when preceding if/elif chain was not satisfied
+	X          IntOrExpr    `yaml:"x"`
+	Y          IntOrExpr    `yaml:"y"`
+	Width      IntOrExpr    `yaml:"width"`
+	Height     IntOrExpr    `yaml:"height"`
+	File       string       `yaml:"file"`
+	Color      StringOrCond `yaml:"color"`
+	Value      StringOrCond `yaml:"value"`
+	Font       string       `yaml:"font"`
+	Size       float64      `yaml:"size"`
+	Align      string       `yaml:"align"`  // left (default) | center | right
+	Valign     string       `yaml:"valign"` // top (default) | middle | bottom — needs height; baseline — first-line baseline = y
+	MaxWidth   IntOrExpr    `yaml:"max_width"`
+	LineHeight float64      `yaml:"line_height"` // multiplier relative to font height; 0/1 = default
+	// type: text — optional horizontal scaling (applied only when > 0 and != 1)
+	ScaleX float64 `yaml:"scale_x"`
+	// type: text — optional single-line item fitting (legacy "via" behaviour)
+	FitItems *FitItems `yaml:"fit_items"`
 	// type: image — optional rotation
 	// When rotate is set, x and y are the CENTER coordinates of the image on the canvas.
 	Rotate StringOrCond `yaml:"rotate"` // degrees clockwise; supports expressions: "{{now.minute | mul(6)}}"
@@ -69,15 +81,86 @@ type Layer struct {
 	SrcHeight int `yaml:"src_height"`
 	// type: loop
 	SplitBy  string  `yaml:"split_by"`  // delimiter for splitting Value
-	Var      string  `yaml:"var"`       // name of the loop item variable
+	Var      string  `yaml:"var"`       // name of the loop item variable (also used by splitflap)
 	MaxItems int     `yaml:"max_items"` // safety cap; 0 = default (20)
-	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration
+	Layers   []Layer `yaml:"layers"`    // sub-layers rendered per iteration (splitflap: per module)
+	// type: splitflap — X/Y/Width/Height are the first module, Value the target, Var the child variable
+	Cells      int    `yaml:"cells"`       // modules side by side; 0 = 1
+	Pitch      int    `yaml:"pitch"`       // x distance module to module; 0 = width
+	Split      string `yaml:"split"`       // "" = whole value in one module | "chars" = one rune per module
+	Reel       Reel   `yaml:"reel"`        // values a module flips through (animation)
+	SplitY     int    `yaml:"split_y"`     // hinge line relative to the module; 0 = height/2
+	FlipFrames int    `yaml:"flip_frames"` // animation: frames per flip
+	MinFlips   int    `yaml:"min_flips"`   // animation: minimum flips per module
+	MaxFlips   int    `yaml:"max_flips"`   // animation: maximum flips per module
+}
+
+// Reel is the ordered supply of values of a splitflap module. In YAML it is
+// either a string (one entry per rune) or a list of strings. Duplicates are kept.
+type Reel []string
+
+// UnmarshalYAML implements yaml.Unmarshaler for Reel.
+func (r *Reel) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := value.Decode(&s); err != nil {
+			return fmt.Errorf("renderer: Reel: %w", err)
+		}
+		entries := make(Reel, 0, len(s))
+		for _, ch := range s {
+			entries = append(entries, string(ch))
+		}
+		*r = entries
+		return nil
+	case yaml.SequenceNode:
+		var entries []string
+		if err := value.Decode(&entries); err != nil {
+			return fmt.Errorf("renderer: Reel: %w", err)
+		}
+		*r = entries
+		return nil
+	default:
+		return fmt.Errorf("renderer: Reel: expected string or list, got kind %v", value.Kind)
+	}
+}
+
+// HasSplitflap reports whether the template contains a splitflap layer,
+// at top level or inside block nodes.
+func (t *Template) HasSplitflap() bool {
+	return hasSplitflap(t.Layers)
+}
+
+func hasSplitflap(layers []Layer) bool {
+	for i := range layers {
+		switch {
+		case layers[i].Type == "splitflap":
+			return true
+		case layers[i].Type == "" && hasSplitflap(layers[i].Layers):
+			return true
+		}
+	}
+	return false
+}
+
+// FitItems makes a text layer split its value at SplitBy and place the items
+// left-aligned on one line, Gap pixels apart, omitting items that no longer
+// fit into max_width.
+type FitItems struct {
+	SplitBy string `yaml:"split_by"`
+	Gap     int    `yaml:"gap"`
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler for Layer.
 // It handles the `else:` key specially: yaml.v3 does not call custom unmarshalers
 // for null nodes, so we scan the raw mapping node to detect a bare `else:` (null)
 // and treat it as true.
+// Allowed range of a text layer's scale_x (0 = unset).
+const (
+	minScaleX = 0.05
+	maxScaleX = 8.0
+)
+
 func (l *Layer) UnmarshalYAML(value *yaml.Node) error {
 	// layerAlias breaks the recursion that would occur if Layer implemented
 	// UnmarshalYAML and we decoded into a Layer directly.
@@ -87,6 +170,11 @@ func (l *Layer) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	*l = Layer(alias)
+
+	// scale_x sizes an offscreen buffer; reject NaN, Inf and absurd factors.
+	if s := l.ScaleX; s != 0 && !(s >= minScaleX && s <= maxScaleX) {
+		return fmt.Errorf("line %d: scale_x must be between %g and %g (got %v)", value.Line, minScaleX, maxScaleX, s)
+	}
 
 	// Scan the raw mapping for the "else" key and set ElseMarker correctly
 	// when the value is a null node (bare `else:` with no value).

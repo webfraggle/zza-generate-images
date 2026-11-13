@@ -159,6 +159,24 @@ func (e *Evaluator) applyFilter(value, filter string) string {
 		if len(args) == 2 {
 			return doStripBetween(value, unquote(args[0]), unquote(args[1]))
 		}
+	case "before":
+		if len(args) == 1 {
+			if sep := unquote(args[0]); sep != "" {
+				if i := strings.Index(value, sep); i >= 0 {
+					return value[:i]
+				}
+			}
+			return value
+		}
+	case "after":
+		if len(args) == 1 {
+			if sep := unquote(args[0]); sep != "" {
+				if i := strings.Index(value, sep); i >= 0 {
+					return value[i+len(sep):]
+				}
+			}
+			return ""
+		}
 	case "upper":
 		return strings.ToUpper(value)
 	case "lower":

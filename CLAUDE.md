@@ -13,7 +13,7 @@ Dual-Build aus einer Go-Codebase:
 
 Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
 
-**Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render`, `GET /{template}.zip`, `GET /health`.
+**Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health`.
 
 **Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`.
 

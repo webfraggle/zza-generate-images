@@ -1,0 +1,331 @@
+package server
+
+import (
+	"bytes"
+	"context"
+	"image/gif"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/web"
+)
+
+const flapTemplateYAML = `meta:
+  canvas: {width: 20, height: 10}
+layers:
+  - type: splitflap
+    x: 0
+    y: 0
+    width: 10
+    height: 10
+    cells: 2
+    split: chars
+    value: "AB"
+    reel: " AB"
+    var: ch
+    layers:
+      - if: "eq(ch, 'A')"
+        layers: [{type: rect, x: 0, y: 0, width: 10, height: 10, color: "#ff0000"}]
+`
+
+// newFlapServer starts a server on a temp templates dir holding the
+// splitflap template "t" (with default.json).
+func newFlapServer(t *testing.T) *Server {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "t"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"template.yaml": flapTemplateYAML, "default.json": `{}`} {
+		if err := os.WriteFile(filepath.Join(dir, "t", name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv, err := New(&config.Config{
+		Port: "8080", TemplatesDir: dir, CacheDir: t.TempDir(),
+		CacheMaxAgeHours: 1, CacheMaxSizeMB: 10,
+	}, web.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return srv
+}
+
+func doRender(srv *Server, path, body string, hdr map[string]string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	return rr
+}
+
+func TestRender_FormatGIF(t *testing.T) {
+	srv := newFlapServer(t)
+	r1 := doRender(srv, "/t/render?format=gif", `{}`, nil)
+	if r1.Code != 200 {
+		t.Fatalf("got %d: %s", r1.Code, r1.Body.String())
+	}
+	if ct := r1.Header().Get("Content-Type"); ct != "image/gif" {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	if !bytes.HasPrefix(r1.Body.Bytes(), []byte("GIF89a")) {
+		t.Error("body does not start with GIF89a")
+	}
+	g, err := gif.DecodeAll(bytes.NewReader(r1.Body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Image) < 2 {
+		t.Errorf("frames = %d, want > 1", len(g.Image))
+	}
+	if r1.Header().Get("X-Cache") != "MISS" {
+		t.Errorf("X-Cache = %q, want MISS", r1.Header().Get("X-Cache"))
+	}
+	r2 := doRender(srv, "/t/render?format=gif", `{}`, nil)
+	if r2.Header().Get("X-Cache") != "HIT" {
+		t.Errorf("second X-Cache = %q, want HIT", r2.Header().Get("X-Cache"))
+	}
+	if !bytes.Equal(r1.Body.Bytes(), r2.Body.Bytes()) {
+		t.Error("cached GIF differs")
+	}
+}
+
+func TestRender_DefaultStillPNG(t *testing.T) {
+	srv := newFlapServer(t)
+	a := doRender(srv, "/t/render", `{}`, nil)
+	_ = doRender(srv, "/t/render?format=gif", `{}`, nil)
+	b := doRender(srv, "/t/render?format=png", `{}`, nil)
+	c := doRender(srv, "/t/render", `{}`, nil)
+	for i, rr := range []*httptest.ResponseRecorder{a, b, c} {
+		if rr.Code != 200 || rr.Header().Get("Content-Type") != "image/png" {
+			t.Fatalf("resp %d: %d %q", i, rr.Code, rr.Header().Get("Content-Type"))
+		}
+		if !bytes.HasPrefix(rr.Body.Bytes(), []byte("\x89PNG")) {
+			t.Fatalf("resp %d: no PNG magic", i)
+		}
+	}
+	if !bytes.Equal(a.Body.Bytes(), b.Body.Bytes()) || !bytes.Equal(a.Body.Bytes(), c.Body.Bytes()) {
+		t.Error("PNG bytes differ between default, format=png and after a GIF request")
+	}
+}
+
+func TestRender_FormatInvalid(t *testing.T) {
+	srv := newFlapServer(t)
+	for _, f := range []string{"webp", "GIF", "Png"} {
+		if rr := doRender(srv, "/t/render?format="+f, `{}`, nil); rr.Code != 400 {
+			t.Errorf("format=%s: got %d, want 400", f, rr.Code)
+		}
+	}
+	req := httptest.NewRequest(http.MethodGet, "/t/preview?format=webp", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != 400 {
+		t.Errorf("preview format=webp: got %d, want 400", rr.Code)
+	}
+}
+
+func TestPreview_FormatGIF(t *testing.T) {
+	srv := newFlapServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/t/preview?format=gif", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != 200 || rr.Header().Get("Content-Type") != "image/gif" {
+		t.Fatalf("got %d %q: %s", rr.Code, rr.Header().Get("Content-Type"), rr.Body.String())
+	}
+}
+
+func TestRender_GIF_NoSplitflap(t *testing.T) {
+	srv := newTestServer(t)
+	raw, err := os.ReadFile(filepath.Join("..", "..", "templates", "sbb-096-v1", "default.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := doRender(srv, "/sbb-096-v1/render?format=gif", string(raw), nil)
+	if rr.Code != 200 {
+		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
+	}
+	g, err := gif.DecodeAll(bytes.NewReader(rr.Body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Image) != 1 {
+		t.Errorf("frames = %d, want 1", len(g.Image))
+	}
+}
+
+func TestRender_GIF_HTTPNoRedirect(t *testing.T) {
+	srv := newFlapServer(t)
+	rr := doRender(srv, "/t/render?format=gif", `{}`, map[string]string{"X-Forwarded-Proto": "http"})
+	if rr.Code != 200 {
+		t.Errorf("got %d, want 200 (no redirect)", rr.Code)
+	}
+}
+
+func TestRender_GIF_Deterministic(t *testing.T) {
+	// Two servers share templates content but not cache dirs.
+	a := doRender(newFlapServer(t), "/t/render?format=gif", `{}`, nil)
+	b := doRender(newFlapServer(t), "/t/render?format=gif", `{}`, nil)
+	if a.Code != 200 || !bytes.Equal(a.Body.Bytes(), b.Body.Bytes()) {
+		t.Error("GIF bytes differ between independent servers")
+	}
+}
+
+func TestRender_GIF_ContextCancelledWhileWaiting(t *testing.T) {
+	srv := newFlapServer(t)
+	for i := 0; i < cap(srv.gifSem); i++ {
+		srv.gifSem <- struct{}{}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodPost, "/t/render?format=gif", strings.NewReader(`{}`)).WithContext(ctx)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("got %d, want 503", rr.Code)
+	}
+	// A cache hit must not wait for the semaphore.
+	for i := 0; i < cap(srv.gifSem); i++ {
+		<-srv.gifSem
+	}
+	if r := doRender(srv, "/t/render?format=gif", `{}`, nil); r.Code != 200 {
+		t.Fatalf("warm-up: %d", r.Code)
+	}
+	for i := 0; i < cap(srv.gifSem); i++ {
+		srv.gifSem <- struct{}{}
+	}
+	if r := doRender(srv, "/t/render?format=gif", `{}`, nil); r.Code != 200 || r.Header().Get("X-Cache") != "HIT" {
+		t.Errorf("cache hit with full semaphore: %d %q", r.Code, r.Header().Get("X-Cache"))
+	}
+}
+
+func TestDetail_AnimatedFlag(t *testing.T) {
+	srv := newFlapServer(t)
+	// The flag is set from HasSplitflap; checked via the view model builder.
+	if !srv.isAnimated("t") {
+		t.Error("splitflap template: Animated = false")
+	}
+	if srv.isAnimated("does-not-exist") {
+		t.Error("missing template: Animated = true")
+	}
+}
+
+// addPlainTemplate adds a non-animated template "p" next to the splitflap one.
+func addPlainTemplate(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, "p"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	yaml := "meta:\n  canvas: {width: 20, height: 10}\nlayers:\n  - type: rect\n    x: 0\n    y: 0\n    width: 20\n    height: 10\n    color: \"#ff0000\"\n"
+	for name, content := range map[string]string{"template.yaml": yaml, "default.json": `{}`} {
+		if err := os.WriteFile(filepath.Join(dir, "p", name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func getPage(srv *Server, path string) string {
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+	return rr.Body.String()
+}
+
+func TestDetail_AnimatedControls(t *testing.T) {
+	srv := newFlapServer(t)
+	addPlainTemplate(t, srv.templatesDir)
+
+	anim := getPage(srv, "/t")
+	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`, "Animation abspielen", "GIF herunterladen"} {
+		if !strings.Contains(anim, id) {
+			t.Errorf("animated detail page lacks %s", id)
+		}
+	}
+	plain := getPage(srv, "/p")
+	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`} {
+		if strings.Contains(plain, id) {
+			t.Errorf("plain detail page contains %s", id)
+		}
+	}
+	if !strings.Contains(plain, `id="download-btn"`) {
+		t.Error("plain detail page lost the PNG download button")
+	}
+}
+
+// getEditorPage calls the editor page handler directly: the /edit/ route is
+// only wired up in the desktop build.
+func getEditorPage(srv *Server, name string) string {
+	req := httptest.NewRequest(http.MethodGet, "/edit/"+name, nil)
+	req.SetPathValue("template", name)
+	rr := httptest.NewRecorder()
+	srv.handleEditorPage(rr, req)
+	return rr.Body.String()
+}
+
+func TestEditor_AnimatedControls(t *testing.T) {
+	srv := newFlapServer(t)
+	addPlainTemplate(t, srv.templatesDir)
+
+	anim := getEditorPage(srv, "t")
+	for _, id := range []string{`id="preview-mode"`, `id="replay-btn"`, "Standbild", "Animation", "Erneut abspielen"} {
+		if !strings.Contains(anim, id) {
+			t.Errorf("animated editor page lacks %s", id)
+		}
+	}
+	plain := getEditorPage(srv, "p")
+	for _, id := range []string{`id="preview-mode"`, `id="replay-btn"`} {
+		if strings.Contains(plain, id) {
+			t.Errorf("plain editor page contains %s", id)
+		}
+	}
+}
+
+// A request that waited for a render slot must serve the GIF another request
+// cached in the meantime instead of rendering it again.
+func TestRender_GIF_CacheRecheckAfterWait(t *testing.T) {
+	srv := newFlapServer(t)
+	for i := 0; i < cap(srv.gifSem); i++ {
+		srv.gifSem <- struct{}{}
+	}
+	done := make(chan *httptest.ResponseRecorder)
+	go func() { done <- doRender(srv, "/t/render?format=gif", `{}`, nil) }()
+	time.Sleep(100 * time.Millisecond) // let the request reach the semaphore
+
+	info, err := os.Stat(filepath.Join(srv.templatesDir, "t", "template.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := srv.cache.Key("t", append([]byte(`{}`), strconv.AppendInt(nil, info.ModTime().UnixNano(), 10)...))
+	if err := srv.cache.SetExt(key, formatGIF, []byte("SENTINEL")); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < cap(srv.gifSem); i++ {
+		<-srv.gifSem
+	}
+	rr := <-done
+	if rr.Code != 200 || rr.Header().Get("X-Cache") != "HIT" || rr.Body.String() != "SENTINEL" {
+		t.Errorf("got %d, X-Cache %q, %d bytes; want the cached entry as HIT", rr.Code, rr.Header().Get("X-Cache"), rr.Body.Len())
+	}
+}
+
+func TestRender_GIF_WaitTimeout(t *testing.T) {
+	srv := newFlapServer(t)
+	srv.gifWaitTimeout = 20 * time.Millisecond
+	for i := 0; i < cap(srv.gifSem); i++ {
+		srv.gifSem <- struct{}{}
+	}
+	rr := doRender(srv, "/t/render?format=gif", `{}`, nil)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("got %d, want 503", rr.Code)
+	}
+	if rr.Header().Get("Retry-After") == "" {
+		t.Error("503 without Retry-After")
+	}
+}

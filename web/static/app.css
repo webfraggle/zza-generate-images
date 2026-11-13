@@ -502,6 +502,14 @@ body.form-page {
   image-rendering: pixelated;
 }
 
+/* GIF halves on the detail page: same geometry as the canvases above. */
+.anim-clip { overflow: hidden; }
+.anim-clip img {
+  display: block;
+  max-width: none;
+  image-rendering: pixelated;
+}
+
 .canvas-divider {
   width: 16px;
   align-self: stretch;
@@ -820,6 +828,13 @@ body.editor-page {
 .json-section textarea:focus {
   border-color: var(--white);
   box-shadow: 0 0 0 3px rgba(253,112,20,.09);
+}
+
+.preview-controls { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.preview-controls select {
+  font: inherit; font-size: .8rem; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-color);
 }
 
 .preview-wrap {

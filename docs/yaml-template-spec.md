@@ -44,11 +44,15 @@ meta:
     width: 160    # Breite in Pixeln
     height: 80    # Höhe in Pixeln
     colors: 32    # optional — Farbpalette reduzieren (2–256); weglassen = volle Farbe
+  animation:      # optional — nur relevant für GIF-Ausgabe (siehe type: splitflap)
+    fps: 20       # Frames pro Sekunde; Standard 20, erlaubt 5–25
+    duration: 2.5 # maximale Laufzeit in Sekunden; Standard 2.5, erlaubt 0.5–5
 ```
 
 - `display` (optional) — Bezeichnung des Ziel-Displays, z.B. `"0.96 Zoll OLED"`. Wird auf der Vorschau-Seite angezeigt.
 - `instructions` (optional) — Freitext-Anleitung für Nutzer des Templates. Wird auf der Vorschau-Seite angezeigt. Mehrzeilig möglich mit YAML Block-Scalar (`|`).
-- `canvas.colors` (optional) — Reduziert die Ausgabe auf eine Indexed-PNG mit maximal N Farben (2–256) via Median-Cut-Algorithmus. Verringert die Dateigröße bei einfachen Grafiken erheblich. Weglassen oder `0` = volle 32-Bit-Farbe.
+- `canvas.colors` (optional) — Reduziert die Ausgabe auf eine Indexed-PNG mit maximal N Farben (2–256) via Median-Cut-Algorithmus. Verringert die Dateigröße bei einfachen Grafiken erheblich. Weglassen oder `0` = volle 32-Bit-Farbe. Bei GIF-Ausgabe ist es die Zahl der echten Farben der globalen Palette (höchstens 255); der transparente Eintrag kommt zusätzlich dazu, siehe [GIF-Ausgabe](#gif-ausgabe).
+- `animation` (optional) — Einstellungen für die Faltblatt-Animation, siehe [`type: splitflap`](#type-splitflap). Fehlt der Block, gelten die Standardwerte, sobald ein GIF angefordert wird. Werte außerhalb des erlaubten Bereichs (`fps` 5–25, `duration` 0.5–5) sind ein Template-Fehler. Zusätzlich gilt (nur für Templates mit `splitflap`-Layer): Die **maximal möglichen** Bilder (`duration × fps`, höchstens 125) × Breite × Höhe dürfen höchstens 32.000.000 Pixel ergeben. Geprüft wird diese Obergrenze vor dem Rendern, nicht die tatsächliche Frame-Zahl; ein hoher `fps` bei langer `duration` auf großem Canvas kann also abgelehnt werden, auch wenn die Animation kürzer wäre.
 
 ---
 
@@ -81,17 +85,18 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
 | `text`   | Text ausgeben        |
 | `copy`   | Bereich kopieren (z.B. obere Hälfte auf untere Hälfte spiegeln) |
 | `loop`   | Sub-Layer über gesplitteten String iterieren |
+| `splitflap` | Faltblatt-Klappen (Einzelzeichen-Raster oder ganze Tafeln), animierbar als GIF |
 
 ---
 
 ### Koordinaten-Ausdrücke
 
-Die Felder `x`, `y`, `width`, `height` und `size` akzeptieren neben ganzzahligen Werten auch **arithmetische Ausdrücke** in `{{...}}`-Syntax:
+Die Felder `x`, `y`, `width`, `height` und `max_width` akzeptieren neben ganzzahligen Werten auch **arithmetische Ausdrücke** in `{{...}}`-Syntax:
 
 ```yaml
 x: "{{i * 20 + 10}}"      # Abstand 20, Start bei 10
 y: "{{loop.index * 12}}"  # 12px pro Element
-size: "{{14}}"            # auch konstante Ausdrücke erlaubt
+width: "{{12 * 3}}"       # auch konstante Ausdrücke erlaubt
 ```
 
 **Unterstützte Operatoren:** `+`, `-`, `*`, `/` (Ganzzahldivision), Klammern
@@ -105,6 +110,8 @@ size: "{{14}}"            # auch konstante Ausdrücke erlaubt
 | `loop.y`       | Absolutes Y des aktuellen Elements        | `type: loop`  |
 
 Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Rendern.
+
+> **`size` ist kein Ausdrucksfeld.** Die Schriftgröße ist eine feste Zahl (Kommazahlen erlaubt, z.B. `21.33`); `{{…}}` wird dort nicht ausgewertet.
 
 ---
 
@@ -167,12 +174,24 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   size: 14            # Schriftgröße in Punkten
   color: "#FFFFFF"
   align: left         # left | center | right
-  valign: top         # top | middle | bottom — benötigt height
+  valign: top         # top | middle | bottom — benötigt height; baseline — y ist die Grundlinie
   width: 80           # optional — Boxbreite für Ausrichtung + Zeilenumbruch
   height: 20          # optional — Boxhöhe für vertikale Ausrichtung
   max_width: 80       # optional — nur Zeilenumbruch (alternativ zu width)
   line_height: 1.5    # optional — Zeilenabstand als Multiplikator (Standard: 1.0)
+  scale_x: 0.5        # optional — horizontale Skalierung der Schrift (Standard: 1)
+  fit_items:          # optional — einzeilige Element-Einpassung (Elemente entfallen nur mit max_width)
+    split_by: "-"
+    gap: 2
 ```
+
+**`valign: baseline`** — `y` ist die Grundlinie der ersten Zeile (so rechnet das Legacy-PHP), nicht die Oberkante. `height` wird dabei nicht gebraucht.
+
+**`scale_x`** — Skaliert die Schrift horizontal (`0.5` = halbe Breite, `1` oder weglassen = unverändert). Erlaubt sind `0.05` bis `8`; andere Werte (auch negative, `.inf`, `.nan`) lehnt das Laden des Templates ab. Text, der skaliert weit über die Leinwand hinausragt, wird nur im sichtbaren Bereich gezeichnet. Ausrichtung, `width`, `max_width` und Zeilenumbruch rechnen mit der skalierten Breite. Das Legacy-Theme staucht fast alle Texte mit `xFactor 0.5`; das entspricht `scale_x: 0.5`.
+
+**`fit_items`** — Setzt den Wert einzeilig und linksbündig in Elemente: Der Wert wird an `split_by` geteilt (Elemente werden getrimmt, leere entfallen) und die Elemente werden mit `gap` Pixeln Abstand nebeneinander gesetzt. Ein Element wird nur gezeichnet, wenn `xpos + Breite < max_width` gilt; `xpos` rückt auch für ausgelassene Elemente um `Breite + gap` weiter — wie die Via-Schleife im Legacy-PHP. Ohne `max_width` (oder mit `0`) wird nichts weggelassen. Zeilenumbruch und `align` gelten in diesem Modus nicht.
+
+**Portierung von Legacy-PHP-Themes:** Schriftgröße = Legacy-Wert × 16/9 (z.B. Legacy 12 → `size: 21.33`); Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`); Legacy-`xFactor 0.5` ist `scale_x: 0.5`.
 
 ---
 
@@ -214,6 +233,108 @@ Positionierung über Ausdrücke: `y: "{{i * 12 + 30}}"`.
 
 **Leere Elemente** nach dem Split werden übersprungen.
 **Wenn `value` leer ist**, wird der Loop nicht ausgeführt (kein Fehler).
+
+---
+
+### type: splitflap
+
+Eine oder mehrere **Klappen** (Module) einer mechanischen Faltblattanzeige. Ein Modul ist ein Rechteck mit horizontaler Teilung (Scharnier); sein Inhalt wird durch Kind-Layer gezeichnet, die den aktuellen Wert über eine Variable bekommen (ähnlich `loop`). Im PNG-Render und im letzten GIF-Frame zeigt jedes Modul seinen Zielwert — ein `splitflap`-Layer ist also auch ohne Animation nutzbar (z.B. als Einzelzeichen-Raster).
+
+```yaml
+# Zielzeile: 13 Einzelklappen
+- type: splitflap
+  x: 54              # linke obere Ecke des ersten Moduls
+  y: 82
+  width: 11          # Modulgröße = ganzes Blatt
+  height: 30
+  split_y: 14        # Scharnier, relativ zum Modul (Standard: height / 2)
+  cells: 13          # Module nebeneinander (Standard 1, max. 64)
+  pitch: 14          # Abstand Modul zu Modul in x (Standard: width)
+  split: chars       # ein Zeichen (Rune) pro Modul; weglassen = ganzer Wert in einem Modul
+  value: "{{zug1.vonnach | upper}}"
+  reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ-."   # Vorrat, durch den ein Modul blättert
+  var: ch            # Variable für die Kind-Layer
+  flip_frames: 2     # Animation: Frames pro Umklappen (1–6, Standard 2)
+  min_flips: 8       # Animation: mindestens so viele Umklappschritte (Standard 4)
+  max_flips: 16      # Animation: höchstens so viele (Standard: so viele, wie in duration passen)
+  layers:            # Kind-Layer; Koordinaten relativ zur linken oberen Ecke des Moduls
+    - type: text
+      value: "{{ch}}"
+      x: 5
+      y: 23
+      valign: baseline
+      align: center
+      scale_x: 0.5
+      font: bold
+      size: 21.33
+      color: "#3a3c3b"
+
+# Zugart: eine ganze Tafel, blättert durch die anderen Zugarten
+- type: splitflap
+  x: 53
+  y: 48
+  width: 90
+  height: 28
+  split_y: 15
+  value: "{{zug1.nr | lower}}"
+  reel: ["rb", "re", "ic", "ice", ""]
+  var: nr
+  flip_frames: 3
+  max_flips: 8
+  layers:
+    - if: "startsWith(nr, 'ice')"      # ice vor ic prüfen
+      layers:
+        - type: image
+          file: ice.png
+          x: 2
+          y: 5
+    - elif: "startsWith(nr, 'ic')"
+      layers:
+        - type: image
+          file: ic.png
+          x: 2
+          y: 5
+    # … rb, re
+```
+
+Beide Beispiele stammen aus `templates/faltblatt-105-v1/template.yaml` (dort stehen alle Layer vollständig).
+
+| Feld | Beschreibung |
+|---|---|
+| `x`, `y`, `width`, `height` | Rechteck des **ersten** Moduls (Ausdrücke erlaubt). Das Modul deckt das ganze Blatt ab, wie es im Hintergrundbild gezeichnet ist. `width`/`height` müssen positiv sein; das Modul muss komplett im Canvas liegen |
+| `split_y` | Scharnierlinie relativ zum Modul, `1` bis `height-1`; Standard `height / 2`. Auf den Scharnierstrich des Overlays legen |
+| `cells` | Anzahl Module nebeneinander; Standard 1, max. 64 |
+| `pitch` | x-Abstand von Modul zu Modul; Standard `width` |
+| `split` | `chars` = ein Zeichen pro Modul; fehlt = ganzer Wert in einem Modul. **`cells > 1` verlangt `split: chars`**. Überzählige Zeichen werden abgeschnitten, fehlende Module bekommen den Wert `""` |
+| `value` | Zielwert (Variablen, Filter und Bedingungen wie bei `text`) |
+| `reel` | Vorrat, durch den ein Modul beim Animieren blättert: String (ein Eintrag pro Zeichen) oder YAML-Liste (ein Eintrag pro Listenelement, z.B. `["00", "01", …]`). Max. 64 Einträge pro Layer. Ohne `reel` blättert das Modul durch leere Klappen |
+| `var` | Name der Variable, unter der die Kind-Layer den aktuellen Wert sehen (in Werten **und** Bedingungen) |
+| `flip_frames` | Animation: Frames pro Umklappen, 1–6, Standard 2 |
+| `min_flips`, `max_flips` | Animation: Spanne der Umklappschritte pro Modul (siehe unten) |
+| `layers` | Kind-Layer: `text`, `image`, `rect` und Block-Nodes (`if`/`elif`/`else`). **Nicht** erlaubt: `loop`, `copy`, verschachtelte `splitflap` (auch nicht in nicht-genommenen Zweigen) |
+
+**Regeln**
+
+- **Blatt-Hintergrund = Leinwand-Schnappschuss.** An der Stelle des Layers in der Zeichenreihenfolge wird der Leinwandinhalt unter dem Modulrechteck **einmal pro Wert** als Blatt-Hintergrund genommen; jeder Wert wird darauf gezeichnet. Layer, die **vor** dem `splitflap`-Layer stehen, bilden also das Blatt (z.B. das Hintergrundbild mit den leeren Klappen). Ein Blatt ist deckend; beim Umklappen scheint nichts vom Nachbarwert durch.
+- Ein `splitflap` darf deshalb nicht auf etwas liegen, das sich selbst pro Frame ändert (z.B. auf einem anderen `splitflap`-Modul oder einem `now`-abhängigen Layer). Module dürfen sich außerdem **nicht überlappen** (Template-Fehler).
+- **Overlays** (Scharniere, Rahmen, Schattierung) gehören **nach** die `splitflap`-Layer. `copy`-Layer danach folgen der Animation automatisch.
+- Kind-Koordinaten sind relativ zum Modul; gezeichnet wird auf das Modulrechteck geclippt. Feste Beschriftung auf einer Klappe (z.B. „Abfahrt" neben der Stunde) ist ein konstanter Kind-Layer und klappt mit.
+- `splitflap` darf in Block-Nodes stehen, nicht in `loop`.
+- Der Zielwert muss **nicht** im `reel` stehen; er wird am Ende trotzdem angezeigt. Bei `split: chars` werden Zeichen außerhalb des `reel` genau so gezeichnet, wie sie sind.
+- Limits: max. 64 Module pro Template (Summe aller `splitflap`-Layer), max. 64 `reel`-Einträge pro Layer, max. 125 Frames pro Animation, `meta.animation.fps` 5–25, `meta.animation.duration` 0.5–5 s, maximal mögliche Frames (`duration × fps`, höchstens 125) × Breite × Höhe ≤ 32.000.000 Pixel (Obergrenze, vorab geprüft). Überschreitungen sind Template-Fehler (HTTP 422 beim Rendern).
+
+**Animationsmodell (nur GIF)**
+
+- Ein Umklappen von Wert A auf Wert B dauert `flip_frames` Frames: erst fällt die obere Hälfte (obere Hälfte von A, gestaucht und abgedunkelt, über der oberen Hälfte von B), dann klappt die untere Hälfte von B nach unten über A. Solange ein Modul läuft, folgt Umklappen auf Umklappen ohne Ruheframe.
+- Jedes Modul durchläuft `k` Schritte entlang seines `reel` (zyklisch) und endet auf dem Zielwert. Liegt der Zielwert im `reel`, wird die Startposition so gewählt, dass der Lauf dort ankommt; sonst folgt er als letzter Schritt auf `reel`-Einträge. `k` wird pro Modul pseudozufällig aus `[min_flips, max_flips]` gezogen; die Grenzen werden auf das begrenzt, was in `duration` passt. Die Module stoppen deshalb zu unterschiedlichen Zeiten.
+- **Deterministisch:** Der Zufall ist ein Hash aus Template-Name, Request-Body, Layer- und Modulnummer. Gleiches Template + gleicher Request-Body ⇒ **bytegleiches GIF**. Der Zeitpunkt für `{{now.*}}` wird einmal pro Animation eingefroren; die Zusage gilt daher nur für Templates ohne `now`.
+- **Start und Ende:** Frame 0 zeigt bereits alle Module in Bewegung, denn das Display zeigt vorher das Standbild des alten Zugs. Das letzte Frame ist das Standbild und entspricht dem PNG-Render derselben Daten (bis auf die GIF-Palettierung). Das GIF spielt **einmal** (keine Loop-Extension) und bleibt auf dem letzten Frame stehen.
+- Alle übrigen Layer (auch `copy`) werden pro Frame normal gerendert.
+- Ein Template ohne `splitflap`-Layer ergibt bei `?format=gif` ein GIF mit einem einzigen Frame.
+
+#### GIF-Ausgabe
+
+Für Firmware-Autoren: Das GIF hat **eine globale Farbtabelle** (keine lokalen Tabellen) mit `min(canvas.colors, 255)` echten Farben (Standard 255) **plus** einem zusätzlichen transparenten Index (`canvas.colors: 32` ergibt also 33 Einträge). Frame 0 ist vollständig; alle weiteren Frames sind **Delta-Frames** über das Rechteck der geänderten Pixel, mit Disposal „do not dispose" (Frames werden aufeinander komponiert). Unveränderte Pixel innerhalb eines Delta-Rechtecks sind transparent. Aufeinanderfolgende identische Frames werden zu einem zusammengefasst (Verzögerung addiert). Verzögerung: jedes Frame vor dem letzten dauert `round(100/fps)` Hundertstelsekunden (bei 20 fps 5 cs), das letzte Frame 100 cs (1 s). Ist das letzte Frame identisch mit dem vorletzten, werden beide zusammengefasst und die Standzeit ist entsprechend länger als 1 s.
 
 ---
 
@@ -305,6 +426,15 @@ value: "{{zug1.hinweis | strip('*') | upper}}"      # Kombination: erst strip, d
 | `add(x)`                    | Addiert x zum Zahlenwert                                  |
 | `sub(x)`                    | Subtrahiert x vom Zahlenwert                              |
 | `round`                     | Rundet auf ganze Zahl                                     |
+| `before('x')`               | Teil vor dem ersten Vorkommen von `x`; ohne `x` im Wert der ganze Wert |
+| `after('x')`                | Teil nach dem ersten Vorkommen von `x`; ohne `x` im Wert leer (`""`)  |
+
+**`before` / `after`** teilen einen Wert an einem Trenner, z.B. Stunde und Minute aus `13:30`:
+```yaml
+value: "{{zug1.zeit | before(':')}}"   # 13:30 → 13
+value: "{{zug1.zeit | after(':')}}"    # 13:30 → 30
+```
+Enthält der Wert den Trenner nicht (z.B. `1330`), liefert `before` den ganzen Wert und `after` einen leeren String.
 
 **Mathe-Filter Beispiele** (typisch für analoge Uhren):
 ```yaml
@@ -566,6 +696,6 @@ layers:
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |
 | Repeat/Loop | `type: loop` mit `split_by` — kein `step_y`, kein relatives Y; Positionierung via `{{i * step + base}}`-Ausdrücke |
-| Koordinaten-Ausdrücke | `x`, `y`, `width`, `height`, `size` unterstützen `{{...}}`-Arithmetik; `i` als Kurzform für `loop.index` |
+| Koordinaten-Ausdrücke | `x`, `y`, `width`, `height`, `max_width` unterstützen (`size` nicht) `{{...}}`-Arithmetik; `i` als Kurzform für `loop.index` |
 | Leere Felder | Werden leer dargestellt — kein Fehler. Sonderbehandlung via `if isEmpty(...)` |
 | `line_height` | Float-Multiplikator relativ zur natürlichen Schrifthöhe; `0` und `1` = unverändert |
