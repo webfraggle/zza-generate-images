@@ -69,7 +69,7 @@ Grundsätze (aus dem Spec-Check, **[P]**):
       align: center
       scale_x: 0.5
       font: bold
-      size: 16
+      size: 21.33
       color: "#3a3c3b"
 
 # Zugart: eine Tafel, blättert durch die anderen Zugarten
@@ -113,7 +113,7 @@ meta:
 
 - `text`: `valign: baseline` — `y` ist die Grundlinie (so rechnet das Legacy-PHP; ohne `height`).
 - `text`: `scale_x` (Float, Default 1) — horizontale Skalierung der Schrift. Das Legacy staucht fast alle Texte auf halbe Breite (`xFactor 0.5` ⇒ `scale_x: 0.5`); nur Stunde und Minute haben natürliche Breite. Ausrichtung und Einpassung rechnen mit der skalierten Breite. Ohne `scale_x` bleibt der bisherige Zeichenpfad bitgleich.
-- Legacy-Schriftgrößen sind pt bei 96 DPI, hier px: Legacy-Wert × 4/3.
+- Legacy-Schriftgrößen: effektiv Legacy-Wert × 16/9 in px (PHP-Faktor 96/72 mal GDs eigene 96-DPI-Umrechnung; an der Referenz nachgemessen).
 - `text`: einzeilige Element-Einpassung für die Via-Zeile: Wert an einem Trenner teilen, Elemente mit festem Abstand nebeneinander setzen, Elemente, die nicht mehr in `max_width` passen, weglassen — Verhalten exakt wie die Via-Schleife in `legacy/faltblatt-105-v1/index.php` (Element wird gezeichnet, wenn `xpos + Breite < x + max_width`; `xpos` rückt auch bei ausgelassenen Elementen um `Breite + gap` weiter). Feldnamen-Vorschlag: `fit_items: {split_by: "-", gap: 2}`.
 - Filter, um einen Wert an einem Trenner zu teilen und den Teil davor/danach zu nehmen (für Stunde/Minute aus `13:30`). Benennung nach vorhandener Filter-Konvention **[B]**.
 - `ice.png` aus `legacy/` ins Template übernehmen; Zugart-Erkennung unabhängig von Groß/Kleinschreibung, `ice` vor `ic`.

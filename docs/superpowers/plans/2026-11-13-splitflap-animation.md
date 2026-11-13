@@ -201,18 +201,18 @@
 - Consumes: alles aus Task 1–4.
 - Produces: fertiges Template; Kontaktbogen-Werkzeug `ZZA_CONTACT_SHEET=<pfad.png> go test ./internal/renderer/ -run TestContactSheet` (alle Frames von `faltblatt-105-v1` mit Default-Daten, 4× vergrößert ohne Glättung, Raster 6 Spalten, Frame-Nummer als Dateiname-unabhängige Reihenfolge links→rechts, oben→unten) sowie `ZZA_STILL=<pfad.png>` für das Standbild und `ZZA_GIF=<pfad.gif>` für das GIF.
 
-Vorgaben (aus Spec §5/§6 und `legacy/faltblatt-105-v1/index.php`, Größen = Legacy × 4/3):
+Vorgaben (aus Spec §5/§6 und `legacy/faltblatt-105-v1/index.php`). **Schriftgrößen = Legacy × 16/9** (das PHP multipliziert mit 96/72, und GD rechnet Punktgrößen selbst noch einmal mit 96 DPI um; gegen die Referenz geprüft: Via-Breite, Versalhöhe der Zielzeile, Höhe der Gleisziffer). Maßgeblich ist bei Abweichungen immer das Referenzbild:
 
 | Element | Legacy-Aufruf | Neu |
 |---|---|---|
-| „Gleis" | size 12, x 27, y 34, center, xFactor 0.5 | text, size 16, `valign: baseline`, `scale_x: 0.5`, statisch |
-| Gleisnummer | size 33, x 27, y 90, center, 0.5 | text, size 44, baseline, `scale_x: 0.5`, statisch |
-| „Abfahrt" | size 10.5, x 57, y 35, left, 0.5 | konstanter Kind-Layer der Stunden-Klappe, size 14 |
-| Stunde | size 12.5, x 119, y 37, right, xFactor 1 | Kind-Layer, size 16.67, ohne `scale_x`; Wert `{{zug1.zeit \| before(':')}}`; Reel „00"…„23" |
-| Minute | size 8.5, x 133, y 32, center, 1 | eigene Klappe, size 11.33; Wert `after(':')`; Reel „00","05",…,"55" |
+| „Gleis" | size 12, x 27, y 34, center, xFactor 0.5 | text, size 21.33, `valign: baseline`, `scale_x: 0.5`, statisch |
+| Gleisnummer | size 33, x 27, y 90, center, 0.5 | text, size 58.67, baseline, `scale_x: 0.5`, statisch |
+| „Abfahrt" | size 10.5, x 57, y 35, left, 0.5 | konstanter Kind-Layer der Stunden-Klappe, size 18.67, `scale_x: 0.5` |
+| Stunde | size 12.5, x 119, y 37, right, xFactor 1 | Kind-Layer, size 22.22, ohne `scale_x`; Wert `{{zug1.zeit \| before(':')}}`; Reel „00"…„23" |
+| Minute | size 8.5, x 133, y 32, center, 1 | eigene Klappe, size 15.11; Wert `after(':')`; Reel „00","05",…,"55" |
 | Zugart | Bild bei (55,53), ice vor ic, case-insensitiv | Klappe, Wert `{{zug1.nr \| lower}}`, Reel `["rb","re","ic","ice",""]`, Kinder if/elif `startsWith` in Reihenfolge ice, ic, rb, re |
-| Via | size 9.5, x 147, y 68, maxX +87, Split „-", gap 2, 0.5 | Klappe mit einem text-Kind: size 12.67, `scale_x: 0.5`, `fit_items: {split_by: "-", gap: 2}`, `max_width: 87`; Reel: 3 Füll-Viatexte + `""` |
-| Ziel | 13 Zeichen, Raster 14, Mitte xpos+5, y 105, size 12, 0.5, upper | Klappe `cells: 13`, `pitch: 14`, `split: chars`, Reel `" ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ-."`, size 16, `scale_x: 0.5` |
+| Via | size 9.5, x 147, y 68, maxX +87, Split „-", gap 2, 0.5 | Klappe mit einem text-Kind: size 16.89, `scale_x: 0.5`, `fit_items: {split_by: "-", gap: 2}`, `max_width: 87`; Reel: 3 Füll-Viatexte + `""` |
+| Ziel | 13 Zeichen, Raster 14, Mitte xpos+5, y 105, size 12, 0.5, upper | Klappe `cells: 13`, `pitch: 14`, `split: chars`, Reel `" ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ-."`, size 21.33, `scale_x: 0.5` |
 | `fg.png` | nach allen Texten | direkt vor den drei `copy`-Layern |
 
 Modulrechtecke = ganze Klappen aus `bg.png`, `split_y` auf den Scharnierstrichen aus `fg.png` — **ausmessen** (Pixel lesen), nicht schätzen. Ungefähre Lage: Stunde x 54–121 / y 15–43, Minute x 124–142, Zugart x 54–141 / y 48–76, Via x 145–233 / y 48–76, Zielzellen ab x 54, y 82–111, Scharniere bei y ≈ 29 / 63 / 96. Kind-Koordinaten = Legacy-Koordinate − Modulursprung. `meta.animation` nicht setzen (Defaults); Zielzeile `flip_frames: 2`, große Tafeln `flip_frames: 3` und `max_flips: 8`.
