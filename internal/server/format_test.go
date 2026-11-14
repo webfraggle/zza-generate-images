@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -309,11 +308,7 @@ func TestRender_GIF_CacheRecheckAfterWait(t *testing.T) {
 	go func() { done <- doRender(srv, "/t/render?format=gif", `{}`, nil) }()
 	time.Sleep(100 * time.Millisecond) // let the request reach the semaphore
 
-	info, err := os.Stat(filepath.Join(srv.templatesDir, "t", "template.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	key := srv.cache.Key("t", append([]byte(`{}`), strconv.AppendInt(nil, info.ModTime().UnixNano(), 10)...))
+	key := srv.renderCacheKey("t", []byte(`{}`))
 	if err := srv.cache.SetExt(key, formatGIF, []byte("SENTINEL")); err != nil {
 		t.Fatal(err)
 	}

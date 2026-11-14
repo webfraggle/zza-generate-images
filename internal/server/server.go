@@ -424,6 +424,31 @@ func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
 	s.renderAndServe(r.Context(), w, templateName, body, format)
 }
 
+// renderCacheKey returns the cache key for rendering templateName with body.
+// Besides the body it covers the build version (a new renderer may draw the
+// same input differently) and the name, size and mod-time of every file in
+// the template directory (template.yaml, images, fonts), so updating either
+// the server or a template never serves an image cached by the old state.
+func (s *Server) renderCacheKey(templateName string, body []byte) string {
+	stamp := append([]byte(version.Version), 0)
+	if entries, err := os.ReadDir(filepath.Join(s.templatesDir, templateName)); err == nil {
+		for _, e := range entries { // ReadDir sorts by name: stable order
+			info, err := e.Info()
+			if err != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			stamp = append(stamp, e.Name()...)
+			stamp = append(stamp, 0)
+			stamp = strconv.AppendInt(stamp, info.Size(), 10)
+			stamp = append(stamp, 0)
+			stamp = strconv.AppendInt(stamp, info.ModTime().UnixNano(), 10)
+			stamp = append(stamp, 0)
+		}
+	}
+	// body must not be aliased: append to a fresh slice.
+	return s.cache.Key(templateName, append(stamp, body...))
+}
+
 // renderAndServe renders templateName with the given JSON body and writes the
 // result to w as PNG or, for formatGIF, as an animated GIF (a single frame for
 // templates that are not animated). format must be formatPNG or formatGIF.
@@ -442,14 +467,7 @@ func (s *Server) renderAndServe(ctx context.Context, w http.ResponseWriter, temp
 	// the same key may each render and write the same PNG. This is intentional
 	// (last-write-wins with identical bytes) and avoids the complexity of
 	// singleflight deduplication for a low-traffic local server.
-	//
-	// The template.yaml mod-time is included in the cache key so that saving
-	// the YAML via the editor automatically invalidates stale PNG cache entries.
-	var modStamp []byte
-	if info, err := os.Stat(filepath.Join(s.templatesDir, templateName, "template.yaml")); err == nil {
-		modStamp = strconv.AppendInt(nil, info.ModTime().UnixNano(), 10)
-	}
-	key := s.cache.Key(templateName, append(body, modStamp...))
+	key := s.renderCacheKey(templateName, body)
 
 	// Load template (404 if missing); it decides whether the cache is usable.
 	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
