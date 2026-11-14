@@ -57,7 +57,8 @@ damit Galerie und Detailseite zusammengehören. Neu:
 
 - Max. 1280 px breit, zwei Spalten: links die Vorschau (sticky), rechts das Formular.
   Unter 860 px eine Spalte, Vorschau oben.
-- Die Vorschau sitzt in einem dunklen „Gehäuse“ (Graphit `#1F2427`), die beiden
+- Die Vorschau sitzt auf einer weißen Kachel; jede Display-Hälfte hat schwarze
+  Blende plus blauen Modulrahmen (`#10289c`) wie die DB-Anzeigen. Die beiden
   Display-Hälften werden in Viertelschritten (1×–3×, `image-rendering: pixelated`) skaliert — das ist das eine
   auffällige Element der Seite.
 - Aktionsleiste direkt am Gehäuse; alles andere ruhig: Labels in Satzschreibung,

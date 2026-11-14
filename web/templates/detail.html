@@ -225,8 +225,9 @@
     // uses the full width.
     function pixelScale(w) {
       const quarter = (x) => Math.floor(x * 4) / 4;
-      const avail = housing.clientWidth - 48 - 12;              // padding, frame borders
-      const sideBySide = quarter((avail - 24 - 12) / (2 * w));  // gap + 2nd frame
+      const frame = 2 * (6 + 12);                               // bezel + blue outline per half
+      const avail = housing.clientWidth - 48 - frame;           // padding, first frame
+      const sideBySide = quarter((avail - 40 - frame) / (2 * w));  // gap + 2nd frame
       if (sideBySide >= 1) return Math.min(3, sideBySide);
       return Math.max(0.5, Math.min(2, quarter(avail / w)));
     }

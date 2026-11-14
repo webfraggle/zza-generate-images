@@ -470,7 +470,7 @@ body.form-page {
 /* ── DETAIL PAGE (try-it) ───────────────────────────────────────────────────── */
 /* Two columns: the display "housing" (preview + actions) on the left, the
    form panel on the right. One column below 860px with the preview on top. */
-.detail-page { --housing: #1F2427; --housing-2: #2B3236; --housing-line: #3A4246; }
+.detail-page { --housing: var(--surface); --housing-2: var(--surface); --housing-line: var(--border); --display-blue: #10289c; }
 
 a.brand:hover { color: var(--brand); }
 
@@ -491,7 +491,7 @@ a.brand:hover { color: var(--brand); }
   position: sticky;
   top: 16px;
   background: var(--housing);
-  color: #fff;
+  color: var(--ink);
   box-shadow: rgba(0,0,0,0.4) 0px 6px 7px -1px;
 }
 @media (max-width: 860px) { .detail-stage { position: static; } }
@@ -509,14 +509,14 @@ a.brand:hover { color: var(--brand); }
   margin-top: 6px;
   font-size: .87rem;
   line-height: 1.5;
-  color: rgba(255,255,255,.68);
+  color: #5E5852;
   max-width: 60ch;
 }
 
 .housing {
   position: relative;
   min-height: 280px;
-  padding: 24px;
+  padding: 32px 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -532,13 +532,14 @@ a.brand:hover { color: var(--brand); }
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 24px;
+  gap: 40px;
 }
 .preview-halves[hidden] { display: none; }
 
 .canvas-frame {
+  /* Black bezel inside the blue DB-style module frame. */
   border: 6px solid #000;
-  box-shadow: 0 0 0 1px var(--housing-line);
+  outline: 12px solid var(--display-blue);
   line-height: 0;
 }
 .canvas-frame canvas {
@@ -569,7 +570,7 @@ a.brand:hover { color: var(--brand); }
   border: none;
   border-right: 1px solid var(--housing-line);
   background: var(--housing-2);
-  color: #fff;
+  color: var(--ink);
   font-family: var(--font-display);
   font-size: .95rem;
   font-weight: 700;
@@ -578,8 +579,8 @@ a.brand:hover { color: var(--brand); }
   transition: background .15s, color .15s;
 }
 .tbtn:last-child { border-right: none; }
-.tbtn:hover:not(:disabled) { background: var(--housing-line); }
-.tbtn-primary { background: var(--brand); }
+.tbtn:hover:not(:disabled) { background: var(--surface-2); }
+.tbtn-primary { background: var(--brand); color: #fff; }
 .tbtn-primary:hover:not(:disabled) { background: var(--brand-dark); }
 .tbtn:disabled { cursor: default; opacity: .45; }
 .tbtn:focus-visible,
@@ -595,7 +596,7 @@ a.brand:hover { color: var(--brand); }
   padding: 0 24px;
   font-size: .85rem;
   line-height: 1.45;
-  color: #FFB59A;
+  color: var(--red);
 }
 .detail-error:not(:empty) { padding: 12px 24px; }
 
