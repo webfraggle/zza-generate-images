@@ -3,99 +3,158 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}} — Zugzielanzeiger</title>
+  <title>{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}} — Anzeigen-Generator</title>
   <link rel="stylesheet" href="https://use.typekit.net/ldx6jxj.css">
   <link rel="stylesheet" href="/static/app.css">
 </head>
-<body>
+<body class="detail-page">
   <header>
-    <span class="brand">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</span>
+    <a href="/" class="brand">Anzeigen-Generator</a>
     <nav class="header-nav">
       <a href="/" class="nav-link">Galerie</a>
-      <a href="/{{.Name}}" class="nav-link active">Vorschau</a>
     </nav>
   </header>
-  <main class="editor">
-    <div class="editor-pane">
-      <span class="pane-label">JSON-Daten</span>
-      <textarea id="json-input" spellcheck="false">{{.DefaultJSON}}</textarea>
-      <div id="error-msg" class="error"></div>
-    </div>
-    <div class="preview-pane">
-      <span class="pane-label">Vorschau</span>
-      <div class="preview-card">
-        <div id="spinner" class="spinner" style="display:none"></div>
-        <div class="preview-halves" id="preview-halves" style="display:none">
-          <div class="canvas-frame"><canvas id="canvas-top"></canvas></div>
-          <div class="canvas-divider"></div>
-          <div class="canvas-frame"><canvas id="canvas-bottom"></canvas></div>
+
+  <main class="detail">
+    <section class="detail-stage" aria-label="Vorschau">
+      <div class="detail-head">
+        <h1 class="detail-title">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</h1>
+        {{if .Meta.Description}}<p class="detail-desc">{{.Meta.Description}}</p>{{end}}
+      </div>
+
+      <div class="housing" id="housing" aria-busy="true">
+        <div id="spinner" class="spinner housing-spinner"></div>
+        <div class="preview-halves" id="preview-halves" hidden>
+          <div class="canvas-frame"><canvas id="canvas-top" aria-label="Obere Display-Hälfte"></canvas></div>
+          <div class="canvas-frame"><canvas id="canvas-bottom" aria-label="Untere Display-Hälfte"></canvas></div>
         </div>
         {{if .Animated}}
-        <div class="preview-halves" id="anim-halves" style="display:none">
-          <div class="canvas-frame"><div class="anim-clip" id="anim-clip-top"><img id="anim-img-top" alt=""></div></div>
-          <div class="canvas-divider"></div>
-          <div class="canvas-frame"><div class="anim-clip" id="anim-clip-bottom"><img id="anim-img-bottom" alt=""></div></div>
+        <div class="preview-halves" id="anim-halves" hidden>
+          <div class="canvas-frame"><div class="anim-clip" id="anim-clip-top"><img id="anim-img-top" alt="Animation, obere Hälfte"></div></div>
+          <div class="canvas-frame"><div class="anim-clip" id="anim-clip-bottom"><img id="anim-img-bottom" alt="Animation, untere Hälfte"></div></div>
         </div>
         {{end}}
       </div>
-      <div class="template-info">
-        <div class="info-left">
-          <h2 class="info-name">{{if .Meta.Name}}{{.Meta.Name}}{{else}}{{.Name}}{{end}}</h2>
-          {{if .Meta.Description}}<div class="info-section"><span class="info-label">Beschreibung</span><p>{{.Meta.Description}}</p></div>{{end}}
-          {{if .Meta.Author}}<p class="info-kv"><span class="info-key">Autor</span> <span class="info-val">{{.Meta.Author}}</span></p>{{end}}
-          {{if .Meta.Display}}<p class="info-kv"><span class="info-key">Display</span> <span class="info-val">{{.Meta.Display}}</span></p>{{end}}
-          {{if .Meta.Canvas.Width}}<p class="info-kv"><span class="info-key">Canvas</span> <span class="info-val">{{.Meta.Canvas.Width}} × {{.Meta.Canvas.Height}} px</span></p>{{end}}
-          {{if .Meta.Instructions}}<div class="info-section"><span class="info-label">Anleitung</span><p>{{.Meta.Instructions}}</p></div>{{end}}
-          <div class="info-render-url">
-            <span class="info-label">Render-URL</span>
-            <div class="render-url-row">
-              <code id="render-url"></code>
-              <button id="copy-url-btn" class="btn-copy" title="URL kopieren">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.5"/></svg>
-              </button>
-            </div>
+
+      <div class="transport">
+        {{if .Animated}}
+        <button type="button" id="play-anim-btn" class="tbtn" disabled>
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>
+          <span id="play-label">Abspielen</span>
+        </button>
+        {{end}}
+        <button type="button" id="download-btn" class="tbtn tbtn-primary" disabled>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PNG herunterladen
+        </button>
+        {{if .Animated}}
+        <button type="button" id="download-gif-btn" class="tbtn" disabled>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          GIF herunterladen
+        </button>
+        {{end}}
+      </div>
+      <p id="error-msg" class="detail-error" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="detail-panel" aria-label="Inhalt der Anzeige">
+      {{if .Meta.Instructions}}<p class="detail-note">{{.Meta.Instructions}}</p>{{end}}
+
+      {{if .Form}}
+      <form id="data-form" class="data-form" autocomplete="off" onsubmit="return false">
+        {{range .Form}}
+        <details class="fgroup"{{if .Open}} open{{end}}>
+          <summary>{{.Title}}</summary>
+          <div class="fgrid">
+            {{range .Fields}}
+            {{if eq .Kind "bool"}}
+            <label class="field field-check">
+              <input type="checkbox" name="{{.Path}}" data-kind="bool"{{if eq .Value "true"}} checked{{end}}>
+              <span>{{.Label}}</span>
+            </label>
+            {{else}}
+            <label class="field field-{{.Size}}">
+              <span class="field-label">{{.Label}}</span>
+              <input type="text" name="{{.Path}}" data-kind="{{.Kind}}" value="{{.Value}}"{{if .Placeholder}} placeholder="{{.Placeholder}}"{{end}}{{if eq .Kind "number"}} inputmode="numeric"{{end}} spellcheck="false">
+            </label>
+            {{end}}
+            {{end}}
+          </div>
+        </details>
+        {{end}}
+      </form>
+      {{end}}
+
+      <details class="dev"{{if not .Form}} open{{end}}>
+        <summary>Für Entwickler</summary>
+        <div class="dev-body">
+          <p class="dev-text">Dein Mikrocontroller schickt dieses JSON per <code>POST</code> an die Render-URL und bekommt ein PNG zurück{{if .Animated}} (mit <code>?format=gif</code> ein GIF){{end}}.</p>
+          <div class="render-url-row">
+            <code id="render-url"></code>
+            <button type="button" id="copy-url-btn" class="btn-copy" title="URL kopieren" aria-label="Render-URL kopieren">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+          </div>
+          <label class="dev-json-label" for="json-input">JSON</label>
+          <textarea id="json-input" spellcheck="false" rows="12">{{.DefaultJSON}}</textarea>
+          <dl class="dev-meta">
+            {{if .Meta.Author}}<dt>Autor</dt><dd>{{.Meta.Author}}</dd>{{end}}
+            {{if .Meta.Canvas.Width}}<dt>Bildgröße</dt><dd>{{.Meta.Canvas.Width}} × {{.Meta.Canvas.Height}} px</dd>{{end}}
+            <dt>Template</dt><dd>{{.Name}}</dd>
+          </dl>
+          <div class="dev-actions">
+            <a href="/{{.Name}}.zip" class="btn btn-level2" download>Template als ZIP</a>
+            {{if .EditorEnabled}}<a href="/edit/{{.Name}}" class="btn btn-level2">Im Editor öffnen</a>{{end}}
           </div>
         </div>
-        <div class="info-right">
-          {{if .EditorEnabled}}
-          <a href="/edit/{{.Name}}" class="btn btn-level2">Bearbeiten</a>
-          {{end}}
-          <a href="/{{.Name}}.zip" class="btn btn-level2" download>Als ZIP</a>
-          <button id="download-btn" class="btn btn-primary" disabled>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="vertical-align:-2px;margin-right:6px"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>PNG herunterladen
-          </button>
-          {{if .Animated}}
-          <button id="play-anim-btn" class="btn btn-level2">Animation abspielen</button>
-          <button id="download-gif-btn" class="btn btn-level2">GIF herunterladen</button>
-          {{end}}
-        </div>
-      </div>
-    </div>
+      </details>
+    </section>
   </main>
+
   <script>
+  (() => {
     const templateName = "{{.Name}}";
-    const textarea    = document.getElementById("json-input");
-    const errorMsg    = document.getElementById("error-msg");
-    const spinner     = document.getElementById("spinner");
-    const halves      = document.getElementById("preview-halves");
-    const canvasTop   = document.getElementById("canvas-top");
-    const canvasBot   = document.getElementById("canvas-bottom");
-    const renderUrlEl = document.getElementById("render-url");
-    const copyBtn     = document.getElementById("copy-url-btn");
-    const downloadBtn = document.getElementById("download-btn");
-    // Animation controls exist only for animated templates (splitflap or frame mode).
-    const playBtn     = document.getElementById("play-anim-btn");
-    const gifBtn      = document.getElementById("download-gif-btn");
-    const animHalves  = document.getElementById("anim-halves");
-    let currentURL    = null;
-    let gifURL        = null;   // blob URL of the GIF currently shown
-    let gifGen        = 0;      // bumped on every JSON edit/still render; stale GIF responses are dropped
-    let currentBlob   = null;
-    let debounce;
+    const $ = (id) => document.getElementById(id);
+    const form       = $("data-form");
+    const jsonInput  = $("json-input");
+    const errorMsg   = $("error-msg");
+    const housing    = $("housing");
+    const spinner    = $("spinner");
+    const halves     = $("preview-halves");
+    const animHalves = $("anim-halves");
+    const canvasTop  = $("canvas-top");
+    const canvasBot  = $("canvas-bottom");
+    const pngBtn     = $("download-btn");
+    const playBtn    = $("play-anim-btn");
+    const playLabel  = $("play-label");
+    const gifBtn     = $("download-gif-btn");
+    const copyBtn    = $("copy-url-btn");
 
+    function showError(msg) { errorMsg.textContent = msg; }
+    function isObject(v) { return typeof v === "object" && v !== null && !Array.isArray(v); }
+
+    // Full default data, parsed from default.json in its original key order:
+    // fields the form does not show keep these values.
+    let data = {};
+    try {
+      const parsed = JSON.parse(jsonInput.value || "{}");
+      if (isObject(parsed)) data = parsed;
+      else showError("Die Beispieldaten des Templates sind kein JSON-Objekt.");
+    } catch (e) {
+      showError("Die Beispieldaten des Templates sind ungültig: " + e.message);
+    }
+
+    let pngBlob   = null;  // still image matching the current data, null while outdated
+    let stillImg  = null;  // decoded still, redrawn on resize
+    let gifURL    = null;  // blob URL of the GIF shown in the housing
+    let gifImg    = null;  // decoded GIF size probe
+    let dataGen   = 0;     // bumped on every data change; responses for older data are dropped
+    let renderGen = 0;     // bumped per still render; only the newest one updates the preview
+    let debounce  = null;  // pending render timer
+
+    // ── Render URL ────────────────────────────────────────────────────────
     const renderUrl = window.location.origin + "/" + templateName + "/render";
-    renderUrlEl.textContent = renderUrl;
-
+    $("render-url").textContent = renderUrl;
     copyBtn.addEventListener("click", () => {
       navigator.clipboard.writeText(renderUrl).then(() => {
         copyBtn.classList.add("copied");
@@ -103,198 +162,262 @@
       });
     });
 
-    downloadBtn.addEventListener("click", () => {
-      if (!currentBlob) return;
-      const url = URL.createObjectURL(currentBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = templateName + ".png";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    // ── Data model ────────────────────────────────────────────────────────
+    function setPath(obj, path, value) {
+      const parts = path.split(".");
+      if (parts.some((p) => p === "__proto__" || p === "constructor" || p === "prototype")) return;
+      let o = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!isObject(o[parts[i]])) o[parts[i]] = {};
+        o = o[parts[i]];
+      }
+      o[parts[parts.length - 1]] = value;
+    }
+    function getPath(obj, path) {
+      return path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+    }
+    function fieldValue(input) {
+      if (input.dataset.kind === "bool") return input.checked;
+      const v = input.value;
+      if (input.dataset.kind === "number" && /^-?\d+$/.test(v.trim())) return parseInt(v.trim(), 10);
+      return v;
+    }
+    function writeJSON() {
+      if (document.activeElement !== jsonInput) jsonInput.value = JSON.stringify(data, null, 4);
+    }
+    function fillForm() {
+      if (!form) return;
+      for (const input of form.elements) {
+        if (!input.name) continue;
+        const v = getPath(data, input.name);
+        if (input.dataset.kind === "bool") input.checked = v === true;
+        else input.value = v == null ? "" : String(v);
+      }
+    }
+
+    if (form) {
+      form.addEventListener("input", (e) => {
+        if (!e.target.name) return;
+        setPath(data, e.target.name, fieldValue(e.target));
+        writeJSON();
+        scheduleRender();
+      });
+    }
+    jsonInput.addEventListener("input", () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonInput.value);
+      } catch (e) {
+        showError("Das JSON ist ungültig: " + e.message);
+        return;
+      }
+      if (!isObject(parsed)) { showError("Das JSON muss ein Objekt sein, also mit { beginnen."); return; }
+      data = parsed;
+      fillForm();
+      scheduleRender();
     });
 
-    function drawSplit(src) {
-      const img = new Image();
-      img.onload = () => {
-        const w  = img.naturalWidth;
-        const h  = img.naturalHeight;
-        const h1 = Math.floor(h / 2);
-        const h2 = h - h1;
-
-        canvasTop.width  = w;  canvasTop.height  = h1;
-        canvasBot.width  = w;  canvasBot.height  = h2;
-
-        canvasTop.getContext("2d").drawImage(img, 0,  0, w, h1, 0, 0, w, h1);
-        canvasBot.getContext("2d").drawImage(img, 0, h1, w, h2, 0, 0, w, h2);
-
-        halves.style.display = "flex";
-        spinner.style.display = "none";
-        downloadBtn.disabled = false;
+    // ── Preview drawing ───────────────────────────────────────────────────
+    // The image is split into an upper and lower half, shown side by side
+    // like the two halves of the physical display. Halves are scaled in
+    // quarter steps (pixelated rendering keeps edges sharp). When two halves
+    // do not fit side by side at 1×, they wrap onto two rows and each half
+    // uses the full width.
+    function pixelScale(w) {
+      const quarter = (x) => Math.floor(x * 4) / 4;
+      const frame = 2 * (6 + 12);                               // bezel + blue outline per half
+      const avail = housing.clientWidth - 48 - frame;           // padding, first frame
+      const sideBySide = quarter((avail - 40 - frame) / (2 * w));  // gap + 2nd frame
+      if (sideBySide >= 1) return Math.min(3, sideBySide);
+      return Math.max(0.5, Math.min(2, quarter(avail / w)));
+    }
+    function drawStill() {
+      if (!stillImg) return;
+      const w = stillImg.naturalWidth, h = stillImg.naturalHeight;
+      const h1 = Math.floor(h / 2), h2 = h - h1, s = pixelScale(w);
+      canvasTop.width = w; canvasTop.height = h1;
+      canvasBot.width = w; canvasBot.height = h2;
+      canvasTop.getContext("2d").drawImage(stillImg, 0, 0, w, h1, 0, 0, w, h1);
+      canvasBot.getContext("2d").drawImage(stillImg, 0, h1, w, h2, 0, 0, w, h2);
+      for (const [c, ch] of [[canvasTop, h1], [canvasBot, h2]]) {
+        c.style.width = (w * s) + "px";
+        c.style.height = (ch * s) + "px";
+      }
+    }
+    function layoutGif() {
+      if (!gifImg || !animHalves) return;
+      const w = gifImg.naturalWidth, h = gifImg.naturalHeight;
+      const h1 = Math.floor(h / 2), h2 = h - h1, s = pixelScale(w);
+      const set = (clip, img, ch, off) => {
+        clip.style.width  = (w * s) + "px";
+        clip.style.height = (ch * s) + "px";
+        img.style.width   = (w * s) + "px";
+        img.style.marginTop = (-off * s) + "px";
       };
-      img.src = src;
+      set($("anim-clip-top"),    $("anim-img-top"),    h1, 0);
+      set($("anim-clip-bottom"), $("anim-img-bottom"), h2, h1);
     }
+    window.addEventListener("resize", () => { drawStill(); layoutGif(); });
 
-    // Fetches the GIF for the current JSON. Returns a Blob, or null after
-    // showing the error (invalid JSON, HTTP error, network error).
-    async function fetchGif() {
-      let body;
-      try {
-        body = JSON.stringify(JSON.parse(textarea.value));
-        errorMsg.textContent = "";
-      } catch (e) {
-        errorMsg.textContent = "Ungültiges JSON: " + e.message;
-        return null;
-      }
-      try {
-        const resp = await fetch("/" + templateName + "/render?format=gif", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: body,
-        });
-        if (!resp.ok) {
-          errorMsg.textContent = "Fehler " + resp.status + ": " + (await resp.text()).trim();
-          return null;
-        }
-        return await resp.blob();
-      } catch (e) {
-        errorMsg.textContent = "Netzwerkfehler: " + e.message;
-        return null;
-      }
+    function setBusy(busy) {
+      housing.setAttribute("aria-busy", busy ? "true" : "false");
+      spinner.hidden = !busy;
     }
-
+    function updatePlayLabel() {
+      if (playLabel) playLabel.textContent = gifURL ? "Nochmal abspielen" : "Abspielen";
+    }
     function setGifButtonsDisabled(v) {
       if (playBtn) playBtn.disabled = v;
       if (gifBtn)  gifBtn.disabled  = v;
     }
 
-    // Back to the still image in the canvases; releases the GIF blob URL.
+    // Back to the still image; releases the GIF.
     function showStill() {
-      gifGen++;
-      if (!animHalves) return;
-      animHalves.style.display = "none";
-      if (currentURL) halves.style.display = "flex";
-      if (gifURL) { URL.revokeObjectURL(gifURL); gifURL = null; }
+      if (animHalves) animHalves.hidden = true;
+      if (gifURL) { URL.revokeObjectURL(gifURL); gifURL = null; gifImg = null; }
+      if (stillImg) halves.hidden = false;
+      updatePlayLabel();
     }
 
+    // POSTs the current data; returns a Blob, or null after showing an error.
+    async function fetchImage(format) {
+      const url = "/" + templateName + "/render" + (format === "gif" ? "?format=gif" : "");
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!resp.ok) {
+          const text = (await resp.text()).trim();
+          showError(resp.status === 503
+            ? "Der Server ist gerade ausgelastet. Versuche es in ein paar Sekunden erneut."
+            : "Das Bild konnte nicht erzeugt werden (" + resp.status + "): " + text);
+          return null;
+        }
+        const blob = await resp.blob();
+        showError("");
+        return blob;
+      } catch (e) {
+        showError("Keine Verbindung zum Server. Prüfe deine Internetverbindung und versuche es erneut.");
+        return null;
+      }
+    }
+
+    // ── Still rendering ───────────────────────────────────────────────────
+    function scheduleRender() {
+      dataGen++;
+      pngBlob = null;              // the shown still no longer matches the data
+      pngBtn.disabled = true;
+      showStill();
+      clearTimeout(debounce);
+      debounce = setTimeout(render, 400);
+    }
+
+    async function render() {
+      clearTimeout(debounce);
+      debounce = null;
+      const my = ++renderGen;
+      setBusy(true);
+      const blob = await fetchImage("png");
+      if (my !== renderGen) return;          // a newer render owns the preview
+      if (!blob) { setBusy(false); return; }
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        if (my !== renderGen) return;
+        stillImg = img;
+        pngBlob = blob;
+        drawStill();
+        if (!gifURL) halves.hidden = false;
+        setBusy(false);
+        pngBtn.disabled = false;
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        if (my !== renderGen) return;
+        setBusy(false);
+        showError("Die Vorschau konnte nicht angezeigt werden.");
+      };
+      img.src = url;
+    }
+
+    function download(blob, ext) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = templateName + "." + ext;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    pngBtn.addEventListener("click", () => { if (pngBlob) download(pngBlob, "png"); });
+
+    // ── Animation ─────────────────────────────────────────────────────────
     if (playBtn) {
       playBtn.addEventListener("click", async () => {
-        const gen = ++gifGen;
+        if (debounce) render();              // start a pending still render now
+        const d = dataGen;
         setGifButtonsDisabled(true);
-        try {
-          const blob = await fetchGif();
-          if (!blob || gen !== gifGen) return;
-          const url = URL.createObjectURL(blob);   // new URL per click => GIF restarts
-          const probe = new Image();
-          probe.onload = () => {
-            if (gen !== gifGen) { URL.revokeObjectURL(url); return; }
-            const w  = probe.naturalWidth;
-            const h  = probe.naturalHeight;
-            const h1 = Math.floor(h / 2);          // same split as drawSplit
-            const h2 = h - h1;
-            const set = (clip, img, ch, off) => {
-              clip.style.width  = w + "px";
-              clip.style.height = ch + "px";
-              img.style.marginTop = (-off) + "px";
-              img.src = url;
-            };
-            set(document.getElementById("anim-clip-top"),    document.getElementById("anim-img-top"),    h1, 0);
-            set(document.getElementById("anim-clip-bottom"), document.getElementById("anim-img-bottom"), h2, h1);
-            const old = gifURL;
-            gifURL = url;
-            if (old) URL.revokeObjectURL(old);
-            halves.style.display     = "none";
-            animHalves.style.display = "flex";
-          };
-          probe.onerror = () => {
-            URL.revokeObjectURL(url);
-            if (gen === gifGen) errorMsg.textContent = "GIF konnte nicht angezeigt werden";
-          };
-          probe.src = url;
-        } finally {
+        playLabel.textContent = "Lädt …";
+        const blob = await fetchImage("gif");
+        if (!blob || d !== dataGen) {
           setGifButtonsDisabled(false);
+          updatePlayLabel();
+          return;
         }
+        const url = URL.createObjectURL(blob);   // new URL per click restarts the GIF
+        const probe = new Image();
+        probe.onload = () => {
+          setGifButtonsDisabled(false);
+          if (d !== dataGen) { URL.revokeObjectURL(url); updatePlayLabel(); return; }
+          const old = gifURL;
+          gifURL = url;
+          gifImg = probe;
+          $("anim-img-top").src = url;
+          $("anim-img-bottom").src = url;
+          layoutGif();
+          if (old) URL.revokeObjectURL(old);
+          halves.hidden = true;
+          animHalves.hidden = false;
+          updatePlayLabel();
+        };
+        probe.onerror = () => {
+          URL.revokeObjectURL(url);
+          setGifButtonsDisabled(false);
+          updatePlayLabel();
+          showError("Die Animation konnte nicht angezeigt werden.");
+        };
+        probe.src = url;
       });
     }
 
     if (gifBtn) {
       gifBtn.addEventListener("click", async () => {
         setGifButtonsDisabled(true);
-        try {
-          const blob = await fetchGif();
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = templateName + ".gif";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } finally {
-          setGifButtonsDisabled(false);
-        }
+        const blob = await fetchImage("gif");
+        setGifButtonsDisabled(false);
+        if (blob) download(blob, "gif");
       });
     }
 
-    textarea.addEventListener("input", () => {
-      showStill();
-      clearTimeout(debounce);
-      debounce = setTimeout(render, 600);
-    });
-
-    async function render() {
-      let body;
-      try {
-        body = JSON.stringify(JSON.parse(textarea.value));
-        errorMsg.textContent = "";
-      } catch (e) {
-        errorMsg.textContent = "Ungültiges JSON: " + e.message;
-        return;
-      }
-
-      showStill();
-      spinner.style.display = "block";
-      halves.style.display  = "none";
-
-      try {
-        const resp = await fetch("/" + templateName + "/render", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: body,
-        });
-        if (!resp.ok) {
-          const text = await resp.text();
-          errorMsg.textContent = "Fehler " + resp.status + ": " + text.trim();
-          spinner.style.display = "none";
-          return;
-        }
-        const blob = await resp.blob();
-        currentBlob = blob;
-        const oldURL = currentURL;
-        currentURL = URL.createObjectURL(blob);
-        drawSplit(currentURL);
-        if (oldURL) URL.revokeObjectURL(oldURL);
-      } catch (e) {
-        errorMsg.textContent  = "Netzwerkfehler: " + e.message;
-        spinner.style.display = "none";
-      }
-    }
-
     {{if .HasDefault}}
-    spinner.style.display = "block";
-    fetch("/{{.Name}}/preview").then(r => r.blob()).then(blob => {
-      currentBlob = blob;
-      currentURL = URL.createObjectURL(blob);
-      drawSplit(currentURL);
-    });
+    setGifButtonsDisabled(false);
+    render();
+    {{else}}
+    setBusy(false);
+    showError("Für dieses Template gibt es keine Beispieldaten. Trage unter „Für Entwickler“ ein JSON ein.");
     {{end}}
-
+  })();
   </script>
-  <span class="app-version">{{appVersion}}</span>
-  {{if not .EditorEnabled}}
-  <a class="footer-legal" href="https://www.modellbahn-displays.de/impressum-datenschutz-bildgenerator" target="_blank" rel="noopener">Impressum, Datenschutz &amp; Nutzungsbedingungen</a>
-  {{end}}
+  <footer class="detail-footer">
+    <span class="app-version">{{appVersion}}</span>
+    {{if not .EditorEnabled}}
+    <a class="footer-legal" href="https://www.modellbahn-displays.de/impressum-datenschutz-bildgenerator" target="_blank" rel="noopener">Impressum, Datenschutz &amp; Nutzungsbedingungen</a>
+    {{end}}
+  </footer>
 </body>
 </html>

@@ -297,7 +297,8 @@ type detailData struct {
 	DefaultJSON   string
 	HasDefault    bool
 	EditorEnabled bool
-	Animated      bool // template has splitflap layers (GIF output is animated)
+	Animated      bool        // template has splitflap layers (GIF output is animated)
+	Form          []formGroup // input fields the template actually uses; nil if unavailable
 }
 
 // handleDetail renders the try-it detail page for a single template.
@@ -308,10 +309,24 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
+	d, err := s.loadDetailData(templateName)
 	if err != nil {
 		http.Error(w, "template not found", http.StatusNotFound)
 		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.htmlTmpl.ExecuteTemplate(w, "detail.html", d); err != nil {
+		log.Printf("detail: execute template: %v", err)
+	}
+}
+
+// loadDetailData builds the detail page view model. It fails only if the
+// template itself cannot be loaded; problems with default.json or the form
+// derivation are logged and leave the corresponding fields empty.
+func (s *Server) loadDetailData(templateName string) (detailData, error) {
+	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
+	if err != nil {
+		return detailData{}, err
 	}
 
 	jsonBytes, err := gallery.LoadDefaultJSON(s.templatesDir, templateName)
@@ -327,10 +342,25 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		EditorEnabled: s.editorEnabled,
 		Animated:      tmpl.IsAnimated(),
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.htmlTmpl.ExecuteTemplate(w, "detail.html", d); err != nil {
-		log.Printf("detail: execute template: %v", err)
+	if len(jsonBytes) == 0 {
+		return d, nil
 	}
+
+	dir, err := renderer.SafeTemplatePath(s.templatesDir, templateName)
+	if err != nil {
+		log.Printf("detail: template path %q: %v", templateName, err)
+		return d, nil
+	}
+	yamlSrc, err := os.ReadFile(filepath.Join(dir, "template.yaml"))
+	if err != nil {
+		log.Printf("detail: read template.yaml %q: %v", templateName, err)
+		return d, nil
+	}
+	if d.Form, err = buildForm(yamlSrc, jsonBytes); err != nil {
+		log.Printf("detail: build form %q: %v", templateName, err)
+		d.Form = nil
+	}
+	return d, nil
 }
 
 // requestFormat returns the output format selected by the "format" query

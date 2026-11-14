@@ -253,7 +253,7 @@ func TestDetail_AnimatedControls(t *testing.T) {
 	addPlainTemplate(t, srv.templatesDir)
 
 	anim := getPage(srv, "/t")
-	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`, "Animation abspielen", "GIF herunterladen"} {
+	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`, ">Abspielen<", "GIF herunterladen"} {
 		if !strings.Contains(anim, id) {
 			t.Errorf("animated detail page lacks %s", id)
 		}
