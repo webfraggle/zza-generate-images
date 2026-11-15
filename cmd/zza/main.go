@@ -65,10 +65,11 @@ func serveCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Run the editor+preview server without opening a window",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			handler, err := buildHandler(templatesDir)
+			handler, stop, err := buildHandler(templatesDir)
 			if err != nil {
 				return err
 			}
+			defer stop()
 			return desktop.RunServerOnly("127.0.0.1:"+port, handler)
 		},
 	}
@@ -109,25 +110,27 @@ func mcpCmd() *cobra.Command {
 }
 
 func runGUI(override string) error {
-	handler, err := buildHandler(override)
+	handler, stop, err := buildHandler(override)
 	if err != nil {
 		return err
 	}
+	defer stop()
 	return desktop.RunGUI("Zugzielanzeiger", handler)
 }
 
-// buildHandler wires the HTTP server with editor handlers attached.
-func buildHandler(templatesOverride string) (*server.Server, error) {
+// buildHandler wires the HTTP server with editor handlers attached. The
+// returned stop function ends the file watcher.
+func buildHandler(templatesOverride string) (*server.Server, func(), error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return nil, fmt.Errorf("locating executable: %w", err)
+		return nil, nil, fmt.Errorf("locating executable: %w", err)
 	}
 	tdir, err := desktop.ResolveTemplatesDir(templatesOverride, exe)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := desktop.EnsureTemplatesDir(tdir); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	log.Printf("templates: %s", tdir)
 
@@ -141,19 +144,22 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 	}
 	srv, err := server.New(cfg, web.FS)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	srv.SetEditorEnabled(true)
 	h := editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache)
+	stop := func() {}
 	if w, err := watch.New(tdir, 200*time.Millisecond); err != nil {
 		log.Printf("watch disabled: %v", err)
 	} else {
 		w.OnChange(func(t string, _ []string) { srv.ForgetPreview(t) })
-		go w.Run(context.Background())
+		ctx, cancel := context.WithCancel(context.Background())
+		go w.Run(ctx)
+		stop = cancel
 		h.Feed = w
 	}
 	srv.RegisterEditor(h)
-	return srv, nil
+	return srv, stop, nil
 }
 
 // cacheDirFor returns a user-specific cache directory for desktop runs.

@@ -5,6 +5,7 @@ package watch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
+	"github.com/webfraggle/zza-generate-images/internal/renderer"
 )
 
 // ringSize is the number of batches kept for late pollers.
@@ -36,13 +38,17 @@ type Watcher struct {
 	debounce time.Duration
 	fsw      *fsnotify.Watcher
 
-	mu        sync.Mutex
-	seq       uint64
-	ring      []entry
-	notify    chan struct{} // closed and replaced on every publish
-	pending   map[string]map[string]struct{}
-	timers    map[string]*time.Timer
-	callbacks []func(template string, files []string)
+	mu      sync.Mutex
+	seq     uint64
+	ring    []entry
+	notify  chan struct{} // closed and replaced on every publish
+	pending map[string]map[string]struct{}
+	timers  map[string]*time.Timer
+	gens    map[string]uint64 // debounce generation per template
+	// resetBefore: clients with since < resetBefore must reload everything
+	// (set after an fsnotify event overflow).
+	resetBefore uint64
+	callbacks   []func(template string, files []string)
 }
 
 var _ editor.ChangeFeed = (*Watcher)(nil)
@@ -75,6 +81,7 @@ func New(templatesDir string, debounce time.Duration) (*Watcher, error) {
 		notify:  make(chan struct{}),
 		pending: map[string]map[string]struct{}{},
 		timers:  map[string]*time.Timer{},
+		gens:    map[string]uint64{},
 	}, nil
 }
 
@@ -109,6 +116,9 @@ func (w *Watcher) Run(ctx context.Context) {
 			if !ok {
 				return
 			}
+			if errors.Is(err, fsnotify.ErrEventOverflow) {
+				w.overflow()
+			}
 			log.Printf("watch: %v", err)
 		}
 	}
@@ -124,8 +134,14 @@ func (w *Watcher) handle(ev fsnotify.Event) {
 	}
 	dir := filepath.Dir(ev.Name)
 	if dir == w.root {
-		// Event on a template directory itself (created/removed/renamed).
-		// Plain files directly in the root are not templates.
+		// Event on a template directory itself. Only structural changes count:
+		// on Windows a Write is reported for the folder whenever a file inside
+		// it is created/renamed/removed. Plain files in the root (README.md)
+		// are not templates.
+		if !ev.Has(fsnotify.Create|fsnotify.Remove|fsnotify.Rename) ||
+			renderer.ValidateTemplateName(base) != nil {
+			return
+		}
 		if ev.Has(fsnotify.Create) {
 			fi, err := os.Stat(ev.Name)
 			if err != nil || !fi.IsDir() {
@@ -158,14 +174,29 @@ func (w *Watcher) record(tpl, file string) {
 	}
 	set[file] = struct{}{}
 	if t, ok := w.timers[tpl]; ok {
-		t.Reset(w.debounce)
-		return
+		t.Stop()
 	}
-	w.timers[tpl] = time.AfterFunc(w.debounce, func() { w.flush(tpl) })
+	w.gens[tpl]++
+	gen := w.gens[tpl]
+	w.timers[tpl] = time.AfterFunc(w.debounce, func() { w.flush(tpl, gen) })
 }
 
-func (w *Watcher) flush(tpl string) {
+// overflow handles lost fsnotify events: every client must reload.
+func (w *Watcher) overflow() {
 	w.mu.Lock()
+	w.seq++
+	w.resetBefore = w.seq
+	close(w.notify)
+	w.notify = make(chan struct{})
+	w.mu.Unlock()
+}
+
+func (w *Watcher) flush(tpl string, gen uint64) {
+	w.mu.Lock()
+	if w.gens[tpl] != gen {
+		w.mu.Unlock()
+		return
+	}
 	set := w.pending[tpl]
 	delete(w.pending, tpl)
 	delete(w.timers, tpl)
@@ -201,7 +232,7 @@ func (w *Watcher) Current() uint64 {
 }
 
 // Wait returns the merged changes for template with seq > since, waiting up to
-// timeout. On timeout or cancelled ctx it returns {Seq: since, Files: []}. If
+// timeout. On timeout or cancelled ctx it returns {Seq: current, Files: []}. If
 // since is older than the ring (or newer than the current seq, e.g. after a
 // restart) it returns Reset with Files ["*"]. A non-empty result carries the
 // current seq, so unrelated templates' batches never push the client out of
@@ -212,7 +243,7 @@ func (w *Watcher) Wait(ctx context.Context, template string, since uint64, timeo
 	for {
 		w.mu.Lock()
 		cur := w.seq
-		if since > cur || (len(w.ring) > 0 && since+1 < w.ring[0].seq) {
+		if since > cur || since < w.resetBefore || (len(w.ring) > 0 && since+1 < w.ring[0].seq) {
 			w.mu.Unlock()
 			return editor.ChangeBatch{Seq: cur, Files: []string{"*"}, Reset: true}
 		}
@@ -237,9 +268,9 @@ func (w *Watcher) Wait(ctx context.Context, template string, since uint64, timeo
 		select {
 		case <-ch:
 		case <-timer.C:
-			return editor.ChangeBatch{Seq: since, Files: []string{}}
+			return editor.ChangeBatch{Seq: w.Current(), Files: []string{}}
 		case <-ctx.Done():
-			return editor.ChangeBatch{Seq: since, Files: []string{}}
+			return editor.ChangeBatch{Seq: w.Current(), Files: []string{}}
 		}
 	}
 }

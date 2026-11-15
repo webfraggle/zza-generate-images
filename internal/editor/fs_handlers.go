@@ -112,12 +112,17 @@ func (h *FSHandlers) Save(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	expected := strings.Trim(strings.TrimSpace(r.Header.Get("If-Match")), `"`)
+	expected := strings.TrimPrefix(strings.TrimSpace(r.Header.Get("If-Match")), "W/")
+	expected = strings.Trim(expected, `"`)
 	newVersion, err := WriteTextFileIfMatch(h.TemplatesDir, name, req.Filename, []byte(req.Content), expected)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrVersionConflict):
-			cur, _ := CurrentVersion(h.TemplatesDir, name, req.Filename)
+			var vce *VersionConflictError
+			cur := ""
+			if errors.As(err, &vce) {
+				cur = vce.Current
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "conflict", "current_version": cur})

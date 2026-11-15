@@ -360,6 +360,8 @@ Schlüssel einer Schrift (`key`): Fonts-Ordner `@fonts/<datei>`, Template
 
 - `fsnotify` auf `templatesDir` und jedem direkten Unterordner; neue Unterordner werden
   bei `Create` nachgemeldet und beobachtet.
+- Ordner-Ereignisse auf der Wurzel zählen nur als `Create|Remove|Rename` und nur für
+  gültige Template-Namen (Windows meldet `Write` auf dem Ordner bei jeder Dateiänderung darin).
 - Ignoriert: Namen auf `.tmp`, Namen mit führendem `.`, Namen außerhalb
   `[a-zA-Z0-9._-]+`, reine `Chmod`-Ereignisse (wichtig: `Server.InvalidateTemplateCache`
   macht `os.Chtimes` auf `template.yaml` — sonst Endlosschleife).
@@ -381,9 +383,11 @@ gleichermaßen (Wails macOS/Windows, Browser-Fallback, `zza serve`).
 `GET /edit/{template}/events?since=<seq>`
 - `since` fehlt → sofort `{"seq": <aktuell>, "files": []}` (Startpunkt).
 - Gibt es Ereignisse für dieses Template mit `seq > since` → sofort
-  `{"seq": <höchstes>, "files": [vereinigt, sortiert]}`.
-- `since` älter als der Ring → sofort `{"seq": <aktuell>, "files": ["*"], "reset": true}`.
-- Sonst warten bis zu **25 s** (oder Request-Ende) → danach `{"seq": since, "files": []}`.
+  `{"seq": <aktueller globaler Zähler>, "files": [vereinigt, sortiert]}`.
+- `since` älter als der Ring, nach einem fsnotify-Überlauf (`ErrEventOverflow`) oder
+  größer als der aktuelle Zähler (App-Neustart) → sofort `{"seq": <aktuell>, "files": ["*"], "reset": true}`.
+- Sonst warten bis zu **25 s** (oder Request-Ende) → danach `{"seq": <aktueller globaler Zähler>, "files": []}`
+  (`seq` ist in allen Antworten der aktuelle globale Zähler).
 - Antwort `Content-Type: application/json`, `Cache-Control: no-store`.
 - Ohne Watcher (`FSHandlers.Feed == nil`): `404`.
 - Ungültiges `since` → `400`.

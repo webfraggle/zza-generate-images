@@ -23,10 +23,11 @@ func TestBuildHandler_EventsRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h, err := buildHandler(dir)
+	h, stop, err := buildHandler(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(stop)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/edit/sbb-105-v1/events", nil))
 	if rr.Code != http.StatusOK {

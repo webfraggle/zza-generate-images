@@ -3,7 +3,6 @@ package editor
 import (
 	"bytes"
 	"context"
-	"time"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -13,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func newEditorTestDir(t *testing.T) string {
@@ -193,6 +193,14 @@ func TestFSHandlers_Save_IfMatchConflict(t *testing.T) {
 	}
 	if called {
 		t.Error("Invalidate called on conflict")
+	}
+}
+
+func TestFSHandlers_Save_IfMatchWeakPrefix(t *testing.T) {
+	h := NewFSHandlers(newEditorTestDir(t), nil)
+	cur := `W/"` + FileVersion([]byte(`{"x":1}`)) + `"`
+	if rr := saveReq(t, h, "default.json", `{"x":2}`, cur); rr.Code != http.StatusNoContent {
+		t.Fatalf("got %d", rr.Code)
 	}
 }
 

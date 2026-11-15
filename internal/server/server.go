@@ -209,6 +209,7 @@ func (s *Server) InvalidateTemplateCache(name string) {
 	if err := renderer.ValidateTemplateName(name); err != nil {
 		return
 	}
+	s.ForgetPreview(name)
 	p := filepath.Join(s.templatesDir, name, "template.yaml")
 	now := time.Now()
 	if err := os.Chtimes(p, now, now); err != nil {
