@@ -482,7 +482,7 @@ Gliederung und **Pflichtaussagen** (der volle Text entsteht in T3):
    LED-Optik. Lange Texte: `max_width` + Umbruch, `scale_x` 0.5–0.9 zum Stauchen,
    `fit_items` für Via-Listen.
 5. **Raster und Ränder** — Außenrand 2–5 px; Zeilenraster 20–26 px (umuc: Zeilen bei
-   y 37/63/89); Fußband 16 px (nederland y 95–111); Textanfang ≥ 3 px vom Feldrand.
+   y 37/63/89); Fußband 16 px (nederland y 95–110); Textanfang ≥ 3 px vom Feldrand.
 6. **Dynamische Inhalte** — Alles, was sich je Zug ändert, ist ein Text-Layer mit
    `{{…}}`, nie Teil eines Bildes. Feldliste mit Beispielwerten aus den `default.json`:
    `gleis` (6), `abschnitt` ("A-F"), `folgezuege`, `zugN.zeit` ("15:54"),

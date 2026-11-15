@@ -93,7 +93,7 @@ func registerWriteTools(s *sdk.Server, e *env) {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "write_file",
-		Description: "Writes template.yaml, default.json or another .json/.yaml file of a template. template.yaml is validated (YAML, canvas must be 240x240, test render with default.json) and NOT saved if invalid — the error explains why. Pass expected_version from read_template/read_file to avoid overwriting edits made in the editor meanwhile. Returns the new version and design warnings. Call render_preview afterwards.",
+		Description: "Writes template.yaml, default.json or another .json/.yaml file of a template. template.yaml is validated (YAML, canvas must be 240x240, test render with default.json) and NOT saved if invalid — the error explains why. Pass expected_version from read_template/read_file to avoid overwriting edits made in the editor meanwhile. Returns the new version and warnings (design issues, unknown keys = likely typos). Call render_preview afterwards.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in writeFileIn) (*sdk.CallToolResult, writeFileOut, error) {
 		out, err := e.writeFile(in)
 		return nil, out, err
