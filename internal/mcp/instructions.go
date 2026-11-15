@@ -16,4 +16,8 @@ Hard rules:
 Workflow: look at 1-2 similar templates (list_templates, read_template, render_preview),
 create_template, then after EVERY change call render_preview and compare with the reference.
 Before finishing, test with long destination, delay and empty fields as described in the guide.
+Tools by task: fonts: list_fonts -> add_font (text layers need a font; the starter has none).
+Logos/shapes: svg_to_png (no text). Photo of a real display: import_image (ask the user for the file path)
+-> perspective_correct -> sample_colors -> crop_image / color_to_alpha / quantize_colors.
+Images referenced in template.yaml must exist before write_file (it test-renders).
 `

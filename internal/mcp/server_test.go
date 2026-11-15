@@ -33,12 +33,15 @@ func TestNewServer_Instructions(t *testing.T) {
 	if got != serverInstructions {
 		t.Errorf("instructions differ from serverInstructions")
 	}
-	for _, want := range []string{"240x240", "-105-v1", "get_design_guide"} {
+	for _, want := range []string{"240x240", "-105-v1", "get_design_guide",
+		"list_fonts -> add_font", "text layers need a font", "the starter has none",
+		"svg_to_png", "import_image", "perspective_correct", "sample_colors", "crop_image",
+		"color_to_alpha", "quantize_colors", "must exist before write_file"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("instructions lack %q", want)
 		}
 	}
-	if len(got) > 1500 {
+	if len(got) > 2000 {
 		t.Errorf("instructions too long: %d chars", len(got))
 	}
 }
