@@ -151,6 +151,10 @@ Lesende Tools sperren nicht. Jeder Render-Aufruf erzeugt einen frischen
   beginnen mit `.` und enden auf `.tmp`; Watcher und Kapazitätsprüfung ignorieren sie.
   `editor.InitTemplate` legt Starter-Dateien mit `O_CREATE|O_EXCL` an (folgt keinem
   hängenden Symlink).
+- **Template-Ordner:** ein vorhandener Template-Ordner muss per `Lstat` ein echtes
+  Verzeichnis sein — ein Verzeichnis-Symlink (`templates/x-105-v1 -> …`) wird abgelehnt
+  (MCP: `template "<n>" not found`; Editor-HTTP und `internal/editor`: `ErrForbidden`
+  in `templateDir`, betrifft InitTemplate, Lesen, Speichern, Upload, Löschen).
 - **Fehler** sind Tool-Fehler (Text, `IsError`), englisch, knapp und so formuliert,
   dass die KI weiß, was sie ändern muss. Nie Dateiinhalte im Fehlertext.
 - **Bild-Ergebnisse** sind PNG (`image/png`), immer zusätzlich zu einem kurzen

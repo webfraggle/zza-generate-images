@@ -4,6 +4,7 @@ package editor
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,6 +126,46 @@ func TestInitTemplate_DanglingSymlinkNotFollowed(t *testing.T) {
 	_ = InitTemplate(dir, "x-105-v1")
 	if _, err := os.Lstat(outside); err == nil {
 		t.Fatal("InitTemplate followed a dangling symlink and wrote outside the template")
+	}
+}
+
+// A template folder that is a symlink (templates/x-105-v1 -> elsewhere) must
+// not be used: editor operations would read and write in the link target.
+func TestTemplateDir_SymlinkRejected(t *testing.T) {
+	dir := t.TempDir()
+	target := t.TempDir()
+	if err := os.WriteFile(filepath.Join(target, "template.yaml"), []byte("x: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "x-105-v1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := InitTemplate(dir, "x-105-v1"); !errors.Is(err, ErrForbidden) {
+		t.Errorf("InitTemplate: %v", err)
+	}
+	if err := WriteTextFile(dir, "x-105-v1", "a.json", []byte("{}")); !errors.Is(err, ErrForbidden) {
+		t.Errorf("WriteTextFile: %v", err)
+	}
+	if err := UploadFile(dir, "x-105-v1", "a.png", bytes.NewReader([]byte("x"))); !errors.Is(err, ErrForbidden) {
+		t.Errorf("UploadFile: %v", err)
+	}
+	if _, err := ReadTextFile(dir, "x-105-v1", "template.yaml"); !errors.Is(err, ErrForbidden) {
+		t.Errorf("ReadTextFile: %v", err)
+	}
+	if _, err := ListFiles(dir, "x-105-v1"); !errors.Is(err, ErrForbidden) {
+		t.Errorf("ListFiles: %v", err)
+	}
+	if err := DeleteFile(dir, "x-105-v1", "template.yaml"); err == nil {
+		t.Errorf("DeleteFile accepted")
+	}
+	for _, n := range []string{"a.json", "a.png", "default.json"} {
+		if _, err := os.Lstat(filepath.Join(target, n)); err == nil {
+			t.Errorf("%s was written into the symlink target", n)
+		}
+	}
+	// A new (not yet existing) template folder is still fine.
+	if err := InitTemplate(dir, "new-105-v1"); err != nil {
+		t.Errorf("InitTemplate new: %v", err)
 	}
 }
 

@@ -83,6 +83,20 @@ func templateDir(templatesDir, templateName string) (string, error) {
 	if !strings.HasPrefix(abs+sep, base+sep) {
 		return "", ErrForbidden
 	}
+	// An existing template folder must be a real directory: a symlink
+	// (templates/x-105-v1 -> elsewhere, e.g. from a shared ZIP/Git checkout)
+	// would make every read and write happen in the link target.
+	if abs != base {
+		fi, err := os.Lstat(abs)
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// New template; InitTemplate creates it.
+		case err != nil:
+			return "", fmt.Errorf("editor: checking template dir: %w", err)
+		case !fi.IsDir():
+			return "", ErrForbidden
+		}
+	}
 	return abs, nil
 }
 
