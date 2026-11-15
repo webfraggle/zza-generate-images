@@ -246,6 +246,9 @@ Formate je Namens-Suffix.
 - Base64 (Standard oder URL-Alphabet, Data-URL-Präfix `data:image/…;base64,` wird
   entfernt) ≤ 5 MiB dekodiert; muss sich als PNG/JPEG dekodieren lassen, Format passend
   zur Endung (`file content is jpeg but name ends in .png`), Maße ≤ 4096².
+- JPEG wird immer neu kodiert (Qualität 90), PNG nur, wenn es Metadaten-Chunks
+  (`tEXt`, `iTXt`, `zTXt`, `eXIf`) enthält — sonst Byte-Kopie. Grund: Templates
+  werden als ZIP weitergegeben (EXIF/GPS, Kommentare).
 - Überschreiben erlaubt (`replaced: true`).
 - Ergebnis: JSON `{name, width, height, bytes, replaced}`.
 
@@ -260,11 +263,12 @@ Formate je Namens-Suffix.
   muss als PNG/JPEG dekodierbar sein; ≤ 8192 px je Seite und ≤ 25 Mio. Pixel
   (`maxToolInputPixels`, geprüft vor dem Dekodieren).
 - Längste Seite > 2048 px → auf 2048 verkleinert (`CatmullRom`), gespeichert als PNG
-  bzw. JPEG (Qualität 90) je nach Zielendung; sonst Byte-Kopie.
+  bzw. JPEG (Qualität 90) je nach Zielendung. Sonst: JPEG immer neu kodiert, PNG mit
+  Metadaten-Chunks (`tEXt`/`iTXt`/`zTXt`/`eXIf`) neu kodiert, andere PNG als Byte-Kopie.
 - `name` opt., Standard `SanitizeFilename(filepath.Base(path))`, Endung muss erlaubt sein.
 - EXIF-Orientierung wird nicht ausgewertet (Nicht-Ziel; der Leitfaden sagt, ein
   gedrehtes Foto per `perspective_correct` gerade zu ziehen).
-- Ergebnis: JSON `{name, width, height, scaled_from?: {width, height}}` + Bild
+- Ergebnis: JSON `{name, width, height, scaled_from?: {width, height}, replaced}` + Bild
   (längste Seite ≤ 768) + Hinweis, dass Koordinaten für Foto-Werkzeuge sich auf
   `width`×`height` beziehen.
 - „Fehlt“, „keine reguläre Datei/Symlink“ und „nicht lesbar“ ergeben denselben Text
