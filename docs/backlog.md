@@ -30,6 +30,8 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 
 - YAML-Alias-Bombe-Schutz im Editor-Save (`gopkg.in/yaml.v3` ohne `SetMaxAliasCount`-Härtung). Body ist auf 1 MiB begrenzt; weitere Mitigation falls jemals Multi-Tenant.
 - CORS im Desktop-Build einschränken statt Wildcard `*` auf `/render`.
+- Host-Allowlist/Origin-Prüfung für den lokalen Editor (DNS-Rebinding/CSRF; betrifft auch `/edit/{t}/events`).
+- `govulncheck` in den Build aufnehmen. Stand 2026-11-15 (`govulncheck ./...`): 29 erreichbare Befunde — Standardbibliothek go1.26.2 (Toolchain auf ≥ 1.26.11 heben), `golang.org/x/image` v0.18.0 → ≥ v0.39.0 (GO-2026-4962, Speicher bei bösartigen SFNT-Fonts; erreichbar über Renderer und `list_fonts`/`add_font`), `golang.org/x/net` v0.35.0 → ≥ v0.60.0.
 
 ## Animation / Uhr (Nachträge)
 

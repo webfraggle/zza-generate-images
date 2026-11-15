@@ -137,10 +137,20 @@ Lesende Tools sperren nicht. Jeder Render-Aufruf erzeugt einen frischen
   `create_template` verlangen ein existierendes Verzeichnis mit `template.yaml`
   (Fehler: `template "<n>" not found`).
 - **Dateinamen:** Regeln aus `internal/editor` (`[a-zA-Z0-9._-]+`, kein Pfadanteil,
-  Ziel innerhalb des Template-Ordners). Vorhandene Ziele, die Symlinks oder keine
-  regulären Dateien sind, werden nie überschrieben (`refusing to overwrite non-regular file`).
-- **Atomar schreiben:** temporäre Datei im selben Ordner + `os.Rename` (wie
-  `editor.WriteTextFile`). Temporäre Dateien enden auf `.tmp`; der Watcher ignoriert sie.
+  Ziel innerhalb des Template-Ordners). Beim Schreiben zusätzlich
+  (`editor.ValidateWriteName`): kein führender Punkt, keine Windows-Gerätenamen
+  (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`, Groß-/Kleinschreibung
+  egal, mit beliebiger Endung) → `invalid file name "<n>" (…)`. Vorhandene Ziele, die
+  Symlinks oder keine regulären Dateien sind, werden nie überschrieben
+  (`refusing to overwrite non-regular file`).
+- **Atomar schreiben:** ein gemeinsamer Helfer `editor.AtomicWrite` für Editor-HTTP
+  und alle MCP-Tools: `os.CreateTemp(dir, ".<name>.*.tmp")` (O_EXCL, folgt nie einem
+  Symlink — ein vorab platziertes `<name>.tmp` wird nicht benutzt), schreiben,
+  `chmod 0644`, schließen, `os.Rename`; ist das Ziel ein Symlink/keine reguläre
+  Datei, wird abgelehnt; bei Fehler wird die Temp-Datei entfernt. Temp-Namen
+  beginnen mit `.` und enden auf `.tmp`; Watcher und Kapazitätsprüfung ignorieren sie.
+  `editor.InitTemplate` legt Starter-Dateien mit `O_CREATE|O_EXCL` an (folgt keinem
+  hängenden Symlink).
 - **Fehler** sind Tool-Fehler (Text, `IsError`), englisch, knapp und so formuliert,
   dass die KI weiß, was sie ändern muss. Nie Dateiinhalte im Fehlertext.
 - **Bild-Ergebnisse** sind PNG (`image/png`), immer zusätzlich zu einem kurzen
@@ -159,7 +169,7 @@ Lesende Tools sperren nicht. Jeder Render-Aufruf erzeugt einen frischen
 | `import_image` gespeicherte Größe | längste Seite ≤ 2048 px (sonst verkleinert) |
 | Foto-Werkzeuge Eingabe | ≤ 25 Megapixel, ≤ 8192 px je Seite, Datei ≤ 64 MiB |
 | Foto-Werkzeuge Ausgabe | 1–2048 px je Seite (`quantize_colors`/`color_to_alpha` verkleinern größere Eingaben vorher und melden das in `note`) |
-| `svg_to_png` SVG-Text | ≤ 256 KiB; Ausgabe 1–1024 px je Seite; ≤ 2000 Pfade |
+| `svg_to_png` SVG-Text | ≤ 256 KiB; Ausgabe 1–1024 px je Seite; ≤ 2000 Pfade (auch nach `<use>`-Expansion); XML-Tiefe ≤ 64 |
 | `svg_to_png` Rechenbudget | Pfade × Breite × Höhe ≤ 2^26 (≈ 67 Mio., schlimmster Fall ca. 5 s); Rasterzeit ≤ 10 s (sonst `svg rendering timed out`, nichts geschrieben) |
 | `render_preview` `scale` | 1–4 (Standard 2 für PNG, 1 für GIF) |
 | `render_preview` `data` | ≤ 64 KiB (als JSON) |
@@ -286,6 +296,17 @@ eines Dateiauswahldialogs und wird akzeptiert.
   `href`/`xlink:href`, dessen Wert nicht mit `#` beginnt, jedes `url(` nicht gefolgt
   von `#`. Fehler nennen die Regel, z. B.
   `svg must not contain text — put text in a text layer of template.yaml`.
+- Struktur-Vorprüfung vor oksvg (`checkSVGStructure`, `encoding/xml` mit derselben
+  Zeichensatz-Behandlung wie oksvg): oksvg expandiert `<use>` rekursiv schon beim
+  Parsen — eine Selbstreferenz sprengt den Stack (fataler Absturz, nicht per
+  `recover` abfangbar), verschachtelte `<use>` wachsen exponentiell, bevor das
+  Pfadlimit greift. Die Prüfung bildet oksvgs Definitionsläufe in `<defs>` nach
+  (ein Element mit `id` beginnt einen Lauf, alle folgenden Elemente gehören dazu),
+  zählt Formen je `id` per DFS mit Memo und Sättigung und lehnt ab:
+  Zyklus → `svg contains a recursive <use> reference`; unbekannte id →
+  `svg <use> references unknown id "<id>"`; mehr als 2000 Formen nach Expansion →
+  `svg has too many shapes after <use> expansion (max 2000)`; Verschachtelung > 64 →
+  `svg is nested too deeply (max 64 levels)`; nicht lesbares XML → `svg parse error: …`.
 - Parsen mit `oksvg.ReadIconStream(…, oksvg.StrictErrorMode)` (lehnt nicht
   unterstützte Elemente ab), ≤ 2000 Pfade.
 - Rendern: `icon.SetTarget(0, 0, width, height)` (ViewBox wird auf die Zielgröße
