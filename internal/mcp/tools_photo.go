@@ -1,11 +1,14 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -23,6 +26,7 @@ type photoOut struct {
 	Width   int      `json:"width"`
 	Height  int      `json:"height"`
 	Palette []string `json:"palette,omitempty"`
+	Note    string   `json:"note,omitempty"`
 }
 
 type photoBase struct {
@@ -72,9 +76,10 @@ type sampleIn struct {
 }
 
 type sampledColor struct {
-	X   int    `json:"x"`
-	Y   int    `json:"y"`
-	Hex string `json:"hex"`
+	X     int    `json:"x"`
+	Y     int    `json:"y"`
+	Hex   string `json:"hex"`
+	Alpha int    `json:"alpha"`
 }
 
 type sampleOut struct {
@@ -86,17 +91,17 @@ func registerPhotoTools(s *sdk.Server, e *env) {
 		Name:        "perspective_correct",
 		Description: "Straightens a photo of a display: corners = the 4 corners of the display area in source pixels, order top-left, top-right, bottom-right, bottom-left; width/height = output size (e.g. 240x120 for one side). Writes a new PNG; the original is kept.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in perspectiveIn) (*sdk.CallToolResult, photoOut, error) {
-		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, []string, error) {
+		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, photoOut, error) {
 			if len(in.Corners) != 4 {
-				return nil, nil, fmt.Errorf("corners must contain exactly 4 points")
+				return nil, photoOut{}, fmt.Errorf("corners must contain exactly 4 points")
 			}
 			if err := checkOutputSize(in.Width, in.Height); err != nil {
-				return nil, nil, err
+				return nil, photoOut{}, err
 			}
 			var c [4]point
 			copy(c[:], in.Corners)
 			out, err := warpPerspective(img, c, in.Width, in.Height)
-			return out, nil, err
+			return out, photoOut{}, err
 		})
 	})
 
@@ -104,18 +109,18 @@ func registerPhotoTools(s *sdk.Server, e *env) {
 		Name:        "crop_image",
 		Description: "Cuts a rectangle out of an image (e.g. an original logo) into a new PNG.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in cropIn) (*sdk.CallToolResult, photoOut, error) {
-		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, []string, error) {
+		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, photoOut, error) {
 			b := img.Bounds()
 			if in.Width < 1 || in.Height < 1 || in.X < 0 || in.Y < 0 ||
 				in.X > b.Dx()-in.Width || in.Y > b.Dy()-in.Height {
-				return nil, nil, fmt.Errorf("crop rectangle exceeds image bounds 0,0–%d,%d", b.Dx(), b.Dy())
+				return nil, photoOut{}, fmt.Errorf("crop rectangle exceeds image bounds 0,0–%d,%d", b.Dx(), b.Dy())
 			}
 			if err := checkOutputSize(in.Width, in.Height); err != nil {
-				return nil, nil, err
+				return nil, photoOut{}, err
 			}
 			out := image.NewNRGBA(image.Rect(0, 0, in.Width, in.Height))
 			xdraw.Copy(out, image.Point{}, img, image.Rect(in.X, in.Y, in.X+in.Width, in.Y+in.Height), xdraw.Src, nil)
-			return out, nil, nil
+			return out, photoOut{}, nil
 		})
 	})
 
@@ -123,7 +128,7 @@ func registerPhotoTools(s *sdk.Server, e *env) {
 		Name:        "resize_image",
 		Description: `Scales an image to width x height. mode "nearest" keeps hard pixels (LED/pixel look), "smooth" (default) for photos and logos.`,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in resizeIn) (*sdk.CallToolResult, photoOut, error) {
-		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, []string, error) {
+		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, photoOut, error) {
 			var scaler xdraw.Interpolator
 			switch in.Mode {
 			case "nearest":
@@ -131,14 +136,14 @@ func registerPhotoTools(s *sdk.Server, e *env) {
 			case "", "smooth":
 				scaler = xdraw.CatmullRom
 			default:
-				return nil, nil, fmt.Errorf(`mode must be "nearest" or "smooth"`)
+				return nil, photoOut{}, fmt.Errorf(`mode must be "nearest" or "smooth"`)
 			}
 			if err := checkOutputSize(in.Width, in.Height); err != nil {
-				return nil, nil, err
+				return nil, photoOut{}, err
 			}
 			out := image.NewNRGBA(image.Rect(0, 0, in.Width, in.Height))
 			scaler.Scale(out, out.Bounds(), img, img.Bounds(), xdraw.Src, nil)
-			return out, nil, nil
+			return out, photoOut{}, nil
 		})
 	})
 
@@ -146,26 +151,32 @@ func registerPhotoTools(s *sdk.Server, e *env) {
 		Name:        "quantize_colors",
 		Description: "Reduces an image to N colours (2-64), removing photo noise; returns the palette as hex values for use in template.yaml.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in quantizeIn) (*sdk.CallToolResult, photoOut, error) {
-		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, []string, error) {
+		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, photoOut, error) {
 			if in.Colors < 2 || in.Colors > 64 {
-				return nil, nil, fmt.Errorf("colors must be 2-64")
+				return nil, photoOut{}, fmt.Errorf("colors must be 2-64")
 			}
-			p := renderer.Quantize(img, in.Colors)
-			used := map[uint8]bool{}
+			small, note := fitOutput(img)
+			p := renderer.Quantize(small, in.Colors)
+			out := toNRGBA(p)
+			// fully transparent source pixels stay transparent
+			for i := 3; i < len(small.Pix); i += 4 {
+				if small.Pix[i] == 0 {
+					copy(out.Pix[i-3:i+1], []byte{0, 0, 0, 0})
+				}
+			}
+			seen := map[color.NRGBA]bool{}
 			var palette []string
-			b := p.Bounds()
-			for y := b.Min.Y; y < b.Max.Y; y++ {
-				for x := b.Min.X; x < b.Max.X; x++ {
-					idx := p.ColorIndexAt(x, y)
-					if used[idx] {
-						continue
-					}
-					used[idx] = true
-					c := color.NRGBAModel.Convert(p.Palette[idx]).(color.NRGBA)
+			for i := 0; i+3 < len(out.Pix); i += 4 {
+				if out.Pix[i+3] == 0 {
+					continue
+				}
+				c := color.NRGBA{out.Pix[i], out.Pix[i+1], out.Pix[i+2], 255}
+				if !seen[c] {
+					seen[c] = true
 					palette = append(palette, fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B))
 				}
 			}
-			return toNRGBA(p), palette, nil
+			return out, photoOut{Palette: palette, Note: note}, nil
 		})
 	})
 
@@ -173,19 +184,20 @@ func registerPhotoTools(s *sdk.Server, e *env) {
 		Name:        "color_to_alpha",
 		Description: "Makes one colour (#rrggbb, ± tolerance 0-255 per channel, default 24) transparent, e.g. the background of an icon.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in colorToAlphaIn) (*sdk.CallToolResult, photoOut, error) {
-		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, []string, error) {
+		return e.photoTool(in.photoBase, func(img *image.NRGBA) (*image.NRGBA, photoOut, error) {
 			c, err := parseHexColor(in.Color)
 			if err != nil {
-				return nil, nil, err
+				return nil, photoOut{}, err
 			}
 			tol := 24
 			if in.Tolerance != nil {
 				tol = *in.Tolerance
 			}
 			if tol < 0 || tol > 255 {
-				return nil, nil, fmt.Errorf("tolerance must be 0-255")
+				return nil, photoOut{}, fmt.Errorf("tolerance must be 0-255")
 			}
-			return colorToAlpha(img, c, tol), nil, nil
+			small, note := fitOutput(img)
+			return colorToAlpha(small, c, tol), photoOut{Note: note}, nil
 		})
 	})
 
@@ -195,6 +207,17 @@ func registerPhotoTools(s *sdk.Server, e *env) {
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in sampleIn) (*sdk.CallToolResult, sampleOut, error) {
 		return e.sampleColors(in)
 	})
+}
+
+// fitOutput shrinks img to the output limit if necessary and returns a note
+// for the tool result in that case.
+func fitOutput(img *image.NRGBA) (*image.NRGBA, string) {
+	if max(img.Bounds().Dx(), img.Bounds().Dy()) <= maxToolOutputSide {
+		return img, ""
+	}
+	small := toNRGBA(fitWithin(img, maxToolOutputSide))
+	return small, fmt.Sprintf("input was scaled down from %dx%d to %dx%d (output limit %d px per side)",
+		img.Bounds().Dx(), img.Bounds().Dy(), small.Bounds().Dx(), small.Bounds().Dy(), maxToolOutputSide)
 }
 
 func checkOutputSize(w, h int) error {
@@ -218,16 +241,24 @@ func (e *env) loadPhoto(template, src string) (*image.NRGBA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid file name %q (allowed: letters, digits, . _ -)", src)
 	}
-	img, _, err := loadImageFile(p, maxImportBytes, maxToolInputSide, maxToolInputPixels)
+	data, err := readRegularFile(p, maxToolInputBytes)
+	switch {
+	case errors.Is(err, errNotRegular):
+		return nil, errNotRegular
+	case errors.Is(err, errFileTooLarge):
+		return nil, fmt.Errorf("image file too large (max %d MiB)", maxToolInputBytes>>20)
+	case err != nil:
+		return nil, fmt.Errorf("cannot read %s", src)
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+		return nil, errNotImage
+	}
+	if cfg.Width*cfg.Height > maxToolInputPixels {
+		return nil, fmt.Errorf("image too large: %dx%d (max %d megapixels)", cfg.Width, cfg.Height, maxToolInputPixels/1_000_000)
+	}
+	img, _, err := decodeImage(data, maxToolInputSide, 0)
 	if err != nil {
-		msg := err.Error()
-		switch {
-		case strings.HasPrefix(msg, "cannot read"):
-			return nil, fmt.Errorf("cannot read %s", src)
-		case strings.HasSuffix(msg, "pixels)"):
-			msg = strings.Replace(msg, fmt.Sprintf("(max %d pixels)", maxToolInputPixels), fmt.Sprintf("(max %d megapixels)", maxToolInputPixels/1_000_000), 1)
-			return nil, fmt.Errorf("%s", msg)
-		}
 		return nil, err
 	}
 	return toNRGBA(img), nil
@@ -235,29 +266,39 @@ func (e *env) loadPhoto(template, src string) (*image.NRGBA, error) {
 
 // photoIO validates the common parameters, loads src and returns a write
 // function that stores the result as dst and builds the tool result.
-func photoIO(e *env, template, src, dst string) (img *image.NRGBA, write func(*image.NRGBA, ...string) (*sdk.CallToolResult, photoOut, error), err error) {
+func photoIO(e *env, template, src, dst string) (img *image.NRGBA, write func(*image.NRGBA, photoOut) (*sdk.CallToolResult, photoOut, error), err error) {
 	if _, err := e.templateDir(template); err != nil {
 		return nil, nil, err
 	}
-	if dst == src {
-		return nil, nil, fmt.Errorf("dst must differ from src — originals are kept")
+	errSame := fmt.Errorf("dst must differ from src — originals are kept")
+	if strings.EqualFold(dst, src) {
+		return nil, nil, errSame
 	}
 	if strings.ToLower(filepath.Ext(dst)) != ".png" {
 		return nil, nil, fmt.Errorf("dst must end in .png")
+	}
+	// A different name can still be the same file (hard link, case-insensitive
+	// file system with normalisation differences).
+	if sp, err := editor.SafeFilePath(e.templatesDir, template, src); err == nil {
+		if dp, err := editor.SafeFilePath(e.templatesDir, template, dst); err == nil {
+			if sfi, err := os.Stat(sp); err == nil {
+				if dfi, err := os.Stat(dp); err == nil && os.SameFile(sfi, dfi) {
+					return nil, nil, errSame
+				}
+			}
+		}
 	}
 	img, err = e.loadPhoto(template, src)
 	if err != nil {
 		return nil, nil, err
 	}
-	write = func(out *image.NRGBA, palette ...string) (*sdk.CallToolResult, photoOut, error) {
+	write = func(out *image.NRGBA, extra photoOut) (*sdk.CallToolResult, photoOut, error) {
 		var zero photoOut
 		if err := writePNGFile(e, template, dst, out); err != nil {
 			return nil, zero, err
 		}
-		po := photoOut{Name: dst, Width: out.Bounds().Dx(), Height: out.Bounds().Dy()}
-		if len(palette) > 0 {
-			po.Palette = palette
-		}
+		po := extra
+		po.Name, po.Width, po.Height = dst, out.Bounds().Dx(), out.Bounds().Dy()
 		res, err := jsonImageResult(po, []image.Image{fitWithin(out, maxResultImageSide)})
 		if err != nil {
 			return nil, zero, err
@@ -268,7 +309,7 @@ func photoIO(e *env, template, src, dst string) (img *image.NRGBA, write func(*i
 }
 
 // photoTool runs a transformation under the write lock and stores its result.
-func (e *env) photoTool(b photoBase, transform func(*image.NRGBA) (*image.NRGBA, []string, error)) (*sdk.CallToolResult, photoOut, error) {
+func (e *env) photoTool(b photoBase, transform func(*image.NRGBA) (*image.NRGBA, photoOut, error)) (*sdk.CallToolResult, photoOut, error) {
 	var zero photoOut
 	e.writeMu.Lock()
 	defer e.writeMu.Unlock()
@@ -276,11 +317,11 @@ func (e *env) photoTool(b photoBase, transform func(*image.NRGBA) (*image.NRGBA,
 	if err != nil {
 		return nil, zero, err
 	}
-	out, palette, err := transform(img)
+	out, extra, err := transform(img)
 	if err != nil {
 		return nil, zero, err
 	}
-	return write(out, palette...)
+	return write(out, extra)
 }
 
 func (e *env) sampleColors(in sampleIn) (*sdk.CallToolResult, sampleOut, error) {
@@ -301,12 +342,12 @@ func (e *env) sampleColors(in sampleIn) (*sdk.CallToolResult, sampleOut, error) 
 	w, h := img.Bounds().Dx(), img.Bounds().Dy()
 	out := sampleOut{Colors: make([]sampledColor, 0, len(in.Points))}
 	for _, p := range in.Points {
-		x, y := int(math.Floor(p.X)), int(math.Floor(p.Y))
-		if x < 0 || y < 0 || x >= w || y >= h {
-			return nil, zero, fmt.Errorf("point %d,%d is outside the image %dx%d", x, y, w, h)
+		if !(p.X >= 0 && p.X < float64(w) && p.Y >= 0 && p.Y < float64(h)) {
+			return nil, zero, fmt.Errorf("point %v,%v is outside the image %dx%d", p.X, p.Y, w, h)
 		}
+		x, y := int(math.Floor(p.X)), int(math.Floor(p.Y))
 		c := sampleAt(img, x, y, in.Radius)
-		out.Colors = append(out.Colors, sampledColor{X: x, Y: y, Hex: fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)})
+		out.Colors = append(out.Colors, sampledColor{X: x, Y: y, Hex: fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B), Alpha: int(c.A)})
 	}
 	res, err := jsonImageResult(out, nil)
 	if err != nil {

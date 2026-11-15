@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -235,4 +236,124 @@ func TestPhotoTools_Common(t *testing.T) {
 
 	writeTestPNG(t, filepath.Join(dir, "huge.png"), image.NewNRGBA(image.Rect(0, 0, 5001, 5001)))
 	requireToolError(t, callTool(t, cs, "crop_image", base("huge.png", "x.png")), "image too large: 5001x5001 (max 25 megapixels)")
+}
+
+func TestPhotoTools_DstCaseInsensitiveSame(t *testing.T) {
+	cs, _ := photoSession(t)
+	res := callTool(t, cs, "crop_image", map[string]any{
+		"template": photoTpl, "src": "PHOTO.png", "dst": "photo.png", "x": 0, "y": 0, "width": 10, "height": 10,
+	})
+	requireToolError(t, res, "dst must differ from src")
+}
+
+func TestPhotoTools_DstSameFileViaLink(t *testing.T) {
+	cs, dir := photoSession(t)
+	if err := os.Link(filepath.Join(dir, "photo.png"), filepath.Join(dir, "alias.png")); err != nil {
+		t.Skip("hard links unsupported")
+	}
+	res := callTool(t, cs, "crop_image", map[string]any{
+		"template": photoTpl, "src": "photo.png", "dst": "alias.png", "x": 0, "y": 0, "width": 10, "height": 10,
+	})
+	requireToolError(t, res, "dst must differ from src")
+}
+
+func TestPhotoTools_OutputLimit(t *testing.T) {
+	cs, dir := photoSession(t)
+	wide := image.NewNRGBA(image.Rect(0, 0, 3000, 100))
+	for i := range wide.Pix {
+		wide.Pix[i] = uint8(i * 7)
+	}
+	writeTestPNG(t, filepath.Join(dir, "wide.png"), wide)
+	for _, tool := range []string{"color_to_alpha", "quantize_colors"} {
+		args := map[string]any{"template": photoTpl, "src": "wide.png", "dst": tool + ".png"}
+		if tool == "color_to_alpha" {
+			args["color"] = "#ffffff"
+		} else {
+			args["colors"] = 8
+		}
+		res := callTool(t, cs, tool, args)
+		requireOK(t, res)
+		if b := loadOut(t, filepath.Join(dir, tool+".png")).Bounds(); b.Dx() > 2048 || b.Dy() > 2048 {
+			t.Fatalf("%s: size %v", tool, b)
+		}
+		var out photoOut
+		if err := json.Unmarshal([]byte(resultText(res)), &out); err != nil || out.Note == "" || out.Width != 2048 {
+			t.Fatalf("%s: out %+v %v", tool, out, err)
+		}
+	}
+}
+
+func TestQuantizeColors_LargeInputFast(t *testing.T) {
+	cs, dir := photoSession(t)
+	big := image.NewNRGBA(image.Rect(0, 0, 6000, 4000))
+	for i := range big.Pix {
+		big.Pix[i] = uint8(i * 13)
+	}
+	writeTestPNG(t, filepath.Join(dir, "big.png"), big)
+	start := time.Now()
+	res := callTool(t, cs, "quantize_colors", map[string]any{"template": photoTpl, "src": "big.png", "dst": "bq.png", "colors": 16})
+	requireOK(t, res)
+	if d := time.Since(start); d > 30*time.Second {
+		t.Fatalf("took %v", d)
+	}
+}
+
+func TestQuantizeColors_KeepsTransparent(t *testing.T) {
+	cs, dir := photoSession(t)
+	img := image.NewNRGBA(image.Rect(0, 0, 20, 20))
+	for y := 10; y < 20; y++ {
+		for x := 0; x < 20; x++ {
+			img.SetNRGBA(x, y, color.NRGBA{200, 30, 30, 255})
+		}
+	}
+	writeTestPNG(t, filepath.Join(dir, "t.png"), img)
+	res := callTool(t, cs, "quantize_colors", map[string]any{"template": photoTpl, "src": "t.png", "dst": "tq.png", "colors": 4})
+	requireOK(t, res)
+	out := loadOut(t, filepath.Join(dir, "tq.png"))
+	if _, _, _, a := out.At(5, 2).RGBA(); a != 0 {
+		t.Fatalf("transparent pixel became alpha %d", a)
+	}
+	if _, _, _, a := out.At(5, 15).RGBA(); a == 0 {
+		t.Fatal("opaque pixel became transparent")
+	}
+}
+
+func TestPerspectiveCorrect_BadCorners(t *testing.T) {
+	cs, _ := photoSession(t)
+	res := callTool(t, cs, "perspective_correct", map[string]any{
+		"template": photoTpl, "src": "photo.png", "dst": "ccw.png",
+		"corners": []map[string]any{{"x": 100, "y": 100}, {"x": 100, "y": 199}, {"x": 199, "y": 199}, {"x": 199, "y": 100}},
+		"width":   20, "height": 20,
+	})
+	requireToolError(t, res, "top-left, top-right, bottom-right, bottom-left")
+	res = callTool(t, cs, "perspective_correct", map[string]any{
+		"template": photoTpl, "src": "photo.png", "dst": "huge.png",
+		"corners": []map[string]any{{"x": 0, "y": 0}, {"x": 1e9, "y": 0}, {"x": 1e9, "y": 10}, {"x": 0, "y": 10}},
+		"width":   20, "height": 20,
+	})
+	requireToolError(t, res, "corners")
+}
+
+func TestSampleColors_AlphaAndFloatRange(t *testing.T) {
+	cs, dir := photoSession(t)
+	img := image.NewNRGBA(image.Rect(0, 0, 2, 1))
+	img.SetNRGBA(0, 0, color.NRGBA{255, 0, 0, 255})
+	writeTestPNG(t, filepath.Join(dir, "al.png"), img)
+	res := callTool(t, cs, "sample_colors", map[string]any{
+		"template": photoTpl, "src": "al.png", "points": []map[string]any{{"x": 0, "y": 0}}, "radius": 1,
+	})
+	requireOK(t, res)
+	var out sampleOut
+	if err := json.Unmarshal([]byte(resultText(res)), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Colors[0].Hex != "#ff0000" || out.Colors[0].Alpha != 128 {
+		t.Fatalf("got %+v", out.Colors[0])
+	}
+	for _, x := range []float64{-0.5, 1e300} {
+		res = callTool(t, cs, "sample_colors", map[string]any{
+			"template": photoTpl, "src": "al.png", "points": []map[string]any{{"x": x, "y": 0}},
+		})
+		requireToolError(t, res, "outside the image")
+	}
 }

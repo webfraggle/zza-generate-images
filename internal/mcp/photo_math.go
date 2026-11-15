@@ -9,7 +9,13 @@ import (
 	"strconv"
 )
 
-var errBadQuad = errors.New("corners do not form a valid quadrilateral")
+var (
+	errBadQuad  = errors.New("corners do not form a valid quadrilateral")
+	errWrongDir = errors.New("corners are in the wrong order: use top-left, top-right, bottom-right, bottom-left (clockwise)")
+)
+
+// maxCornerCoord bounds corner coordinates (far beyond any real photo).
+const maxCornerCoord = 1e6
 
 type point struct {
 	X float64 `json:"x"`
@@ -25,8 +31,13 @@ func homography(src [4]point, w, h int) ([9]float64, error) {
 	if w < 1 || h < 1 {
 		return zero, errBadQuad
 	}
-	if !isConvexQuad(src) {
-		return zero, errBadQuad
+	for _, p := range src {
+		if math.IsNaN(p.X) || math.IsNaN(p.Y) || math.Abs(p.X) > maxCornerCoord || math.Abs(p.Y) > maxCornerCoord {
+			return zero, errBadQuad
+		}
+	}
+	if err := checkQuad(src); err != nil {
+		return zero, err
 	}
 	fw, fh := math.Max(float64(w-1), 1), math.Max(float64(h-1), 1)
 	dst := [4]point{{0, 0}, {fw, 0}, {fw, fh}, {0, fh}}
@@ -71,15 +82,15 @@ func homography(src [4]point, w, h int) ([9]float64, error) {
 	return out, nil
 }
 
-// isConvexQuad reports whether the four points form a non-degenerate convex
-// quadrilateral (all turns in the same direction).
-func isConvexQuad(q [4]point) bool {
+// checkQuad requires a non-degenerate convex quadrilateral whose corners run
+// clockwise on screen (y down): top-left, top-right, bottom-right, bottom-left.
+func checkQuad(q [4]point) error {
 	sign := 0
 	for i := 0; i < 4; i++ {
 		a, b, c := q[i], q[(i+1)%4], q[(i+2)%4]
 		cr := (b.X-a.X)*(c.Y-b.Y) - (b.Y-a.Y)*(c.X-b.X)
 		if math.Abs(cr) < 1e-9 {
-			return false
+			return errBadQuad
 		}
 		s := 1
 		if cr < 0 {
@@ -88,10 +99,13 @@ func isConvexQuad(q [4]point) bool {
 		if sign == 0 {
 			sign = s
 		} else if s != sign {
-			return false
+			return errBadQuad
 		}
 	}
-	return true
+	if sign < 0 {
+		return errWrongDir
+	}
+	return nil
 }
 
 func applyH(h [9]float64, u, v float64) (float64, float64) {
@@ -184,24 +198,26 @@ func absInt(i int) int {
 }
 
 // sampleAt returns the mean colour over the square (2r+1)^2 around (x, y),
-// clipped to the image.
+// clipped to the image. Colour channels are weighted by alpha; the alpha of
+// the result is the plain mean.
 func sampleAt(img *image.NRGBA, x, y, r int) color.NRGBA {
 	b := img.Bounds()
 	var sr, sg, sb, sa, n int
 	for yy := max(y-r, b.Min.Y); yy <= min(y+r, b.Max.Y-1); yy++ {
 		for xx := max(x-r, b.Min.X); xx <= min(x+r, b.Max.X-1); xx++ {
 			c := img.NRGBAAt(xx, yy)
-			sr += int(c.R)
-			sg += int(c.G)
-			sb += int(c.B)
-			sa += int(c.A)
+			a := int(c.A)
+			sr += int(c.R) * a
+			sg += int(c.G) * a
+			sb += int(c.B) * a
+			sa += a
 			n++
 		}
 	}
-	if n == 0 {
+	if n == 0 || sa == 0 {
 		return color.NRGBA{}
 	}
-	return color.NRGBA{uint8((sr + n/2) / n), uint8((sg + n/2) / n), uint8((sb + n/2) / n), uint8((sa + n/2) / n)}
+	return color.NRGBA{uint8((sr + sa/2) / sa), uint8((sg + sa/2) / sa), uint8((sb + sa/2) / sa), uint8((sa + n/2) / n)}
 }
 
 // parseHexColor parses "#rrggbb".
