@@ -186,33 +186,26 @@ var (
 	errNotRegular   = errors.New("not a regular file")
 )
 
-// readText reads a .yaml/.json file of a template after checking that it is a
-// regular file (no symlink, directory, FIFO) of at most maxTextFileBytes.
+// readText reads a .yaml/.json file of a template. The file is opened once
+// without following symlinks and must be a regular file of at most
+// maxTextFileBytes.
 func (e *env) readText(tmpl, name string) ([]byte, error) {
-	if p, err := editor.SafeFilePath(e.templatesDir, tmpl, name); err == nil {
-		fi, err := os.Lstat(p)
-		switch {
-		case err != nil:
-			// not found etc. is reported by ReadTextFile
-		case !fi.Mode().IsRegular():
-			return nil, errNotRegular
-		case fi.Size() > maxTextFileBytes:
-			return nil, errFileTooLarge
-		}
+	if ext := strings.ToLower(filepath.Ext(name)); ext != ".yaml" && ext != ".json" {
+		return nil, editor.ErrForbidden
 	}
-	return editor.ReadTextFile(e.templatesDir, tmpl, name)
+	p, err := editor.SafeFilePath(e.templatesDir, tmpl, name)
+	if err != nil {
+		return nil, err
+	}
+	data, err := readRegularFile(p, maxTextFileBytes)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, editor.ErrFileNotFound
+	}
+	return data, err
 }
 
-// sanitizeErr shortens a renderer error for tool output: the absolute
-// templates path is removed and the text is cut to 300 characters.
-func (e *env) sanitizeErr(err error) string {
-	s := strings.ReplaceAll(err.Error(), e.templatesDir+string(filepath.Separator), "")
-	s = strings.ReplaceAll(s, e.templatesDir, "")
-	if r := []rune(s); len(r) > 300 {
-		s = string(r[:300])
-	}
-	return s
-}
+// sanitizeErr shortens a renderer error for tool output.
+func (e *env) sanitizeErr(err error) string { return e.scrubErr(err, 300) }
 
 // fileErr maps editor errors to short, content-free tool errors.
 func fileErr(name string, err error) error {

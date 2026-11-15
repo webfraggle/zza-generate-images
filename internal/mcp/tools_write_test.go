@@ -270,3 +270,47 @@ func TestImportImage(t *testing.T) {
 	missing := filepath.Join(src, "nope.png")
 	requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": missing}), "cannot read "+missing)
 }
+
+func TestWriteFile_CaseVariantsRejected(t *testing.T) {
+	dir := copyTemplates(t, "sbb-105-v1")
+	cs := newSession(t, dir)
+	before := readDisk(t, dir, "sbb-105-v1", "template.yaml")
+	for _, name := range []string{"Template.yaml", "TEMPLATE.yaml", "template.YAML", "DEFAULT.json", "Default.json"} {
+		res := callTool(t, cs, "write_file", map[string]any{"template": "sbb-105-v1", "name": name, "content": "layers: [::"})
+		requireToolError(t, res, "(lowercase)")
+	}
+	if readDisk(t, dir, "sbb-105-v1", "template.yaml") != before {
+		t.Errorf("template.yaml changed")
+	}
+}
+
+// withEXIF inserts an APP1 "Exif" segment right after the SOI marker.
+func withEXIF(t *testing.T, jpg []byte) []byte {
+	t.Helper()
+	payload := []byte("Exif\x00\x00GPS-SECRET")
+	seg := append([]byte{0xFF, 0xE1, byte((len(payload) + 2) >> 8), byte(len(payload) + 2)}, payload...)
+	out := append([]byte{}, jpg[:2]...)
+	out = append(out, seg...)
+	return append(out, jpg[2:]...)
+}
+
+func TestJPEGMetadataStripped(t *testing.T) {
+	dir := copyTemplates(t, "sbb-105-v1")
+	cs := newSession(t, dir)
+	jb := withEXIF(t, jpegBytes(t, solid(16, 16, color.NRGBA{9, 99, 9, 255})))
+	if !strings.Contains(string(jb), "Exif") {
+		t.Fatal("test setup: no EXIF")
+	}
+	requireOK(t, callTool(t, cs, "upload_image", map[string]any{"template": "sbb-105-v1", "name": "u.jpg", "data_base64": b64(jb)}))
+	if got := readDisk(t, dir, "sbb-105-v1", "u.jpg"); strings.Contains(got, "Exif") || strings.Contains(got, "GPS-SECRET") {
+		t.Errorf("upload_image kept EXIF")
+	}
+	src := filepath.Join(t.TempDir(), "p.jpg")
+	if err := os.WriteFile(src, jb, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	requireOK(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": src}))
+	if got := readDisk(t, dir, "sbb-105-v1", "p.jpg"); strings.Contains(got, "Exif") || strings.Contains(got, "GPS-SECRET") {
+		t.Errorf("import_image kept EXIF")
+	}
+}

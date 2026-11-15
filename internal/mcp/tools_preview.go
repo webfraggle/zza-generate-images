@@ -97,14 +97,8 @@ func (e *env) renderPreview(in previewIn) (*sdk.CallToolResult, previewOut, erro
 	if format != "png" && format != "gif" {
 		return nil, zero, fmt.Errorf(`format must be "png" or "gif"`)
 	}
-	scale := in.Scale
-	if scale == 0 {
-		scale = 2
-		if format == "gif" {
-			scale = 1
-		}
-	}
-	if scale < 1 || scale > 4 {
+	scale := in.Scale // 0 = default, chosen below (gif: after the animation check)
+	if scale != 0 && (scale < 1 || scale > 4) {
 		return nil, zero, fmt.Errorf("scale must be 1-4")
 	}
 	data := in.Data
@@ -123,6 +117,9 @@ func (e *env) renderPreview(in previewIn) (*sdk.CallToolResult, previewOut, erro
 	start := time.Now()
 	out := previewOut{Scale: scale, Frames: 1}
 	var img image.Image
+	if format == "png" && scale == 0 {
+		scale = 2
+	}
 	if format == "gif" {
 		img, err = e.renderSheet(in.Template, data, &scale, &out)
 	} else {
@@ -159,7 +156,13 @@ func (e *env) renderSheet(template string, data map[string]any, scale *int, out 
 			return nil, err
 		}
 		out.Note = "template is not animated"
+		if *scale == 0 {
+			*scale = 2
+		}
 		return scaleNearest(still, *scale), nil
+	}
+	if *scale == 0 {
+		*scale = 1
 	}
 	body, err := json.Marshal(data)
 	if err != nil {

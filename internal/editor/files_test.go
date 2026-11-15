@@ -226,3 +226,16 @@ func TestWriteTextFileIfMatch(t *testing.T) {
 		t.Errorf("CurrentVersion(missing) = %q, %v", v, err)
 	}
 }
+
+func TestVersionConflictError(t *testing.T) {
+	var err error = &VersionConflictError{Current: "abc"}
+	var vc *VersionConflictError
+	if !errors.Is(err, ErrVersionConflict) || !errors.As(err, &vc) || vc.Current != "abc" {
+		t.Errorf("errors.Is/As failed: %v", err)
+	}
+	dir, name := makeTestTemplate(t)
+	_, err = WriteTextFileIfMatch(dir, name, "template.yaml", []byte("x"), "stale")
+	if !errors.As(err, &vc) || vc.Current != FileVersion([]byte("meta:\n  name: Test\n")) {
+		t.Errorf("handler error: %v", err)
+	}
+}

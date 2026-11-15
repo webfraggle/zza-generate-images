@@ -101,7 +101,7 @@ func registerWriteTools(s *sdk.Server, e *env) {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "upload_image",
-		Description: "Stores a PNG or JPEG (base64) in the template, e.g. a logo you generated. For photos the user attached in the chat, prefer import_image with the file path — base64 copies of attachments are unreliable.",
+		Description: "Stores a PNG or JPEG (base64) in the template, e.g. a logo you generated. For photos the user attached in the chat, prefer import_image with the file path — base64 copies of attachments are unreliable. JPEG metadata is stripped.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in uploadImageIn) (*sdk.CallToolResult, uploadImageOut, error) {
 		out, err := e.uploadImage(in)
 		return nil, out, err
@@ -109,7 +109,7 @@ func registerWriteTools(s *sdk.Server, e *env) {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "import_image",
-		Description: "Copies a PNG/JPEG from the user's computer (absolute path, ask the user for it) into the template, scaling it down to max 2048 px. Use it for reference photos of real displays; then use perspective_correct, sample_colors and crop_image. Returns the stored size and a preview.",
+		Description: "Copies a PNG/JPEG from the user's computer (absolute path, ask the user for it) into the template, scaling it down to max 2048 px. Use it for reference photos of real displays; then use perspective_correct, sample_colors and crop_image. Returns the stored size and a preview. JPEG metadata is stripped.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in importImageIn) (*sdk.CallToolResult, importImageOut, error) {
 		return e.importImage(in)
 	})
@@ -201,6 +201,12 @@ func (e *env) writeFile(in writeFileIn) (writeFileOut, error) {
 	if ext != ".yaml" && ext != ".json" {
 		return zero, fmt.Errorf("only .yaml and .json files can be written")
 	}
+	// Other spellings would bypass validation on case-insensitive file systems.
+	for _, special := range []string{"template.yaml", "default.json"} {
+		if strings.EqualFold(in.Name, special) && in.Name != special {
+			return zero, fmt.Errorf("file name must be %q (lowercase)", special)
+		}
+	}
 	p, err := editor.SafeFilePath(e.templatesDir, in.Template, in.Name)
 	if err != nil {
 		return zero, fmt.Errorf("invalid file name %q (allowed: letters, digits, . _ -)", in.Name)
@@ -238,7 +244,11 @@ func (e *env) writeFile(in writeFileIn) (writeFileOut, error) {
 	version, err := editor.WriteTextFileIfMatch(e.templatesDir, in.Template, in.Name, content, in.ExpectedVersion)
 	switch {
 	case errors.Is(err, editor.ErrVersionConflict):
-		cur := err.Error()[strings.LastIndex(err.Error(), " ")+1:]
+		var vc *editor.VersionConflictError
+		cur := ""
+		if errors.As(err, &vc) {
+			cur = vc.Current
+		}
 		if cur == "" {
 			cur = "none, the file does not exist"
 		}
@@ -326,6 +336,12 @@ func (e *env) uploadImage(in uploadImageIn) (uploadImageOut, error) {
 	if !formatMatchesExt(format, ext) {
 		return zero, fmt.Errorf("file content is %s but name ends in %s", format, ext)
 	}
+	if format == "jpeg" {
+		// Re-encode JPEGs: drops EXIF/GPS metadata (templates get shared as ZIP).
+		if data, err = encodeImageFor(name, img); err != nil {
+			return zero, err
+		}
+	}
 	replaced, err := writeAssetBytes(e, in.Template, name, data)
 	if err != nil {
 		return zero, err
@@ -387,7 +403,8 @@ func (e *env) importImage(in importImageIn) (*sdk.CallToolResult, importImageOut
 		if err != nil {
 			return nil, zero, err
 		}
-	} else if !formatMatchesExt(format, targetExt) {
+	} else if format == "jpeg" || !formatMatchesExt(format, targetExt) {
+		// JPEGs are always re-encoded: drops EXIF/GPS metadata.
 		data, err = encodeImageFor(name, img)
 		if err != nil {
 			return nil, zero, err

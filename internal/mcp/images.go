@@ -8,7 +8,6 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"image/png"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,27 +30,14 @@ func loadImageFile(path string, maxBytes int64, maxSide, maxPixels int) (image.I
 
 // loadImageBytes is loadImageFile that also returns the raw file bytes.
 func loadImageBytes(path string, maxBytes int64, maxSide, maxPixels int) (image.Image, string, []byte, error) {
-	fi, err := os.Lstat(path)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("cannot read %s", path)
-	}
-	if !fi.Mode().IsRegular() {
-		return nil, "", nil, fmt.Errorf("not a regular file")
-	}
-	if fi.Size() > maxBytes {
+	data, err := readRegularFile(path, maxBytes)
+	switch {
+	case errors.Is(err, errNotRegular):
+		return nil, "", nil, errNotRegular
+	case errors.Is(err, errFileTooLarge):
 		return nil, "", nil, fmt.Errorf("image file too large (max %d MiB)", maxBytes>>20)
-	}
-	f, err := os.Open(path)
-	if err != nil {
+	case err != nil:
 		return nil, "", nil, fmt.Errorf("cannot read %s", path)
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxBytes+1))
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("cannot read %s", path)
-	}
-	if int64(len(data)) > maxBytes {
-		return nil, "", nil, fmt.Errorf("image file too large (max %d MiB)", maxBytes>>20)
 	}
 	img, format, err := decodeImage(data, maxSide, maxPixels)
 	if err != nil {

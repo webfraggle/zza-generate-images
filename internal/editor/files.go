@@ -222,6 +222,16 @@ func WriteTextFile(templatesDir, templateName, filename string, data []byte) err
 	return nil
 }
 
+// VersionConflictError carries the current version of the conflicting file
+// ("" if it does not exist). It matches ErrVersionConflict via errors.Is.
+type VersionConflictError struct{ Current string }
+
+func (e *VersionConflictError) Error() string {
+	return fmt.Sprintf("%s: current version %s", ErrVersionConflict, e.Current)
+}
+
+func (e *VersionConflictError) Is(target error) bool { return target == ErrVersionConflict }
+
 // writeMu serialises WriteTextFileIfMatch within the process so that the
 // version check and the write are one step.
 var writeMu sync.Mutex
@@ -252,7 +262,7 @@ func WriteTextFileIfMatch(templatesDir, templateName, filename string, data []by
 			return "", err
 		}
 		if cur != expected {
-			return "", fmt.Errorf("%w: current version %s", ErrVersionConflict, cur)
+			return "", &VersionConflictError{Current: cur}
 		}
 	}
 	if err := WriteTextFile(templatesDir, templateName, filename, data); err != nil {

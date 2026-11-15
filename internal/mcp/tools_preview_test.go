@@ -82,8 +82,11 @@ func TestRenderPreview_GIFNotAnimated(t *testing.T) {
 	if !strings.Contains(resultText(res), "template is not animated") {
 		t.Errorf("no note: %s", resultText(res))
 	}
-	if b := resultImage(t, res).Bounds(); b.Dx() != 240 {
+	if b := resultImage(t, res).Bounds(); b.Dx() != 480 || b.Dy() != 480 {
 		t.Errorf("image %v", b)
+	}
+	if m := previewMeta(t, resultText(res)); m.Scale != 2 {
+		t.Errorf("scale %d, want 2", m.Scale)
 	}
 }
 
