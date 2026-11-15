@@ -313,6 +313,7 @@ async function saveFile(force = false) {
   if (res.ok) {
     currentVersion = normalizeEtag(res.headers.get('ETag'));
     loadedContent = content;
+    if (activeTab === 'nodes' && nodeGraphValid) nodeLayersAtLoad = JSON.stringify(graphToLayers(getGraph()));
     externalBar.hidden = true;
     showSaveStatus('Gespeichert ✓', false);
     setTimeout(hideSaveStatus, 2500);
@@ -555,9 +556,14 @@ async function applyChanges({ files, reset }) {
     const name = currentFile;
     const f = await fetchFile(name);
     // Only act if the user did not switch files meanwhile and the content differs.
-    if (f.ok && name === currentFile && f.version !== currentVersion) {
-      if (d.currentFile === 'silent' && !dirty()) applyLoadedFile(name, f);
-      else externalBar.hidden = false;
+    if (name === currentFile) {
+      if (!f.ok) {
+        // Deleted or unreadable: tell the user instead of silently ignoring.
+        externalBar.hidden = false;
+      } else if (f.version !== currentVersion) {
+        if (d.currentFile === 'silent' && !dirty()) applyLoadedFile(name, f);
+        else externalBar.hidden = false;
+      }
     }
   }
   if (d.refreshJson) {
@@ -583,7 +589,10 @@ async function watchChanges() {
       eventsSince = seq;
       if ((files && files.length) || reset) {
         try { await applyChanges({ files: files || [], reset }); }
-        catch (e) { console.error('apply external change failed', e); }
+        catch (e) {
+          console.error('apply external change failed', e);
+          externalBar.hidden = false; // let the user reload manually
+        }
       }
     } catch {
       await sleep(nextDelay(++failures));
