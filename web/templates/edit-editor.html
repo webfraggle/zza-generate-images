@@ -40,6 +40,11 @@
       </div>
       <button id="btn-save" class="btn btn-primary btn-sm">Speichern</button>
     </div>
+    <div id="external-change" class="external-change" hidden>
+      <span>Datei wurde extern geändert.</span>
+      <button id="ext-reload" class="btn btn-sm btn-primary" type="button">Neu laden</button>
+      <button id="ext-ignore" class="btn btn-sm btn-level2" type="button">Ignorieren</button>
+    </div>
     <div id="cm-host" class="cm-host"></div>
     <div id="node-canvas-wrap" class="node-canvas-wrap" hidden>
       <div id="node-canvas" class="node-canvas">
@@ -84,6 +89,15 @@
 
 </div><!-- .editor-3col -->
 
+<dialog id="conflict-dialog">
+  <p>Die Datei wurde außerhalb des Editors geändert (z. B. von der KI).</p>
+  <div class="dialog-actions">
+    <button id="conflict-reload" class="btn btn-sm btn-level2" type="button">Neu laden</button>
+    <button id="conflict-overwrite" class="btn btn-sm btn-danger" type="button">Überschreiben</button>
+    <button id="conflict-cancel" class="btn btn-sm btn-level2" type="button">Abbrechen</button>
+  </div>
+</dialog>
+
 <script type="module">
 // ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
 // EditorView constructor accepts doc+extensions directly — no EditorState needed.
@@ -97,6 +111,7 @@ import { initCanvas, loadGraph, getGraph, setFileList, setFontIds, setTestJson }
 import { graphToLayers } from '/static/node-serializer.js';
 import { layersToGraph } from '/static/node-parser.js';
 import jsYaml from 'https://esm.sh/js-yaml@4.1.0';
+import { decide, normalizeEtag, nextDelay } from '/static/editor-sync.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TEMPLATE = '{{.TemplateName}}';
@@ -114,6 +129,11 @@ let nodeGraphValid = false;
 // Layers of the graph as loaded (JSON). Leaving the NODES tab only rewrites the
 // YAML when the layers differ, so comments and formatting survive a mere visit.
 let nodeLayersAtLoad = null;
+// Sync with external changes (e.g. the AI writing files via MCP).
+let currentVersion = '';   // ETag of the open file as loaded/saved by this editor
+let loadedContent  = '';   // text of the open file as loaded/saved (dirty baseline)
+let jsonLoaded     = '';   // text of default.json as loaded into the test-JSON box
+let eventsSince    = null; // next `since` for the long-poll; null = no baseline yet
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const fileList    = document.getElementById('file-list');
@@ -128,6 +148,9 @@ const noPreview   = document.getElementById('no-preview');
 const renderErr   = document.getElementById('render-error');
 
 const previewSize = document.getElementById('preview-size');
+
+const externalBar    = document.getElementById('external-change');
+const conflictDialog = document.getElementById('conflict-dialog');
 
 const uploadInput = document.getElementById('file-upload');
 const uploadStatus= document.getElementById('upload-status');
@@ -182,12 +205,23 @@ async function loadFiles() {
 }
 
 // ── Open file in editor ───────────────────────────────────────────────────────
-async function openFile(name) {
+async function fetchFile(name) {
   const res = await fetch(`/edit/${TEMPLATE}/file/${encodeURIComponent(name)}`);
-  if (!res.ok) { showSaveStatus('Datei konnte nicht geladen werden.', true); return; }
-  const content = await res.text();
+  if (!res.ok) return { ok: false, status: res.status };
+  return { ok: true, content: await res.text(), version: normalizeEtag(res.headers.get('ETag')) };
+}
 
+async function openFile(name) {
+  const f = await fetchFile(name);
+  if (!f.ok) { showSaveStatus('Datei konnte nicht geladen werden.', true); return; }
+  applyLoadedFile(name, f);
+}
+
+function applyLoadedFile(name, { content, version }) {
   currentFile = name;
+  currentVersion = version;
+  loadedContent = content;
+  externalBar.hidden = true;
   activeLabel.textContent = name;
   hideSaveStatus();
 
@@ -215,10 +249,20 @@ async function openFile(name) {
     extensions: [basicSetup, lang, indentationMarkers()],
     parent: cmHost,
   });
+  // The NODES view shows a graph parsed from the old YAML: rebuild it.
+  if (activeTab === 'nodes' && name === 'template.yaml') switchToNodes();
 }
 
+function dirty() {
+  if (!cmView) return false;
+  if (activeTab === 'nodes' && nodeGraphValid && currentFile === 'template.yaml'
+      && JSON.stringify(graphToLayers(getGraph())) !== nodeLayersAtLoad) return true;
+  return cmView.state.doc.toString() !== loadedContent;
+}
+function jsonDirty() { return jsonInput.value !== jsonLoaded; }
+
 // ── Save ──────────────────────────────────────────────────────────────────────
-btnSave.addEventListener('click', saveFile);
+btnSave.addEventListener('click', () => saveFile());
 
 document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -226,6 +270,18 @@ document.addEventListener('keydown', e => {
     saveFile();
   }
 });
+
+document.getElementById('conflict-reload').addEventListener('click', () => {
+  conflictDialog.close();
+  openFile(currentFile);
+});
+document.getElementById('conflict-overwrite').addEventListener('click', () => {
+  conflictDialog.close();
+  saveFile(true);
+});
+document.getElementById('conflict-cancel').addEventListener('click', () => conflictDialog.close());
+document.getElementById('ext-reload').addEventListener('click', () => openFile(currentFile));
+document.getElementById('ext-ignore').addEventListener('click', () => { externalBar.hidden = true; });
 
 // Tab/Shift-Tab: alle markierten Zeilen ein- bzw. ausrücken.
 // indentMore/indentLess arbeiten korrekt auf Mehrfach-Selektion.
@@ -236,19 +292,28 @@ cmHost.addEventListener('keydown', e => {
   }
 });
 
-async function saveFile() {
+async function saveFile(force = false) {
   if (!cmView) return;
   // If NODES tab is active, serialize graph → YAML before saving
   if (activeTab === 'nodes') {
     switchToYaml();
   }
   const content = cmView.state.doc.toString();
+  const headers = { 'Content-Type': 'application/json' };
+  if (!force) headers['If-Match'] = `"${currentVersion}"`;
   const res = await fetch(`/edit/${TEMPLATE}/save`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body:    JSON.stringify({ filename: currentFile, content }),
   });
+  if (res.status === 409) {
+    if (!conflictDialog.open) conflictDialog.showModal();
+    return;
+  }
   if (res.ok) {
+    currentVersion = normalizeEtag(res.headers.get('ETag'));
+    loadedContent = content;
+    externalBar.hidden = true;
     showSaveStatus('Gespeichert ✓', false);
     setTimeout(hideSaveStatus, 2500);
     schedulePreview(); // re-render after every save (YAML or JSON)
@@ -461,18 +526,84 @@ function _updateNodeEditorAssets(parsed) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-async function init() {
-  await loadFiles();
-  await openFile('template.yaml');
-
-  // Pre-fill JSON from default.json.
+async function loadDefaultJson() {
   try {
-    const res = await fetch(`/edit/${TEMPLATE}/file/default.json`);
-    if (res.ok) {
-      jsonInput.value = await res.text();
+    const f = await fetchFile('default.json');
+    if (f.ok) {
+      jsonInput.value = f.content;
+      jsonLoaded = f.content;
+      setTestJson(f.content);
       schedulePreview();
     }
   } catch { /* no default.json — that's fine */ }
+}
+
+// ── External changes (long-poll) ──────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Applies one batch. Never saves and never invalidates anything on the server:
+// events only ever lead to reads. Echoes of our own saves are caught by the
+// version comparison (the ETag of the file on disk equals currentVersion).
+async function applyChanges({ files, reset }) {
+  const d = decide({
+    files, reset: !!reset, currentFile,
+    dirty: dirty(), jsonDirty: jsonDirty(),
+  });
+  if (d.reloadList) await loadFiles();
+
+  if (d.currentFile !== 'none') {
+    const name = currentFile;
+    const f = await fetchFile(name);
+    // Only act if the user did not switch files meanwhile and the content differs.
+    if (f.ok && name === currentFile && f.version !== currentVersion) {
+      if (d.currentFile === 'silent' && !dirty()) applyLoadedFile(name, f);
+      else externalBar.hidden = false;
+    }
+  }
+  if (d.refreshJson) {
+    const f = await fetchFile('default.json');
+    if (f.ok && f.content !== jsonLoaded && !jsonDirty()) {
+      jsonInput.value = f.content;
+      jsonLoaded = f.content;
+      setTestJson(f.content);
+    }
+  }
+  if (d.refreshPreview) schedulePreview();
+}
+
+async function watchChanges() {
+  let failures = 0;
+  for (;;) {
+    try {
+      const res = await fetch(`/edit/${TEMPLATE}/events` + (eventsSince === null ? '' : '?since=' + eventsSince));
+      if (res.status === 404) return; // no watcher in this build
+      if (!res.ok) throw new Error('events ' + res.status);
+      const { seq, files, reset } = await res.json();
+      failures = 0;
+      eventsSince = seq;
+      if ((files && files.length) || reset) {
+        try { await applyChanges({ files: files || [], reset }); }
+        catch (e) { console.error('apply external change failed', e); }
+      }
+    } catch {
+      await sleep(nextDelay(++failures));
+    }
+  }
+}
+
+async function init() {
+  // Take the event baseline before loading, so no change in between is missed.
+  try {
+    const res = await fetch(`/edit/${TEMPLATE}/events`);
+    if (res.ok) eventsSince = (await res.json()).seq;
+    else if (res.status === 404) eventsSince = -1; // no watcher
+  } catch { /* the loop retries with a fresh baseline */ }
+
+  await loadFiles();
+  await openFile('template.yaml');
+  await loadDefaultJson();
+
+  if (eventsSince !== -1) watchChanges();
 }
 
 init();
