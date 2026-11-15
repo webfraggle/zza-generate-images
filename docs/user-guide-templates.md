@@ -848,3 +848,117 @@ layers:
         size: 9
         color: "#000000"
 ```
+
+---
+
+## KI-Assistent (MCP)
+
+Mit `zza mcp` kann eine KI (Claude Desktop oder Claude Code) Templates für den 1,05"-Zugzielanzeiger direkt in deinem Templates-Ordner bauen und ändern: Sie liest die Spezifikation und den Design-Leitfaden, legt Templates an, schreibt `template.yaml`, importiert Bilder und prüft jedes Ergebnis an einer Vorschau. Der Server läuft lokal als Unterprozess des KI-Clients (stdio), ohne Netzzugriff und ohne Token.
+
+Die KI hat 19 Werkzeuge:
+
+| Gruppe | Werkzeuge |
+|---|---|
+| Lesen | `get_template_spec`, `get_design_guide`, `list_templates`, `read_template`, `read_file` |
+| Schreiben | `create_template`, `write_file`, `upload_image`, `import_image` |
+| Vorschau | `render_preview` (PNG oder GIF-Kontaktbogen, mit optionalen Testdaten) |
+| Vektorgrafik | `svg_to_png` |
+| Foto-Werkzeuge | `perspective_correct`, `crop_image`, `resize_image`, `quantize_colors`, `color_to_alpha`, `sample_colors` |
+| Schriften | `list_fonts`, `add_font` |
+
+### Einrichtung in Claude Desktop
+
+1. Konfigurationsdatei öffnen (Claude Desktop → Einstellungen → Entwickler → „Konfiguration bearbeiten“, oder direkt):
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+2. Server eintragen. macOS (Pfad zur Binary **in** der `.app`):
+
+   ```json
+   {
+     "mcpServers": {
+       "zza": {
+         "command": "/Pfad/zu/zza.app/Contents/MacOS/zza",
+         "args": ["mcp"]
+       }
+     }
+   }
+   ```
+
+   Windows (Backslashes im JSON doppelt):
+
+   ```json
+   {
+     "mcpServers": {
+       "zza": {
+         "command": "C:\\Pfad\\zu\\zza.exe",
+         "args": ["mcp"]
+       }
+     }
+   }
+   ```
+
+   Ohne weitere Angabe nutzt `zza mcp` wie die GUI den Ordner `templates/` neben der App. Einen anderen Ordner gibst du mit `"args": ["mcp", "--templates-dir", "/Pfad/zu/templates"]` an. Sollen GUI und KI dieselben Templates bearbeiten, müssen beide denselben Ordner verwenden.
+3. Claude Desktop vollständig beenden und neu starten. Im Eingabefeld erscheint das Werkzeug-Symbol; dort muss der Server „zza“ mit seinen Werkzeugen stehen. Bei Problemen hilft das Log (macOS `~/Library/Logs/Claude/mcp-server-zza.log`, Windows `%APPDATA%\Claude\logs\mcp-server-zza.log`).
+4. macOS: Eine frisch heruntergeladene App steht unter Quarantäne und startet dann nicht als Hintergrundprozess. Einmalig im Terminal: `xattr -dr com.apple.quarantine /Pfad/zu/zza.app`.
+
+**Hinweis Windows:** Der Betrieb des Windows-GUI-Programms `zza.exe` als stdio-Server ist noch nicht praktisch geprüft (Prüfschritt 1.2 im manuellen Testplan). Falls Claude Desktop den Server dort nicht verbinden kann, bitte das Log sichern und melden.
+
+### Einrichtung in Claude Code
+
+- Mit gebauter Binary, von beliebigem Ort:
+
+  ```bash
+  claude mcp add zza -- /Pfad/zu/zza mcp --templates-dir /Pfad/zu/templates
+  claude mcp list     # zza ... Connected
+  ```
+- Im Repo gibt es die Projektdatei `.mcp.json`, die den Server per `go run ./cmd/zza mcp --templates-dir ./templates` startet. Beim ersten Start fragt Claude Code, ob du dem Projekt-Server vertraust; mit `/mcp` siehst du den Status. Das erste Kompilieren kann länger als das Standard-Zeitlimit dauern: vorher einmal `go build ./cmd/zza` ausführen oder `MCP_TIMEOUT=60000 claude` starten.
+- Änderungen der KI landen im Ordner `./templates` des Repos, also in der Git-Arbeitskopie, und sind dort mit `git diff` sichtbar.
+
+### So arbeitest du mit der KI
+
+Beschreibe in normalen Worten, was du willst. Die KI liest zuerst Spezifikation und Leitfaden, schaut sich ähnliche Templates an und zeigt nach jeder Änderung die Vorschau. Beispiel-Prompts:
+
+- „Bau mir ein Template im Stil der Wiener Linien: rotes Band oben, Gleis außen.“
+- „Hier ist ein Foto `/Users/ich/Fotos/anzeiger.jpg` — bau daraus ein Template.“
+- „Mach die Zielzeile größer und teste mit einem langen Zielnamen.“
+- „Lege die Schrift Roboto Bold in `test-105-v1` an und schreib ‚Gleis 6‘ damit ins weiße Feld.“
+
+Template-Namen müssen auf `-105-v1` enden; fehlt das, ergänzt oder erfragt die KI es.
+
+Wichtig: Fotos gibst du **als lokalen Dateipfad** an, nicht als Chat-Anhang. Die KI kann die Bytes eines Anhangs nicht zuverlässig weitergeben; sie importiert die Datei über `import_image` direkt von der Platte. Den Pfad kopierst du im Finder mit Alt + Rechtsklick „… als Pfadname kopieren“, in Windows mit Umschalt + Rechtsklick „Als Pfad kopieren“.
+
+### Schriften
+
+Die KI kann Schriften aus zwei Quellen verwenden (`list_fonts`, `add_font`):
+
+- aus bereits vorhandenen Templates (die Schriftdatei wird in das Ziel-Template kopiert und in `fonts:` eingetragen),
+- aus dem Ordner `fonts/` **neben** dem Templates-Ordner (also `templates/` und `fonts/` im selben Verzeichnis). Dort legst du eigene `.ttf`- und `.otf`-Dateien ab; sie erscheinen als `@fonts/Name.ttf`.
+
+Die KI lädt keine Schriften aus dem Netz. Achte selbst auf die Lizenz der Schriften, die du in `fonts/` ablegst oder weitergibst.
+
+### Foto als Vorlage
+
+1. Die KI importiert das Foto mit `import_image` (Pfad statt Anhang). Große Bilder werden auf höchstens 2048 Pixel Kantenlänge verkleinert; JPEGs werden dabei immer neu kodiert, wodurch EXIF-Daten (z. B. der Aufnahmeort) entfernt werden. Die EXIF-Drehung wird nicht ausgewertet; ein gedrehtes Foto richtet die KI mit `perspective_correct` gerade.
+2. Mit `perspective_correct` entzerrt sie ein schräg aufgenommenes Foto, mit `crop_image` und `resize_image` schneidet sie Details aus, mit `quantize_colors`, `sample_colors` und `color_to_alpha` ermittelt und bereinigt sie Farben.
+3. Danach baut sie das Template aus Rechtecken, Text-Layern und Bildern nach und gleicht es in mehreren Runden mit der Vorschau ab.
+4. Zwischendateien (importiertes Foto, entzerrte Fassungen) bleiben im Template-Ordner liegen. Die KI nennt sie am Ende; **lösche sie danach im Editor** (die KI löscht nichts), damit das Template klein bleibt.
+
+### Gleichzeitig mit dem Editor arbeiten
+
+GUI und KI können denselben Ordner gleichzeitig nutzen:
+
+- Ist ein Template im Editor geöffnet, aktualisiert sich der Editor, wenn die KI Dateien ändert (Live-Aktualisierung per Long-Poll, nicht per SSE). Ungeänderte Dateien werden still neu geladen, neue Dateien erscheinen in der Dateiliste.
+- Hast du die Datei im Editor bereits geändert und die KI ändert sie extern, erscheint eine Hinweisleiste „Datei wurde extern geändert“ mit Neu laden / Ignorieren. Deine ungespeicherte Änderung bleibt erhalten.
+- Beim Speichern einer extern geänderten Datei fragt ein Dialog: **Neu laden** (Stand der KI übernehmen, eigene Änderung verwerfen), **Überschreiben** (eigenen Stand speichern) oder **Abbrechen**.
+- Auch die KI bemerkt Konflikte: Wurde eine Datei seit dem Lesen geändert, lehnt `write_file` das Schreiben ab (`conflict: …`); die KI liest dann neu und wendet ihre Änderung auf den aktuellen Stand an.
+
+### Grenzen und Sicherheit
+
+- **Nur 1,05"-Anzeiger:** Canvas 240×240 (zwei Hälften zu 240×120). `write_file` lehnt eine `template.yaml` mit anderem Canvas ab. Von der KI angelegte Templates heißen `…-105-v1`. Die GUI erzwingt das nicht.
+- **Nichts wird gelöscht:** Kein Werkzeug löscht Dateien oder Templates. Überschreiben ist möglich (bei `template.yaml` und `default.json` mit Versionsprüfung).
+- **Prüfungen beim Schreiben:** `template.yaml` muss sich laden und probeweise rendern lassen, sonst wird nichts geschrieben. Zusätzlich liefert `write_file` Warnungen, die nicht blockieren: leere untere Hälfte, Text kleiner als 10 px, fest eingetragene Uhrzeiten und unbekannte YAML-Schlüssel (meist Tippfehler).
+- **`svg_to_png`:** SVG ohne Text (Schrift nur über Text-Layer), mit Rechenbudget (Größe, Pfadzahl) und einem Zeitlimit von 10 Sekunden je Aufruf.
+- **Größenlimits:** u. a. 256 KiB je Textdatei, 64 Dateien und 30 MiB je Template, Importbilder bis 20 MiB bzw. 8192 Pixel je Seite.
+- **Erlaubnisdialoge:** Claude Desktop und Claude Code fragen vor jedem Werkzeugaufruf um Erlaubnis; Pfade und Parameter stehen im Aufruf. Prüfe bei `import_image`, dass der Pfad zu dem Foto passt, das du genannt hast.
+- **`import_image` liest nur Bilder:** nur reguläre PNG/JPEG-Dateien (keine Symlinks), die sich als Bild dekodieren lassen. Andere Dateien scheitern, ohne dass Inhalt in Fehlertext oder Chat erscheint.
+- Die Verbindung ist rein lokal; `zza mcp` öffnet keinen Netzwerkport.

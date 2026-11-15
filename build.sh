@@ -105,6 +105,7 @@ Kommandozeile:
   zza                 — startet die GUI (Standard)
   zza serve --port N  — startet nur den lokalen Server, ohne Fenster
   zza render -t NAME -i in.json -o out.png  — rendert ein Template als PNG
+  zza mcp             — MCP-Server für Claude Desktop / Claude Code (siehe Anleitung)
   zza version         — gibt die Version aus
 EOF
 

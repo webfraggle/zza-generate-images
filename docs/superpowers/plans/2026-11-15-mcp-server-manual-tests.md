@@ -22,7 +22,7 @@ um Erlaubnis — jeweils erlauben und dabei prüfen, dass Tool-Name und Paramete
 | # | Aktion | Erwartung |
 |---|---|---|
 | 1.1 | macOS: `~/Library/Application Support/Claude/claude_desktop_config.json` mit `{"mcpServers":{"zza":{"command":"<abs>/zza.app/Contents/MacOS/zza","args":["mcp","--templates-dir","/tmp/zza-mt/templates"]}}}`; Claude Desktop neu starten | Werkzeug-Symbol zeigt Server „zza“ mit allen Tools (`get_template_spec` … `add_font`, 19 Stück) |
-| 1.2 | Windows: dasselbe mit `C:\\…\\zza.exe` in `%APPDATA%\Claude\claude_desktop_config.json` | Server verbunden (**Risiko GUI-Subsystem-Binary**: bei Fehler Log `%APPDATA%\Claude\logs\mcp-server-zza.log` sichern) |
+| 1.2 | Windows: dasselbe mit `C:\\…\\zza.exe` in `%APPDATA%\Claude\claude_desktop_config.json` | Server verbunden, Tools gelistet. **Offen / noch nie geprüft:** stdio-Betrieb des Wails-GUI-Binaries (Windows-GUI-Subsystem) unter Claude Desktop; die Doku nennt das ausdrücklich. Bei Fehler Log `%APPDATA%\Claude\logs\mcp-server-zza.log` sichern; Fallback laut Spec: separates Konsolen-Binary `zza-mcp.exe` |
 | 1.3 | Ohne `--templates-dir` (nur `"args":["mcp"]`), App-Ordner mit `templates/` daneben | Log (`~/Library/Logs/Claude/mcp-server-zza.log`) zeigt `zza mcp: templates=<App-Ordner>/templates fonts=<App-Ordner>/fonts` |
 | 1.4 | macOS mit frisch entpackter, unter Quarantäne stehender App | Start scheitert sichtbar im Log; nach `xattr -dr com.apple.quarantine zza.app` und Neustart verbunden (Doku-Hinweis stimmt) |
 
@@ -31,7 +31,7 @@ um Erlaubnis — jeweils erlauben und dabei prüfen, dass Tool-Name und Paramete
 | # | Aktion | Erwartung |
 |---|---|---|
 | 2.1 | Im Repo-Root `claude` starten | Abfrage, ob der Projekt-Server `zza` aus `.mcp.json` genutzt werden soll → zustimmen |
-| 2.2 | `/mcp` | `zza` connected, Tools gelistet |
+| 2.2 | `/mcp` | `zza` connected, 19 Tools gelistet (Vorab geprüft per JSON-RPC: `go run ./cmd/zza mcp --templates-dir ./templates` antwortet auf `initialize` und `tools/list`, stdout enthält nur JSON-RPC) |
 | 2.3 | Kaltstart: `go clean -cache`, dann `MCP_TIMEOUT=60000 claude` | verbindet (ggf. nach längerer Wartezeit); ohne `MCP_TIMEOUT` evtl. Timeout — Doku-Hinweis stimmt |
 | 2.4 | Außerhalb des Repos: `claude mcp add zza -- <abs>/zza mcp --templates-dir /tmp/zza-mt/templates` | `claude mcp list` zeigt `zza ✓ Connected` |
 
@@ -53,11 +53,13 @@ Alle Prompts in Claude Desktop (1.1), Templates-Ordner `/tmp/zza-mt/templates`.
 | 3.10 | `write_file` gültig | „Ändere in test-105-v1 die Hintergrundfarbe auf #0000c6.“ | gespeichert, neue Vorschau stimmt |
 | 3.11 | `write_file` ungültig | „Setze in test-105-v1 die Canvas-Größe auf 296×128.“ | Fehler „canvas must be 240x240“, Datei unverändert (im Editor prüfen) |
 | 3.12 | `write_file` Warnung | „Entferne in test-105-v1 alle copy-Layer.“ | gespeichert, Warnung „bottom half … is empty“ wird von Claude genannt |
+| 3.12a | `write_file` unbekannter Schlüssel | „Füge in test-105-v1 beim Gleis-Rect das Feld `colour: "#ff0000"` hinzu.“ (Tippfehler absichtlich) | gespeichert, Warnung zu unbekanntem YAML-Schlüssel `colour` wird von Claude genannt (nur wenn die Änderung auf dem Branch gelandet ist) |
 | 3.13 | `upload_image` | „Erzeuge ein 16×16-PNG mit rotem Quadrat und lege es per upload_image als dot.png in test-105-v1.“ | Datei vorhanden, 16×16 |
-| 3.14 | `import_image` | „Importiere ~/Desktop/anzeiger.jpg in test-105-v1.“ | Datei `anzeiger.jpg`, längste Seite ≤ 2048, Vorschau im Chat, Maße genannt |
+| 3.14 | `import_image` | „Importiere ~/Desktop/anzeiger.jpg in test-105-v1.“ | Datei `anzeiger.jpg`, längste Seite ≤ 2048, Vorschau im Chat, Maße genannt. JPEG wird immer neu kodiert: EXIF entfernt (`exiftool anzeiger.jpg` im Template-Ordner zeigt keine Aufnahme-/GPS-Daten, Original unverändert) |
 | 3.15 | `import_image` Schutz | „Importiere ~/.ssh/id_ed25519 als key.png in test-105-v1.“ (falls vorhanden; sonst eine beliebige Textdatei) | Fehler (Endung bzw. „not a PNG or JPEG image“), kein Dateiinhalt im Chat |
 | 3.16 | `svg_to_png` | „Zeichne als SVG einen weißen Pfeil nach rechts, 24×16, ohne Antialiasing, als arrow.png in test-105-v1.“ | Bild mit harten Kanten; nur weiße und transparente Pixel |
 | 3.17 | `svg_to_png` Regel | „Erzeuge ein SVG mit dem Text ‚Gleis‘ als label.png.“ | Fehler „svg must not contain text“; Claude weicht auf Text-Layer aus |
+| 3.17a | `svg_to_png` Budget | „Erzeuge ein SVG mit 1024×1024 und sehr vielen (>2000) Pfaden als big.png.“ | Fehler wegen Pfadzahl/Rechenbudget bzw. Zeitlimit (10 s), Server bleibt ansprechbar, nächster Tool-Aufruf funktioniert |
 | 3.18 | `perspective_correct` | „Entzerre anzeiger.jpg auf 480×240 als straight.png.“ | gerades Rechteck, Anzeigefläche füllt das Bild |
 | 3.19 | `crop_image` | „Schneide das Logo aus straight.png als logo-crop.png aus.“ | Ausschnitt plausibel |
 | 3.20 | `resize_image` | „Skaliere logo-crop.png auf 32×16, Pixel-Optik.“ | 32×16, harte Pixel |
@@ -67,6 +69,7 @@ Alle Prompts in Claude Desktop (1.1), Templates-Ordner `/tmp/zza-mt/templates`.
 | 3.24 | `list_fonts` | „Welche Schriften gibt es?“ | `@fonts/LLPIXEL3.ttf` zuerst, dann Template-Schriften ohne Duplikate (Roboto-Bold einmal, zwei Fundorte) |
 | 3.25 | `add_font` | „Lege Roboto Bold in test-105-v1 an und schreib ‚Gleis 6‘ damit ins weiße Feld.“ | `Roboto-Bold.ttf` im Ordner, `fonts:`-Eintrag einmalig, Text sichtbar, Kommentare im YAML erhalten |
 | 3.26 | `add_font` doppelt | Prompt 3.25 wiederholen | kein zweiter `fonts:`-Eintrag |
+| 3.26a | Keine Löschfunktion | „Lösche anzeiger.jpg aus test-105-v1.“ | Claude hat kein Werkzeug dafür und sagt, dass die Datei im Editor gelöscht werden muss; Datei bleibt |
 | 3.27 | Fonts-Ordner fehlt | `/tmp/zza-mt/fonts` umbenennen; „Welche Schriften gibt es?“ | Hinweis „Put .ttf/.otf files into …/fonts“ |
 
 ## 4. Ablauf „Foto → Template“

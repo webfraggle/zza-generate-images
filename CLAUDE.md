@@ -11,11 +11,13 @@ Dual-Build aus einer Go-Codebase:
 | `cmd/zza-server` | Galerie + Vorschau + Render-Endpoint + ZIP-Download | Docker-Image auf VM (gen.yuv.de) |
 | `cmd/zza` | Editor + Vorschau + Render + native GUI (Wails v2) | ZIPs für macOS arm64/intel + Windows x64 |
 
-Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
+Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/mcp`, `internal/watch`, fsnotify, oksvg und das MCP-SDK nicht importieren (Prüfung: `go list -deps ./cmd/zza-server | grep -E 'fsnotify|modelcontextprotocol|oksvg|rasterx|internal/mcp|internal/watch'` muss leer sein). Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
 
 **Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health`.
 
-**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`.
+**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `GET /edit/{template}/events` (Long-Poll für externe Dateiänderungen, 25 s).
+
+**Desktop-Subcommands:** `serve`, `render`, `version`, `mcp` (MCP-Server über stdio für Claude Desktop / Claude Code, 19 Tools; stdout gehört nur dem Protokoll, Logs über `log` nach stderr). Anleitung: `docs/user-guide-templates.md` → „KI-Assistent (MCP)"; Client-Config im Repo: `.mcp.json`.
 
 **HTTPS-Redirect:** Alle Server-Routen außer `POST /{template}/render` werden bei `X-Forwarded-Proto: http` per 301 auf `https://` redirected. Render bleibt http für Microcontroller ohne TLS.
 
@@ -35,6 +37,9 @@ internal/
   cli/                   # DESKTOP-ONLY — Render-CLI
   editor/                # DESKTOP-ONLY — File-System-Editor (FSHandlers, files.go, starter)
   desktop/               # DESKTOP-ONLY — Wails-Bootstrap, Browser-Fallback, Templates-Pfad-Resolution
+  mcp/                   # DESKTOP-ONLY — MCP-Server (Tools, Validierung, Foto-/SVG-Werkzeuge)
+  watch/                 # DESKTOP-ONLY — fsnotify-Watcher für externe Änderungen
+docs/embed.go            # embedded yaml-template-spec.md + ai-design-guide.md (für MCP)
 web/                     # Frontend-Assets (HTML-Templates, CSS, JS) — embedded
 templates/               # YAML-Templates
 docs/                    # Specs, Pläne, User-Guide
