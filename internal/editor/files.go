@@ -211,15 +211,7 @@ func WriteTextFile(templatesDir, templateName, filename string, data []byte) err
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("editor: writing file: %w", err)
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("editor: renaming file: %w", err)
-	}
-	return nil
+	return AtomicWrite(filepath.Dir(p), filepath.Base(p), data)
 }
 
 // VersionConflictError carries the current version of the conflicting file
@@ -290,15 +282,7 @@ func UploadFile(templatesDir, templateName, filename string, r io.Reader) error 
 	if int64(len(data)) > MaxUploadBytes {
 		return fmt.Errorf("editor: upload exceeds %d bytes", MaxUploadBytes)
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("editor: writing upload: %w", err)
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("editor: renaming upload: %w", err)
-	}
-	return nil
+	return AtomicWrite(filepath.Dir(p), filepath.Base(p), data)
 }
 
 // DeleteFile removes a file from the template directory.

@@ -174,12 +174,10 @@ func writeAssetBytes(e *env, template, name string, data []byte) (replaced bool,
 	if err := checkTemplateCapacity(filepath.Dir(p), name, int64(len(data))); err != nil {
 		return false, err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return false, fmt.Errorf("cannot write %q", name)
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
+	if err := editor.AtomicWrite(filepath.Dir(p), filepath.Base(p), data); err != nil {
+		if errors.Is(err, editor.ErrNotRegular) {
+			return false, fmt.Errorf("refusing to overwrite non-regular file %q", name)
+		}
 		return false, fmt.Errorf("cannot write %q", name)
 	}
 	return replaced, nil

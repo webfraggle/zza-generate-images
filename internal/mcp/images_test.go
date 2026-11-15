@@ -117,6 +117,18 @@ func TestCheckTemplateCapacity(t *testing.T) {
 	}
 }
 
+// Leftover temp files of editor.AtomicWrite (".<name>.<rand>.tmp") do not count.
+func TestCheckTemplateCapacity_IgnoresAtomicTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < maxFilesPerTemplate-1; i++ {
+		mustWrite(t, filepath.Join(dir, fmt.Sprintf("f%d.json", i)), "{}")
+	}
+	mustWrite(t, filepath.Join(dir, ".bg.png.123456.tmp"), strings.Repeat("x", 1<<10))
+	if err := checkTemplateCapacity(dir, "new.png", maxTemplateBytes-1<<9); err != nil {
+		t.Errorf("temp file counted: %v", err)
+	}
+}
+
 func TestWriteAssetBytes_RefusesNonRegular(t *testing.T) {
 	dir := copyTemplates(t, "sbb-105-v1")
 	e, _ := newEnv(Config{TemplatesDir: dir})
