@@ -5,6 +5,8 @@ go 1.26.1
 require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/cobra v1.8.0
+	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/wailsapp/wails/v2 v2.9.3
 	golang.org/x/image v0.18.0
 	gopkg.in/yaml.v3 v3.0.1
