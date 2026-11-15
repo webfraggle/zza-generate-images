@@ -37,7 +37,10 @@ func TestCreateTemplate(t *testing.T) {
 			t.Errorf("missing %s", f)
 		}
 	}
-	src, _ := os.ReadFile(filepath.Join(dir, "test-105-v1", "template.yaml"))
+	src, err := os.ReadFile(filepath.Join(dir, "test-105-v1", "template.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	tmpl, err := renderer.ParseTemplate(src, filepath.Join(dir, "test-105-v1"))
 	if err != nil {
 		t.Fatal(err)
@@ -45,8 +48,19 @@ func TestCreateTemplate(t *testing.T) {
 	if tmpl.Meta.Name != "Test" || tmpl.Meta.Description != "D" {
 		t.Errorf("meta: %q %q", tmpl.Meta.Name, tmpl.Meta.Description)
 	}
-	if !strings.Contains(string(src), "Obere Hälfte") {
-		t.Errorf("comments of the starter were lost")
+	starter, err := os.ReadFile(filepath.Join("..", "editor", "starter", "template.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstComment := ""
+	for _, l := range strings.Split(string(starter), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(l), "#") {
+			firstComment = l
+			break
+		}
+	}
+	if firstComment == "" || !strings.Contains(string(src), firstComment) {
+		t.Errorf("comments of the starter were lost (first comment %q)", firstComment)
 	}
 	img := resultImage(t, res)
 	if img.Bounds().Dx() != 480 || img.Bounds().Dy() != 480 {
