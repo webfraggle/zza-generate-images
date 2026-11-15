@@ -326,7 +326,15 @@ eines Dateiauswahldialogs und wird akzeptiert.
   `recover` abfangbar), verschachtelte `<use>` wachsen exponentiell, bevor das
   Pfadlimit greift. Die Prüfung bildet oksvgs Definitionsläufe in `<defs>` nach
   (ein Element mit `id` beginnt einen Lauf, alle folgenden Elemente gehören dazu),
-  zählt Formen je `id` per DFS mit Memo und Sättigung und lehnt ab:
+  zählt Formen je `id` per DFS mit Memo und Sättigung. **Jedes** `<use>` im Dokument
+  zählt gegen das Limit, gleich in welchem Kontext (Definitionslauf, `<g>`, `<a>`,
+  `<switch>`, `<marker>` …; mehrere `href`-Attribute zählen einzeln):
+  Gesamt = Formen außerhalb `<defs>` + Σ Kosten aller `<use>` (bewusst überschätzend,
+  damit kein Kontext, in dem oksvg anders expandiert, das Limit umgeht). Lehnt ab:
+  verschachteltes `<defs>` → `svg contains nested <defs>` (oksvg verlässt den
+  defs-Modus beim inneren `</defs>`); `<use>` in `linearGradient`/`radialGradient`/
+  `pattern`/`clipPath`/`mask` → `svg: <use> is not allowed inside gradients, patterns,
+  clip paths or masks` (oksvg expandiert es sofort);
   Zyklus → `svg contains a recursive <use> reference`; unbekannte id →
   `svg <use> references unknown id "<id>"`; mehr als 2000 Formen nach Expansion →
   `svg has too many shapes after <use> expansion (max 2000)`; Verschachtelung > 64 →

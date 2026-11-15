@@ -14,10 +14,18 @@ import (
 const maxSVGDepth = 64
 
 var (
-	errSVGUseCycle = errors.New("svg contains a recursive <use> reference")
-	errSVGUseBomb  = fmt.Errorf("svg has too many shapes after <use> expansion (max %d)", maxSVGPaths)
-	errSVGTooDeep  = fmt.Errorf("svg is nested too deeply (max %d levels)", maxSVGDepth)
+	errSVGUseCycle   = errors.New("svg contains a recursive <use> reference")
+	errSVGUseBomb    = fmt.Errorf("svg has too many shapes after <use> expansion (max %d)", maxSVGPaths)
+	errSVGTooDeep    = fmt.Errorf("svg is nested too deeply (max %d levels)", maxSVGDepth)
+	errSVGNestedDefs = errors.New("svg contains nested <defs>")
+	errSVGUseInPaint = errors.New("svg: <use> is not allowed inside gradients, patterns, clip paths or masks")
 )
+
+// svgPaintServers are elements whose children oksvg handles specially; a
+// <use> inside them is expanded outside the definition model.
+var svgPaintServers = map[string]bool{
+	"linearGradient": true, "radialGradient": true, "pattern": true, "clipPath": true, "mask": true,
+}
 
 // svgShapeTags are the elements oksvg turns into a path.
 var svgShapeTags = map[string]bool{
@@ -38,7 +46,11 @@ type svgDefRun struct {
 // the stack (fatal, not recoverable) and nested <use> fan-out grows
 // exponentially before the path limit applies. This pre-scan models oksvg's
 // definition runs, rejects unknown ids and cycles, and computes the expanded
-// shape count with saturating arithmetic. It also limits nesting depth.
+// shape count with saturating arithmetic, counting every <use> of the
+// document regardless of context. Nested <defs> and <use> inside paint
+// servers (gradients, patterns, clip paths, masks) are rejected, because
+// oksvg expands <use> there outside the modelled definition runs. It also
+// limits nesting depth.
 func checkSVGStructure(svg string) error {
 	dec := xml.NewDecoder(strings.NewReader(svg))
 	dec.CharsetReader = charset.NewReaderLabel // same decoding as oksvg
@@ -46,9 +58,10 @@ func checkSVGStructure(svg string) error {
 	var (
 		depth, defsDepth int // defsDepth: depth of the open <defs>, 0 if none
 		inGrad           bool
+		paintDepth       int        // number of open paint-server elements
 		cur              *svgDefRun // current run inside <defs>
 		topShapes        int
-		topUses          []string
+		allUses          []string // every <use> of the document, in any context
 	)
 	closeRun := func() { cur = nil }
 	for {
@@ -71,19 +84,35 @@ func checkSVGStructure(svg string) error {
 			if name == "radialGradient" || name == "linearGradient" {
 				inGrad = true
 			}
-			if name == "defs" && defsDepth == 0 {
+			if name == "defs" {
+				if defsDepth != 0 {
+					// oksvg leaves defs mode at the inner </defs>.
+					return errSVGNestedDefs
+				}
 				defsDepth = depth
 				continue
 			}
-			href := ""
 			id := ""
+			var hrefs []string // all href attributes (href, xlink:href, …)
 			for _, a := range t.Attr {
 				switch a.Name.Local {
 				case "href":
-					href = strings.TrimSpace(a.Value)
+					hrefs = append(hrefs, strings.TrimPrefix(strings.TrimSpace(a.Value), "#"))
 				case "id":
 					id = a.Value
 				}
+			}
+			if name == "use" {
+				if paintDepth > 0 {
+					return errSVGUseInPaint
+				}
+				if len(hrefs) == 0 {
+					hrefs = []string{""}
+				}
+				allUses = append(allUses, hrefs...)
+			}
+			if svgPaintServers[name] {
+				paintDepth++
 			}
 			if defsDepth > 0 && !inGrad {
 				if id != "" || cur == nil {
@@ -93,7 +122,7 @@ func checkSVGStructure(svg string) error {
 					defs[id] = append(defs[id], cur)
 				}
 				if name == "use" {
-					cur.uses = append(cur.uses, strings.TrimPrefix(href, "#"))
+					cur.uses = append(cur.uses, hrefs...)
 				} else if svgShapeTags[name] {
 					cur.shapes++
 				}
@@ -102,14 +131,15 @@ func checkSVGStructure(svg string) error {
 			if defsDepth > 0 {
 				continue // gradient children
 			}
-			if name == "use" {
-				topUses = append(topUses, strings.TrimPrefix(href, "#"))
-			} else if svgShapeTags[name] {
+			if svgShapeTags[name] {
 				topShapes++
 			}
 		case xml.EndElement:
 			if t.Name.Local == "radialGradient" || t.Name.Local == "linearGradient" {
 				inGrad = false
+			}
+			if svgPaintServers[t.Name.Local] && paintDepth > 0 {
+				paintDepth--
 			}
 			if t.Name.Local == "defs" && depth == defsDepth {
 				defsDepth = 0
@@ -118,7 +148,7 @@ func checkSVGStructure(svg string) error {
 			depth--
 		}
 	}
-	if len(topUses) == 0 && !anyUse(defs) {
+	if len(allUses) == 0 {
 		return nil
 	}
 
@@ -175,15 +205,11 @@ func checkSVGStructure(svg string) error {
 			return err
 		}
 	}
-	for _, r := range defs[""] {
-		for _, u := range r.uses {
-			if _, err := cost(u); err != nil {
-				return err
-			}
-		}
-	}
+	// Every <use> counts, whatever its context (definition run, group,
+	// marker, …): this over-estimates nested reuse but cannot be bypassed by
+	// contexts in which oksvg expands a <use> differently than modelled above.
 	total := topShapes
-	for _, u := range topUses {
+	for _, u := range allUses {
 		c, err := cost(u)
 		if err != nil {
 			return err
@@ -194,17 +220,6 @@ func checkSVGStructure(svg string) error {
 		return errSVGUseBomb
 	}
 	return nil
-}
-
-func anyUse(defs map[string][]*svgDefRun) bool {
-	for _, runs := range defs {
-		for _, r := range runs {
-			if len(r.uses) > 0 {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func truncateID(id string) string {
