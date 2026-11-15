@@ -106,6 +106,10 @@ func rasterizeSVGCtx(ctx context.Context, svg string, w, h int, antialias bool) 
 	if strings.TrimSpace(svg) == "" {
 		return nil, errors.New("svg contains no drawable shapes")
 	}
+	// Must run before oksvg: it expands <use> recursively while parsing.
+	if err := checkSVGStructure(svg); err != nil {
+		return nil, err
+	}
 	icon, err := oksvg.ReadIconStream(strings.NewReader(svg), oksvg.StrictErrorMode)
 	if err != nil {
 		return nil, fmt.Errorf("svg parse error: %v", err)
