@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const redSquare = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect x="2" y="2" width="6" height="6" fill="#ff0000"/></svg>`
@@ -130,11 +131,61 @@ func TestSVGToPNG_Tool(t *testing.T) {
 		}
 		return a
 	}
-	requireToolError(t, callTool(t, cs, "svg_to_png", args(map[string]any{"name": "logo.jpg"})), "name must end in .png")
-	requireToolError(t, callTool(t, cs, "svg_to_png", args(map[string]any{"width": 0})), "width and height must be 1-1024")
-	requireToolError(t, callTool(t, cs, "svg_to_png", args(map[string]any{"height": 1025})), "width and height must be 1-1024")
+	// failing calls must not write a file
+	fail := func(m map[string]any, want string) {
+		t.Helper()
+		a := args(m)
+		requireToolError(t, callTool(t, cs, "svg_to_png", a), want)
+		if _, err := os.Stat(filepath.Join(dir, "sbb-105-v1", a["name"].(string))); err == nil {
+			t.Errorf("file %v written despite error %q", a["name"], want)
+		}
+	}
+	fail(map[string]any{"name": "logo.jpg"}, "name must end in .png")
+	fail(map[string]any{"width": 0}, "width and height must be 1-1024")
+	fail(map[string]any{"height": 1025}, "width and height must be 1-1024")
 	big := redSquare + strings.Repeat(" ", maxSVGBytes+1-len(redSquare))
-	requireToolError(t, callTool(t, cs, "svg_to_png", args(map[string]any{"svg": big})), "svg too large (max 256 KiB)")
-	requireToolError(t, callTool(t, cs, "svg_to_png", args(map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"</svg>`})), "svg parse error: ")
-	requireToolError(t, callTool(t, cs, "svg_to_png", args(map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg"><text>a</text></svg>`})), "must not contain text")
+	fail(map[string]any{"svg": big}, "svg too large (max 256 KiB)")
+	fail(map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"</svg>`}, "svg parse error: ")
+	fail(map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg"><text>a</text></svg>`}, "must not contain text")
+	fail(map[string]any{"svg": ""}, "svg contains no drawable shapes")
+	fail(map[string]any{"svg": `<svg/>`}, "svg contains no drawable shapes")
+	fail(map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">` + strings.Repeat(`<rect width="1" height="1"/>`, 100) + `</svg>`, "width": 1024, "height": 1024},
+		"svg too complex for this output size (reduce shapes or size)")
+}
+
+func TestSVGToPNG_NoAntialiasViaTool(t *testing.T) {
+	dir := copyTemplates(t, "sbb-105-v1")
+	cs := newSession(t, dir)
+	circle := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="#ff0000"/></svg>`
+	res := callTool(t, cs, "svg_to_png", map[string]any{"template": "sbb-105-v1", "name": "dot.png", "svg": circle, "width": 20, "height": 20, "antialias": false})
+	requireOK(t, res)
+	f, err := os.Open(filepath.Join(dir, "sbb-105-v1", "dot.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for y := 0; y < 20; y++ {
+		for x := 0; x < 20; x++ {
+			if _, _, _, a := img.At(x, y).RGBA(); a != 0 && a != 0xffff {
+				t.Fatalf("pixel %d,%d has partial alpha", x, y)
+			}
+		}
+	}
+}
+
+func TestSVGToPNG_Timeout(t *testing.T) {
+	old := svgRenderTimeout
+	svgRenderTimeout = time.Nanosecond
+	defer func() { svgRenderTimeout = old }()
+	dir := copyTemplates(t, "sbb-105-v1")
+	cs := newSession(t, dir)
+	res := callTool(t, cs, "svg_to_png", map[string]any{"template": "sbb-105-v1", "name": "t.png", "svg": redSquare, "width": 500, "height": 500})
+	requireToolError(t, res, "svg rendering timed out")
+	if _, err := os.Stat(filepath.Join(dir, "sbb-105-v1", "t.png")); err == nil {
+		t.Error("file written after timeout")
+	}
 }
