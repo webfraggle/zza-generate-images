@@ -955,7 +955,7 @@ GUI und KI können denselben Ordner gleichzeitig nutzen:
 ### Grenzen und Sicherheit
 
 - **Nur 1,05"-Anzeiger:** Canvas 240×240 (zwei Hälften zu 240×120). `write_file` lehnt eine `template.yaml` mit anderem Canvas ab. Von der KI angelegte Templates heißen `…-105-v1`. Die GUI erzwingt das nicht.
-- **Nichts wird gelöscht:** Kein Werkzeug löscht Dateien oder Templates. Überschreiben ist möglich (bei `template.yaml` und `default.json` mit Versionsprüfung).
+- **Nichts wird gelöscht:** Kein Werkzeug löscht Dateien oder Templates. Überschreiben ist möglich. Eine Versionsprüfung (Schutz vor dem Überschreiben deiner Änderungen im Editor) greift nur, wenn die KI beim Schreiben `expected_version` mitgibt — der Leitfaden verlangt das, erzwungen wird es nicht.
 - **Prüfungen beim Schreiben:** `template.yaml` muss sich laden und probeweise rendern lassen, sonst wird nichts geschrieben. Zusätzlich liefert `write_file` Warnungen, die nicht blockieren: leere untere Hälfte, Text kleiner als 10 px, fest eingetragene Uhrzeiten und unbekannte YAML-Schlüssel (meist Tippfehler).
 - **`svg_to_png`:** SVG ohne Text (Schrift nur über Text-Layer), mit Rechenbudget (Größe, Pfadzahl) und einem Zeitlimit von 10 Sekunden je Aufruf.
 - **Größenlimits:** u. a. 256 KiB je Textdatei, 64 Dateien und 30 MiB je Template, Importbilder bis 20 MiB bzw. 8192 Pixel je Seite.

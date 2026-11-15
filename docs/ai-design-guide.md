@@ -56,8 +56,11 @@ einzelner `copy` falsch.
 ### Vollständiges Minimal-Beispiel
 
 Gleis-Feld außen (oben x 0–43, unten x 196–239), Zeit, Ziel, Via und Hinweis im
-Inhaltsfeld, eine Schrift. Das Beispiel rendert so, wie es hier steht (die Schrift
-muss per `add_font` im Template liegen):
+Inhaltsfeld, eine Schrift. Das Beispiel rendert so, wie es hier steht, wenn die
+Schrift vorher mit fester id eingetragen wurde:
+`add_font(template, font: "<key aus list_fonts, z. B. Roboto-Bold>", id: "bold")`.
+Ohne `id` vergibt `add_font` eine eigene (z. B. `roboto-bold`) — `font:` in den
+Text-Layern muss **exakt** der id entsprechen, die `add_font` zurückgibt.
 
 ```yaml
 meta:
@@ -650,7 +653,10 @@ Bei animierten Templates zusätzlich `render_preview` mit `format: "gif"`.
    Dateiname, z. B. `"bold"`) eingrenzen.
 2. `add_font(template, font, id?)` mit dem `key` aus `list_fonts` kopiert die Datei
    ins Template und trägt sie unter `fonts:` ein. Das Ergebnis nennt die `id`, die du
-   in Text-Layern als `font:` verwendest.
+   in Text-Layern als `font:` verwendest — `font:` muss **exakt** dieser id
+   entsprechen. Ohne `id` wird sie aus dem Dateinamen gebildet (`Roboto-Bold.ttf` →
+   `roboto-bold`); für die Beispiele dieses Leitfadens gib `id: "bold"` an, z. B.
+   `add_font(template: "berlin-105-v1", font: "@fonts/Roboto-Bold.ttf", id: "bold")`.
 3. Nur Schriften aus `list_fonts` verwenden — keine Dateinamen erfinden, keine
    Schriften aus dem Netz laden. Passt keine, sag dem Nutzer, dass er `.ttf`/`.otf`-
    Dateien in den `fonts_dir` legen kann, und nimm bis dahin die nächstbeste.

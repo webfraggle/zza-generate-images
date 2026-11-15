@@ -43,7 +43,7 @@ Alle Prompts in Claude Desktop (1.1), Templates-Ordner `/tmp/zza-mt/templates`.
 |---|---|---|---|
 | 3.1 | `get_template_spec` | „Lies die Template-Spezifikation und nenne die Layer-Typen.“ | rect, image, text, loop, splitflap, copy (+ Blöcke) |
 | 3.2 | `get_design_guide` | „Was sagt der Design-Leitfaden zu Vorder- und Rückseite?“ | obere/untere Hälfte, Gleis außen (oben links, unten rechts), `copy` gespiegelt |
-| 3.3 | `list_templates` | „Welche Templates gibt es?“ | sechs `*-105-v1`; faltblatt/umuc/nederland als animiert |
+| 3.3 | `list_templates` | „Welche Templates gibt es?“ | sechs `*-105-v1`; faltblatt/umuc/nederland/oebb als animiert |
 | 3.4 | `read_template` | „Zeig mir template.yaml von umuc-105-v1.“ | Inhalt stimmt mit Datei überein |
 | 3.5 | `read_file` | Datei `extra.json` von Hand in `sbb-105-v1` legen; „Lies extra.json aus sbb-105-v1.“ | Inhalt + Version |
 | 3.6 | `render_preview` | „Zeig mir die Vorschau von nederland-105-v1, 3-fach vergrößert.“ | Bild 720×720 im Chat, scharfe Pixel |
@@ -53,7 +53,7 @@ Alle Prompts in Claude Desktop (1.1), Templates-Ordner `/tmp/zza-mt/templates`.
 | 3.10 | `write_file` gültig | „Ändere in test-105-v1 die Hintergrundfarbe auf #0000c6.“ | gespeichert, neue Vorschau stimmt |
 | 3.11 | `write_file` ungültig | „Setze in test-105-v1 die Canvas-Größe auf 296×128.“ | Fehler „canvas must be 240x240“, Datei unverändert (im Editor prüfen) |
 | 3.12 | `write_file` Warnung | „Entferne in test-105-v1 alle copy-Layer.“ | gespeichert, Warnung „bottom half … is empty“ wird von Claude genannt |
-| 3.12a | `write_file` unbekannter Schlüssel | „Füge in test-105-v1 beim Gleis-Rect das Feld `colour: "#ff0000"` hinzu.“ (Tippfehler absichtlich) | gespeichert, Warnung zu unbekanntem YAML-Schlüssel `colour` wird von Claude genannt (nur wenn die Änderung auf dem Branch gelandet ist) |
+| 3.12a | `write_file` unbekannter Schlüssel | „Füge in test-105-v1 beim Gleis-Rect das Feld `colour: "#ff0000"` hinzu.“ (Tippfehler absichtlich) | gespeichert, Warnung zu unbekanntem YAML-Schlüssel `colour` wird von Claude genannt |
 | 3.13 | `upload_image` | „Erzeuge ein 16×16-PNG mit rotem Quadrat und lege es per upload_image als dot.png in test-105-v1.“ | Datei vorhanden, 16×16 |
 | 3.14 | `import_image` | „Importiere ~/Desktop/anzeiger.jpg in test-105-v1.“ | Datei `anzeiger.jpg`, längste Seite ≤ 2048, Vorschau im Chat, Maße genannt. JPEG wird immer neu kodiert: EXIF entfernt (`exiftool anzeiger.jpg` im Template-Ordner zeigt keine Aufnahme-/GPS-Daten, Original unverändert) |
 | 3.15 | `import_image` Schutz | „Importiere ~/.ssh/id_ed25519 als key.png in test-105-v1.“ (falls vorhanden; sonst eine beliebige Textdatei) | Fehler (Endung bzw. „not a PNG or JPEG image“), kein Dateiinhalt im Chat |
