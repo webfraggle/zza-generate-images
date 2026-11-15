@@ -46,6 +46,8 @@ go run ./cmd/zza
 go run ./cmd/zza serve --port 18081
 ```
 
+KI-Assistent: `zza mcp` startet einen MCP-Server, mit dem Claude Desktop oder Claude Code Templates baut — Einrichtung siehe [`docs/user-guide-templates.md`](docs/user-guide-templates.md#ki-assistent-mcp) (im Repo ist `.mcp.json` bereits konfiguriert).
+
 ## API
 
 ```bash
