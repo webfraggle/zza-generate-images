@@ -146,30 +146,30 @@ layers:
     max_width: 186
     color: "#ffffff"
     fit_items:                     # einzeilig, Stationen, die nicht passen, entfallen
-      split_by: "-"
-      gap: 4
+      split_by: " - "              # Trenner mit Leerzeichen: "Frankfurt-Stadion" bleibt ganz
+      gap: 6
 
-  - type: rect
+  - type: rect                     # Hinweis-Band, Platz für zwei Zeilen
     if: "not(isEmpty(zug1.hinweis))"
     x: 44
-    y: 96
+    y: 90
     width: 196
-    height: 20
+    height: 30
     color: "#ff0000"
 
   - type: text
     if: "not(isEmpty(zug1.hinweis))"
     value: "{{zug1.hinweis}}"
     x: 50
-    y: 99
+    y: 92
     font: bold
     size: 12
-    scale_x: 0.8
-    max_width: 186
+    scale_x: 0.7                   # gestaucht, damit lange Hinweise in 2 Zeilen passen
+    width: 186                     # Box: Umbruch auf 186 px …
+    height: 26                     # … und vertikal mittig im Band
+    valign: middle
+    line_height: 0.9
     color: "#ffffff"
-    fit_items:                     # Band hat nur eine Zeile: Wörter, die nicht passen, entfallen
-      split_by: " "
-      gap: 3
 
   # ---------- Untere Hälfte = Seite B (y 120–239), gespiegelt ----------
   - type: rect                     # Hintergrund für Lücken (hier lückenlos, schadet nie)
@@ -230,39 +230,11 @@ und wird nicht kopiert. Am Ende zwei `copy`-Layer:
 Die Uhr (x 0–76) landet bei x 162–238, die Liste (x 120–239) bei x 0–119. Da die
 Zeiger vor den `copy`-Layern gezeichnet werden, laufen sie auf beiden Seiten.
 
-**faltblatt-105-v1** — erst die ganze obere Hälfte kopieren, dann zwei `copy` mit
-vertauschten Blöcken darüber:
-
-```yaml
-- type: copy                 # 1. ganze obere Hälfte als Grundlage
-  src_x: 0
-  src_y: 0
-  src_width: 240
-  src_height: 120
-  x: 0
-  y: 120
-
-- type: copy                 # 2. Gleis-Schild (x 3–51) nach rechts außen
-  src_x: 3
-  src_y: 10
-  src_width: 49
-  src_height: 120
-  x: 186
-  y: 130
-
-- type: copy                 # 3. Klappen (x 52–234) nach links
-  src_x: 52
-  src_y: 10
-  src_width: 183
-  src_height: 106
-  x: 3
-  y: 130
-```
-
-Der erste `copy` liefert Rahmen und Hintergrund an allen Stellen, die die beiden
-Block-Kopien nicht überdecken. Diese Variante ist nützlich, wenn der Hintergrund
-(hier `bg.png`, 240×120) Ränder hat, die in der unteren Hälfte an derselben Stelle
-stehen sollen.
+**faltblatt-105-v1** — erst kopiert ein `copy` die ganze obere Hälfte (x 0–239,
+y 0–119) nach y 120; er liefert Rahmen und Hintergrund überall dort, wo die
+Block-Kopien nicht hinkommen. Darüber setzen zwei `copy` die vertauschten Blöcke:
+das Gleis-Schild (x 3–51, y 10–119) nach rechts außen auf x 186, y 130, und die
+Klappen (x 52–234, y 10–115) nach links auf x 3, y 130.
 
 **nederland-105-v1** — oben Gleis-Schild links, Tafel in der Mitte, Uhr rechts; unten
 drei `copy`: Gleis → x 205, Uhr → x 0, Tafel → x 59. Zusätzlich der
@@ -290,23 +262,16 @@ End-`copy`-Layern überschrieben.
   y: 0
 ```
 
-**rhb-105-v1** (symmetrisch, ohne Rand-Element) — ein einziger `copy` genügt:
-
-```yaml
-- type: copy
-  src_x: 0
-  src_y: 0
-  src_width: 240
-  src_height: 120
-  x: 0
-  y: 120
-```
+**rhb-105-v1** (symmetrisch, ohne Rand-Element) — ein einziger `copy` der ganzen
+oberen Hälfte nach y 120 genügt.
 
 ### Regeln für `copy`
 
-- `copy` steht **am Ende** der Layer-Liste. Er kopiert, was zu diesem Zeitpunkt auf
-  dem Canvas steht — alles davor, auch animierte Zeiger und Klappen in jedem Frame.
-  Was nach dem `copy` gezeichnet wird, erscheint nur einmal.
+- Die Spiegel-`copy`-Layer für die untere Hälfte stehen **am Ende** der Layer-Liste.
+  Ein `copy` kopiert, was zu diesem Zeitpunkt auf dem Canvas steht — alles davor,
+  auch animierte Zeiger und Klappen in jedem Frame. Was danach gezeichnet wird,
+  erscheint nur einmal. Einzige Ausnahme ist der nederland-Trick (Parken und
+  Zurückkopieren), dessen zwei `copy` mitten in der Liste stehen.
 - Quell- und Zielblöcke dürfen sich nicht überlappen (Quelle in y 0–119, Ziel in
   y 120–239). Mehrere Zielblöcke dürfen sich ebenfalls nicht gegenseitig überdecken,
   außer bewusst wie bei faltblatt (erst ganze Hälfte, dann Blöcke darüber).
@@ -315,6 +280,10 @@ End-`copy`-Layern überschrieben.
   Sonst bleiben sie transparent.
 - Prüfe nach dem Spiegeln mit `render_preview`: Steht das Gleis oben links **und**
   unten rechts? Ist jeder Block vollständig (nichts abgeschnitten, nichts doppelt)?
+- Tippfehler sind still: ein falsch geschriebener Schlüssel (`src_widht`, `iff`)
+  ist für den Renderer kein Fehler, der Wert wird einfach ignoriert. `write_file`
+  meldet unbekannte Schlüssel als Warnung mit Zeilennummer. Wirkt eine Änderung im
+  `render_preview` nicht, prüfe zuerst die Schreibweise gegen `get_template_spec`.
 
 ## 3. Anmutung
 
@@ -359,19 +328,26 @@ Abschnitt 11) statt aus dieser Tabelle.
 | Listenzeilen (3 Züge) | 12 px | umuc |
 | Kopf- / Kleintext | 10 px | umuc „Min.", Kopfzeile |
 | Gleisnummer groß | 17–30 px (faltblatt 58.67) | umuc 17, nederland 21 |
+| LED-Optik (rhb) | LLPIXEL3 40.89–58.67 mit `scale_x: 0.5`, 04B_03 17.78 | rhb |
 
 - **Minimum 10 px.** Kleinere Schrift ist auf dem Display nicht lesbar; `write_file`
   warnt bei `size` < 10.
+- Pixel-Fonts haben eine andere Größenskala. Die Zeilenhöhe misst du per
+  `render_preview`, die `size`-Regel gilt hier nicht.
 - Fette Grotesk (Roboto Bold, Nimbus Sans Bold) für Ziel, Zeit, Gleis; Regular oder
   Condensed (Roboto Condensed, Nimbus Sans Regular) für Listen und Via.
 - LED-/Punktmatrix-Optik: Pixel-Fonts wie `LLPIXEL3.ttf` mit `scale_x: 0.5`, für
   Kleintext `04B_03__.TTF` (rhb).
 - Lange Texte, in dieser Reihenfolge:
-  1. `max_width` setzen — Text bricht um (rechne die Zeilen ein);
+  1. `max_width` (oder `width`) setzen — Text bricht um; plane die zweite Zeile ein
+     (Hinweis-Band im Minimal-Beispiel: 30 px hoch für zwei Zeilen);
   2. `scale_x` 0.5–0.9 zum Stauchen (0.8 ist kaum sichtbar, 0.5 ist LED-Optik);
-  3. `fit_items` für Via-Listen (`split_by: "-"`): einzeilig, Stationen, die nicht
-     passen, entfallen. Für einzeilige Bänder (Hinweis) `split_by: " "`: überzählige
-     Wörter entfallen, statt dass eine zweite Zeile aus dem Band läuft.
+  3. `fit_items` für Via-Listen mit `split_by: " - "` (der Renderer trimmt die Teile):
+     einzeilig, Stationen, die nicht passen, entfallen. Die Bestands-Templates nutzen
+     `split_by: "-"` und zerlegen deshalb Namen mit Bindestrich („Frankfurt-Stadion"
+     → „Frankfurt" „Stadion") — übernimm das nicht.
+  4. Nur als letztes Mittel `fit_items` mit `split_by: " "` für Fließtext (Hinweis):
+     überzählige Wörter fallen dann **ersatzlos weg**, der Satz wird abgeschnitten.
 - Text darf nie über das Feld oder die Seitenkante hinauslaufen. `max_width` =
   Feldbreite − linker Textabstand − rechter Rand.
 
@@ -380,7 +356,7 @@ Abschnitt 11) statt aus dieser Tabelle.
 - Außenrand 2–5 px: Kein Text näher als 2 px an der Kante einer Seite.
 - Textanfang ≥ 3 px vom Feldrand (im Beispiel 6 px hinter dem Gleis-Feld).
 - Zeilenraster 20–26 px. umuc: Listenzeilen bei y 37 / 63 / 89 (26 px Abstand).
-- Fußband 16 px hoch (nederland: y 95–111, `rect` + weiße 12-px-Schrift).
+- Fußband 16 px hoch (nederland: y 95–110, `rect` + weiße 12-px-Schrift).
 - Rand-Block (Gleis, Uhr) 35–77 px breit: nederland 35 px, faltblatt 49 px,
   umuc 77 px, Minimal-Beispiel 44 px.
 - Rechne Blockgrenzen so, dass die `copy`-Layer glatt aufgehen
@@ -479,6 +455,11 @@ Regeln:
   (`rect`, `circle`, `path`, `polygon`), **kein Text** (Text gehört in einen
   Text-Layer), keine eingebetteten Bilder, keine `<style>`-Blöcke, keine externen
   Verweise. `antialias: false` für harte Kanten (Pixel-/Punktmatrix-Optik).
+  `width`/`height` 1–1024 px; die `viewBox` wird auf diese Größe gestreckt.
+  Grenzen: höchstens 2000 Formen und ein Rechenbudget (Formen × Breite × Höhe ≤ 2^26)
+  — bei „svg too complex" Formen zusammenfassen oder kleiner rendern. Ein SVG ohne
+  zeichenbare Form wird abgelehnt. Der Dateiname kann bereinigt werden: verwende im
+  `image`-Layer den `name` aus dem Ergebnis.
 - Erzeuge PNGs in **Zielgröße** (ein Logo 20×14 px als `width: 20, height: 14`),
   nicht groß und dann skaliert.
 - Fotos verarbeitest du nur über die Foto-Werkzeuge (Abschnitt 11).
@@ -501,7 +482,10 @@ Regeln:
    dann `render_preview` und das Bild mit der Vorlage vergleichen. Lehnt `write_file`
    ab, wurde nichts gespeichert — Fehlertext lesen, korrigieren, erneut schreiben.
    Meldet es `conflict`, hat der Nutzer im Editor geändert: neu lesen, Änderung neu
-   anwenden.
+   anwenden. Achtung, Tippfehler sind still: unbekannte YAML-Schlüssel erzeugen im
+   Renderer keinen Fehler; `write_file` meldet sie nur als Warnung
+   (`line 42: unknown key "src_widht"`). Wirkt eine Änderung im `render_preview`
+   nicht, prüfe zuerst die Schreibweise gegen `get_template_spec`.
 6. **Untere Hälfte gespiegelt** mit `copy`-Layern (Abschnitt 2), dann `render_preview`.
 7. `default.json` mit realistischen Werten schreiben; die vier Testdatensätze
    (Abschnitt 9) durchspielen und das Layout nachbessern, bis nichts überläuft.
@@ -511,54 +495,16 @@ Regeln:
 
 ## 9. Testdatensätze
 
-Pflicht vor „fertig": `render_preview` mit jedem der vier Datensätze, jeweils als
-`data`-Parameter (bei (a) genügt der Aufruf ohne `data`, wenn `default.json`
-vollständig ist). Prüfe in jedem Bild beide Hälften: kein Text über Feld- oder
-Seitenkante, nichts überdeckt, leere Felder hinterlassen keine Reste (leere Bänder,
-verwaiste „+'"-Zeichen).
+Pflicht vor „fertig": `render_preview` mit jedem der vier Datensätze. Prüfe in jedem
+Bild beide Hälften: kein Text über Feld- oder Seitenkante, nichts überdeckt, leere
+Felder hinterlassen keine Reste (leere Bänder, verwaiste „+'"-Zeichen).
 
-**(a) Standarddaten** (Inhalt des Starter-`default.json`):
+**(a) Standarddaten** — `render_preview` **ohne** `data`: es gilt das `default.json`
+des Templates. `create_template` legt es mit allen Feldern an (dieselben Felder wie
+in (b)–(d)); ersetze die Werte durch realistische Daten passend zum Vorbild, lösche
+keine Felder.
 
-```json
-{
-    "folgezuege": "Folgezüge",
-    "gleis": 6,
-    "abschnitt": "A-F",
-    "zug1": {
-        "vonnach": "Sennhof-Kyburg",
-        "nr": "IC23",
-        "zeit": "15:54",
-        "via": "Othmarsingen - Mägenwil - Mellingen - Zürich HB - Winterthur",
-        "abw": 10,
-        "hinweis": "Abweichende Wagenreihung",
-        "fusszeile": "",
-        "abschnitte": "",
-        "reihung": ""
-    },
-    "zug2": {
-        "vonnach": "",
-        "nr": "",
-        "zeit": "",
-        "via": "",
-        "abw": "",
-        "hinweis": "",
-        "fusszeile": "",
-        "abschnitte": "",
-        "reihung": ""
-    },
-    "zug3": {
-        "vonnach": "",
-        "nr": "",
-        "zeit": "",
-        "via": "",
-        "abw": "",
-        "hinweis": "",
-        "fusszeile": "",
-        "abschnitte": "",
-        "reihung": ""
-    }
-}
-```
+(b)–(d) übergibst du jeweils vollständig als `data`-Parameter:
 
 **(b) Lange Texte** — langes Ziel, lange Via, langer Hinweis, zweistelliges Gleis,
 volle Folgezüge:
@@ -572,9 +518,9 @@ volle Folgezüge:
         "vonnach": "Frankfurt (Main) Flughafen Fernbahnhof",
         "nr": "ICE 1234",
         "zeit": "23:59",
-        "via": "Mainz Hbf - Rüsselsheim - Kelsterbach - Frankfurt-Stadion - Frankfurt (Main) Hbf - Offenbach (Main) Hbf",
+        "via": "Frankfurt-Stadion - Kelsterbach - Rüsselsheim - Bischofsheim - Mainz-Kastel - Wiesbaden Hbf",
         "abw": 0,
-        "hinweis": "Bitte beachten Sie die geänderte Wagenreihung",
+        "hinweis": "Bitte beachten Sie die geänderte Wagenreihung: Wagen 1 bis 5 halten in Abschnitt A bis C",
         "fusszeile": "",
         "abschnitte": "",
         "reihung": ""
@@ -697,7 +643,9 @@ Bei animierten Templates zusätzlich `render_preview` mit `format: "gif"`.
 ## 10. Fonts
 
 1. `list_fonts(query?)` zeigt alle verfügbaren Schriften: aus den vorhandenen
-   Templates und aus dem Fonts-Ordner (`fonts_dir` im Ergebnis).
+   Templates und aus dem Fonts-Ordner (`fonts_dir` im Ergebnis). Höchstens 200
+   Einträge; ist `truncated: true`, mit `query` (Teil von Familie, Stil oder
+   Dateiname, z. B. `"bold"`) eingrenzen.
 2. `add_font(template, font, id?)` mit dem `key` aus `list_fonts` kopiert die Datei
    ins Template und trägt sie unter `fonts:` ein. Das Ergebnis nennt die `id`, die du
    in Text-Layern als `font:` verwendest.
@@ -717,21 +665,27 @@ Der Nutzer hat ein Foto eines echten Anzeigers und möchte es nachbauen. Reihenf
 
 1. **Foto holen**: `import_image(template, path, name?)` mit dem absoluten Pfad, den
    der Nutzer nennt (frag danach; Chat-Anhänge nicht als Base64 hochladen). Das
-   Ergebnis nennt die gespeicherte Größe; alle Koordinaten der folgenden Werkzeuge
-   beziehen sich darauf.
+   Ergebnis nennt die gespeicherte Größe (längste Seite höchstens 2048 px, größere
+   Fotos werden verkleinert, JPEG wird immer neu kodiert); alle Koordinaten der
+   folgenden Werkzeuge beziehen sich auf diese Größe, nicht auf das Original.
 2. **Entzerren**: `perspective_correct(template, src, dst, corners, width, height)`.
-   `corners` sind die vier Ecken **einer** Displayseite im Foto, in Quellpixeln, in
-   der Reihenfolge **oben-links, oben-rechts, unten-rechts, unten-links**, z. B.
+   `corners` sind die vier Ecken **einer** Displayseite im Foto, in Quellpixeln,
+   im Uhrzeigersinn:
+   **oben-links, oben-rechts, unten-rechts, unten-links**, z. B.
    `[{"x":412,"y":288},{"x":1630,"y":301},{"x":1622,"y":905},{"x":405,"y":890}]`.
    Ziel `width: 240, height: 120` (eine Seite in Displaygröße; hat die Tafel auf dem
    Foto ein anderes Seitenverhältnis, nimm dieses und skaliere später). Ein schief
    oder gedreht aufgenommenes Foto wird dabei gleich mit gerade gezogen.
 3. **Farben messen**: `sample_colors(template, src, points, radius)` auf dem
    entzerrten Bild, `radius: 2`, ein Punkt mitten in jede Farbfläche. Übernimm die
-   Hex-Werte, runde nicht auf „schöne" Farben.
+   Hex-Werte, runde nicht auf „schöne" Farben. Jeder Wert hat auch `alpha`: Werte
+   unter 255 liegen am Rand oder außerhalb des Fotos — Punkt weiter nach innen setzen.
 4. **Logos**: mit `crop_image(template, src, dst, x, y, width, height)` ausschneiden
-   (bei Bedarf `color_to_alpha` für transparenten Hintergrund, `quantize_colors` für
-   saubere Flächen, `resize_image` mit `mode: "nearest"` für Pixel-Optik) — oder,
+   (bei Bedarf `color_to_alpha(template, src, dst, color, tolerance)` für
+   transparenten Hintergrund, `quantize_colors(template, src, dst, colors)` für
+   saubere Flächen — beide verkleinern auf höchstens 2048 px —,
+   `resize_image(template, src, dst, width, height, mode: "nearest")` für
+   Pixel-Optik) — oder,
    besser bei einfachen Formen, als SVG mit `svg_to_png` nachbauen.
 5. **Texte** als Text-Layer mit Platzhaltern nachbauen: Positionen und Größen aus dem
    entzerrten Bild abmessen (240×120 = Displaypixel), Schrift per `list_fonts`

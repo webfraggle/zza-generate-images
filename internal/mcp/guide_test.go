@@ -40,6 +40,9 @@ func TestDesignGuide_MandatoryContent(t *testing.T) {
 		"Wer vor Seite A steht, sieht das Gleis links",
 		// corner order for perspective_correct
 		"oben-links, oben-rechts, unten-rechts, unten-links",
+		// review round 1
+		"Pixel-Fonts haben eine andere Größenskala", `split_by: " - "`,
+		"unknown key", "Die Spiegel-`copy`-Layer für die untere Hälfte stehen **am Ende**",
 	} {
 		if !strings.Contains(g, s) {
 			t.Errorf("guide lacks %q", s)
@@ -109,10 +112,25 @@ func guideTestData(t *testing.T) []map[string]any {
 	return sets
 }
 
+// starterData returns internal/editor/starter/default.json — data set (a) of
+// the guide, which the guide refers to instead of quoting it.
+func starterData(t *testing.T) map[string]any {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "editor", "starter", "default.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
 func TestDesignGuide_JSONTestDataComplete(t *testing.T) {
 	sets := guideTestData(t)
-	if len(sets) < 4 {
-		t.Fatalf("guide has %d complete test data sets, want 4", len(sets))
+	if len(sets) < 3 { // (b)–(d); (a) is the template's default.json
+		t.Fatalf("guide has %d complete test data sets, want 3", len(sets))
 	}
 	keys := starterKeys(t)
 	for i, m := range sets {
@@ -172,7 +190,7 @@ func TestDesignGuide_YAMLExamplesParse(t *testing.T) {
 	if full == 0 {
 		t.Fatal("guide has no complete yaml example starting with meta:")
 	}
-	if fragments < 4 { // umuc, faltblatt, nederland, rhb copy layers at least
+	if fragments < 4 { // umuc and nederland copy layers, placeholder examples
 		t.Errorf("guide has %d yaml layer fragments, want at least 4", fragments)
 	}
 }
@@ -181,7 +199,7 @@ func TestDesignGuide_YAMLExamplesParse(t *testing.T) {
 // four test data sets of the guide: the examples must really work.
 func TestDesignGuide_YAMLExamplesRender(t *testing.T) {
 	dir := fontDir(t)
-	sets := guideTestData(t)
+	sets := append([]map[string]any{starterData(t)}, guideTestData(t)...)
 	for i, b := range codeBlocks(t, "yaml") {
 		if !strings.HasPrefix(b, "meta:") {
 			continue
