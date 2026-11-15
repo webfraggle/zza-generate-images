@@ -484,7 +484,8 @@ Regeln:
    Meldet es `conflict`, hat der Nutzer im Editor geändert: neu lesen, Änderung neu
    anwenden. Achtung, Tippfehler sind still: unbekannte YAML-Schlüssel erzeugen im
    Renderer keinen Fehler; `write_file` meldet sie nur als Warnung
-   (`line 42: unknown key "src_widht"`). Wirkt eine Änderung im `render_preview`
+   (`line 42: unknown key "src_widht"`), bei abgelehnter Datei zusätzlich im
+   Fehlertext. Wirkt eine Änderung im `render_preview`
    nicht, prüfe zuerst die Schreibweise gegen `get_template_spec`.
 6. **Untere Hälfte gespiegelt** mit `copy`-Layern (Abschnitt 2), dann `render_preview`.
 7. `default.json` mit realistischen Werten schreiben; die vier Testdatensätze

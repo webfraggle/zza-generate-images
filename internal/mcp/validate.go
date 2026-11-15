@@ -18,6 +18,19 @@ var clockRe = regexp.MustCompile(`^\d{1,2}:\d{2}$`)
 // YAML/semantic parse, canvas 240x240 and a probe render with default.json.
 // It returns design warnings (non-blocking) or the reason for rejection.
 func validateTemplateYAML(e *env, template string, content []byte) (warnings []string, err error) {
+	unknown := unknownKeyWarnings(content)
+	warnings, err = validateTemplateContent(e, template, content)
+	if err != nil {
+		if len(unknown) > 0 {
+			// A typo is often the cause of the rejection (src_widht → src_width 0).
+			err = fmt.Errorf("%w (unknown keys, maybe typos: %s)", err, strings.Join(unknown, "; "))
+		}
+		return nil, err
+	}
+	return append(unknown, warnings...), nil
+}
+
+func validateTemplateContent(e *env, template string, content []byte) (warnings []string, err error) {
 	dir := filepath.Join(e.templatesDir, template)
 	tmpl, err := renderer.ParseTemplate(content, dir)
 	if err != nil {
