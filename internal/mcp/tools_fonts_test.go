@@ -61,8 +61,12 @@ func TestDefaultFontID(t *testing.T) {
 func TestListFonts(t *testing.T) {
 	tdir, fdir := fontFixture(t)
 	out := listFontsCall(t, tdir, nil)
-	if out.FontsDir != fdir || !out.FontsDirExists {
-		t.Fatalf("fonts_dir = %q exists=%v, want %q true", out.FontsDir, out.FontsDirExists, fdir)
+	// No absolute path (user name, folder layout) in the regular result.
+	if want := filepath.Base(fdir) + "/"; out.FontsDir != want || !out.FontsDirExists {
+		t.Fatalf("fonts_dir = %q exists=%v, want %q true", out.FontsDir, out.FontsDirExists, want)
+	}
+	if strings.Contains(out.Note, fdir) {
+		t.Errorf("note leaks the absolute fonts path although fonts exist: %q", out.Note)
 	}
 	if len(out.Fonts) == 0 || out.Fonts[0].Key != "@fonts/LLPIXEL3.ttf" || out.Fonts[0].Source != "fonts-dir" {
 		t.Fatalf("first entry = %+v", out.Fonts)
@@ -118,7 +122,8 @@ func TestListFonts_NoFontsDir(t *testing.T) {
 	if out.FontsDirExists {
 		t.Error("fonts_dir_exists should be false")
 	}
-	if !strings.Contains(resultText(res), "Put .ttf/.otf files into") {
+	// Folder missing: the note names the full path so the user knows where.
+	if !strings.Contains(out.Note, "Put .ttf/.otf files into "+fdir) {
 		t.Errorf("missing hint: %s", resultText(res))
 	}
 }

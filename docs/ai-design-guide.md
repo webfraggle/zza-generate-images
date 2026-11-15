@@ -644,7 +644,8 @@ Bei animierten Templates zusätzlich `render_preview` mit `format: "gif"`.
 ## 10. Fonts
 
 1. `list_fonts(query?)` zeigt alle verfügbaren Schriften: aus den vorhandenen
-   Templates und aus dem Fonts-Ordner (`fonts_dir` im Ergebnis). Höchstens 200
+   Templates und aus dem Fonts-Ordner (`fonts_dir` im Ergebnis, ein Ordner neben
+   dem Templates-Ordner; fehlt er, nennt `note` den vollen Pfad). Höchstens 200
    Einträge; ist `truncated: true`, mit `query` (Teil von Familie, Stil oder
    Dateiname, z. B. `"bold"`) eingrenzen.
 2. `add_font(template, font, id?)` mit dem `key` aus `list_fonts` kopiert die Datei

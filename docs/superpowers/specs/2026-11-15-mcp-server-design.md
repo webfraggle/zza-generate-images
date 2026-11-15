@@ -332,14 +332,19 @@ Schlüssel einer Schrift (`key`): Fonts-Ordner `@fonts/<datei>`, Template
 `<template>/<datei>`. `@` ist in Template-Namen unzulässig → eindeutig.
 
 **`list_fonts(query?)`**
-- Ergebnis JSON `{fonts_dir, fonts_dir_exists, fonts: [{key, file, family, style, source, found_in, bytes, license?}], skipped: [{key, reason}]}`.
+- Ergebnis JSON `{fonts_dir, fonts_dir_exists, fonts: [{key, file, family, style, source, found_in, bytes, license?}], skipped: [{key, reason}], truncated?, note?}`.
+- `fonts_dir` ist nur der Ordnername mit `/` (Standard `fonts/`, liegt neben dem
+  Templates-Ordner) — kein absoluter Pfad (Nutzername, Ordnerstruktur).
 - `family`/`style` aus der Name-Tabelle (`sfnt` NameID 1/2, Typographic 16/17 bevorzugt),
   `license` aus NameID 13 (≤ 200 Zeichen), `source` = `fonts-dir` | `template`.
 - `query`: Teilstring, case-insensitive, über `family`, `style`, `file`.
 - Unlesbare/zu große Dateien landen in `skipped`. Sortierung: `fonts-dir` zuerst,
   dann `family`, `style`. ≤ 200 Einträge.
-- Ist der Fonts-Ordner leer oder fehlt er, enthält das Ergebnis den Hinweis:
-  `Put .ttf/.otf files into <fonts_dir> to make more fonts available.`
+- Ist der Fonts-Ordner leer oder fehlt er, enthält `note` den Hinweis mit dem
+  **absoluten** Pfad (der Nutzer muss wissen, wohin):
+  `Put .ttf/.otf files into <absoluter Pfad> to make more fonts available.`
+  Bei mehr als 200 Treffern `truncated: true` und in `note`
+  `Results are limited to 200 entries; narrow the list with query.`
 
 **`add_font(template, font, id?)`**
 - `font` = `key` aus `list_fonts`. Quelle wird erneut validiert (Schlüsselform,

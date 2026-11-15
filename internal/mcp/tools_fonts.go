@@ -264,7 +264,9 @@ func scanFonts(e *env) (fonts []fontEntry, skipped []skippedFont) {
 }
 
 func (e *env) listFonts(in listFontsIn) listFontsOut {
-	out := listFontsOut{FontsDir: e.fontsDir}
+	// Only the folder name: the absolute path (user name, folder layout) is
+	// named in the note when the user has to put fonts there.
+	out := listFontsOut{FontsDir: filepath.Base(e.fontsDir) + "/"}
 	if fi, err := os.Stat(e.fontsDir); err == nil && fi.IsDir() {
 		out.FontsDirExists = true
 	}
