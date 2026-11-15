@@ -110,6 +110,24 @@ func TestAtomicWrite_RejectsBadName(t *testing.T) {
 	}
 }
 
+// InitTemplate on an existing (foreign) template whose template.yaml is a
+// dangling symlink must not create the symlink's target.
+func TestInitTemplate_DanglingSymlinkNotFollowed(t *testing.T) {
+	dir := t.TempDir()
+	tmpl := filepath.Join(dir, "x-105-v1")
+	if err := os.MkdirAll(tmpl, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "created-outside")
+	if err := os.Symlink(outside, filepath.Join(tmpl, "template.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	_ = InitTemplate(dir, "x-105-v1")
+	if _, err := os.Lstat(outside); err == nil {
+		t.Fatal("InitTemplate followed a dangling symlink and wrote outside the template")
+	}
+}
+
 func assertNoTempLeft(t *testing.T, dir string) {
 	t.Helper()
 	entries, _ := os.ReadDir(dir)

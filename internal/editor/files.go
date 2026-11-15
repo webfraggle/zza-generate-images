@@ -139,19 +139,31 @@ func InitTemplate(templatesDir, templateName string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("editor: creating template dir: %w", err)
 	}
-	yamlPath := filepath.Join(dir, "template.yaml")
-	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
-		if err := os.WriteFile(yamlPath, starterYAML, 0o644); err != nil {
-			return fmt.Errorf("editor: writing starter template.yaml: %w", err)
-		}
+	if err := createIfMissing(filepath.Join(dir, "template.yaml"), starterYAML); err != nil {
+		return fmt.Errorf("editor: writing starter template.yaml: %w", err)
 	}
-	jsonPath := filepath.Join(dir, "default.json")
-	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
-		if err := os.WriteFile(jsonPath, starterDefaultJSON, 0o644); err != nil {
-			return fmt.Errorf("editor: writing starter default.json: %w", err)
-		}
+	if err := createIfMissing(filepath.Join(dir, "default.json"), starterDefaultJSON); err != nil {
+		return fmt.Errorf("editor: writing starter default.json: %w", err)
 	}
 	return nil
+}
+
+// createIfMissing creates p with data unless something (file, directory or
+// symlink — even a dangling one) already exists at p. O_EXCL never follows
+// a symlink.
+func createIfMissing(p string, data []byte) error {
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, os.ErrExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // ListFiles returns all files in the template directory.
