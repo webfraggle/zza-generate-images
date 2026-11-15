@@ -393,9 +393,9 @@ Regeln:
 - type: rect
   if: "not(isEmpty(zug1.hinweis))"
   x: 44
-  y: 96
+  y: 90
   width: 196
-  height: 20
+  height: 30
   color: "#ff0000"
 ```
 
