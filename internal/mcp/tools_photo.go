@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,11 +21,12 @@ import (
 func init() { registerToolGroup("photo", registerPhotoTools) }
 
 type photoOut struct {
-	Name    string   `json:"name"`
-	Width   int      `json:"width"`
-	Height  int      `json:"height"`
-	Palette []string `json:"palette,omitempty"`
-	Note    string   `json:"note,omitempty"`
+	Name     string   `json:"name"`
+	Width    int      `json:"width"`
+	Height   int      `json:"height"`
+	Palette  []string `json:"palette,omitempty"`
+	Note     string   `json:"note,omitempty"`
+	Replaced bool     `json:"replaced"`
 }
 
 type photoBase struct {
@@ -241,79 +241,69 @@ func (e *env) loadPhoto(template, src string) (*image.NRGBA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid file name %q (allowed: letters, digits, . _ -)", src)
 	}
-	data, err := readRegularFile(p, maxToolInputBytes)
-	switch {
-	case errors.Is(err, errNotRegular):
-		return nil, errNotRegular
-	case errors.Is(err, errFileTooLarge):
-		return nil, fmt.Errorf("image file too large (max %d MiB)", maxToolInputBytes>>20)
-	case err != nil:
-		return nil, fmt.Errorf("cannot read %s", src)
+	img, _, err := loadImageFile(p, maxToolInputBytes, maxToolInputSide, maxToolInputPixels)
+	if errors.Is(err, errReadFailed) {
+		return nil, fmt.Errorf("cannot read %s", src) // without the absolute path
 	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
-		return nil, errNotImage
-	}
-	if cfg.Width*cfg.Height > maxToolInputPixels {
-		return nil, fmt.Errorf("image too large: %dx%d (max %d megapixels)", cfg.Width, cfg.Height, maxToolInputPixels/1_000_000)
-	}
-	img, _, err := decodeImage(data, maxToolInputSide, 0)
 	if err != nil {
 		return nil, err
 	}
 	return toNRGBA(img), nil
 }
 
-// photoIO validates the common parameters, loads src and returns a write
-// function that stores the result as dst and builds the tool result.
-func photoIO(e *env, template, src, dst string) (img *image.NRGBA, write func(*image.NRGBA, photoOut) (*sdk.CallToolResult, photoOut, error), err error) {
+// checkPhotoNames validates template, src and dst of a photo tool.
+func (e *env) checkPhotoNames(template, src, dst string) error {
 	if _, err := e.templateDir(template); err != nil {
-		return nil, nil, err
+		return err
 	}
-	errSame := fmt.Errorf("dst must differ from src — originals are kept")
 	if strings.EqualFold(dst, src) {
-		return nil, nil, errSame
+		return errPhotoSame
 	}
 	if strings.ToLower(filepath.Ext(dst)) != ".png" {
-		return nil, nil, fmt.Errorf("dst must end in .png")
+		return fmt.Errorf("dst must end in .png")
 	}
-	// A different name can still be the same file (hard link, case-insensitive
-	// file system with normalisation differences).
+	return nil
+}
+
+var errPhotoSame = errors.New("dst must differ from src — originals are kept")
+
+// writePhoto stores out as dst and builds the tool result. The caller holds
+// writeMu. A different name can still be the same file (hard link,
+// case-insensitive file system with normalisation differences), so this is
+// checked here, under the lock, right before writing.
+func (e *env) writePhoto(template, src, dst string, out *image.NRGBA, extra photoOut) (*sdk.CallToolResult, photoOut, error) {
+	var zero photoOut
 	if sp, err := editor.SafeFilePath(e.templatesDir, template, src); err == nil {
 		if dp, err := editor.SafeFilePath(e.templatesDir, template, dst); err == nil {
 			if sfi, err := os.Stat(sp); err == nil {
 				if dfi, err := os.Stat(dp); err == nil && os.SameFile(sfi, dfi) {
-					return nil, nil, errSame
+					return nil, zero, errPhotoSame
 				}
 			}
 		}
 	}
-	img, err = e.loadPhoto(template, src)
+	replaced, err := writePNGFile(e, template, dst, out)
 	if err != nil {
-		return nil, nil, err
+		return nil, zero, err
 	}
-	write = func(out *image.NRGBA, extra photoOut) (*sdk.CallToolResult, photoOut, error) {
-		var zero photoOut
-		if err := writePNGFile(e, template, dst, out); err != nil {
-			return nil, zero, err
-		}
-		po := extra
-		po.Name, po.Width, po.Height = dst, out.Bounds().Dx(), out.Bounds().Dy()
-		res, err := jsonImageResult(po, []image.Image{fitWithin(out, maxResultImageSide)})
-		if err != nil {
-			return nil, zero, err
-		}
-		return res, po, nil
+	po := extra
+	po.Name, po.Width, po.Height, po.Replaced = dst, out.Bounds().Dx(), out.Bounds().Dy(), replaced
+	res, err := jsonImageResult(po, []image.Image{fitWithin(out, maxResultImageSide)})
+	if err != nil {
+		return nil, zero, err
 	}
-	return img, write, nil
+	return res, po, nil
 }
 
-// photoTool runs a transformation under the write lock and stores its result.
+// photoTool loads src and runs the transformation without holding the write
+// lock; only the final write (capacity check, same-file check, rename) runs
+// under writeMu, as in svg_to_png.
 func (e *env) photoTool(b photoBase, transform func(*image.NRGBA) (*image.NRGBA, photoOut, error)) (*sdk.CallToolResult, photoOut, error) {
 	var zero photoOut
-	e.writeMu.Lock()
-	defer e.writeMu.Unlock()
-	img, write, err := photoIO(e, b.Template, b.Src, b.Dst)
+	if err := e.checkPhotoNames(b.Template, b.Src, b.Dst); err != nil {
+		return nil, zero, err
+	}
+	img, err := e.loadPhoto(b.Template, b.Src)
 	if err != nil {
 		return nil, zero, err
 	}
@@ -321,7 +311,9 @@ func (e *env) photoTool(b photoBase, transform func(*image.NRGBA) (*image.NRGBA,
 	if err != nil {
 		return nil, zero, err
 	}
-	return write(out, extra)
+	e.writeMu.Lock()
+	defer e.writeMu.Unlock()
+	return e.writePhoto(b.Template, b.Src, b.Dst, out, extra)
 }
 
 func (e *env) sampleColors(in sampleIn) (*sdk.CallToolResult, sampleOut, error) {

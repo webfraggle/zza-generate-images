@@ -63,6 +63,9 @@ func decodeImage(data []byte, maxSide, maxPixels int) (image.Image, string, erro
 		return nil, "", fmt.Errorf("image too large: %dx%d (max %d px per side)", cfg.Width, cfg.Height, maxSide)
 	}
 	if maxPixels > 0 && cfg.Width*cfg.Height > maxPixels {
+		if maxPixels%1_000_000 == 0 {
+			return nil, "", fmt.Errorf("image too large: %dx%d (max %d megapixels)", cfg.Width, cfg.Height, maxPixels/1_000_000)
+		}
 		return nil, "", fmt.Errorf("image too large: %dx%d (max %d pixels)", cfg.Width, cfg.Height, maxPixels)
 	}
 	img, format, err := image.Decode(bytes.NewReader(data))
@@ -141,17 +144,17 @@ func encodeImageFor(name string, img image.Image) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// writePNGFile stores img as PNG in the template (atomic, name must end in .png).
-func writePNGFile(e *env, template, name string, img image.Image) error {
+// writePNGFile stores img as PNG in the template (atomic, name must end in
+// .png). replaced reports whether a file existed.
+func writePNGFile(e *env, template, name string, img image.Image) (replaced bool, err error) {
 	if strings.ToLower(filepath.Ext(name)) != ".png" {
-		return fmt.Errorf("file name must end in .png")
+		return false, fmt.Errorf("file name must end in .png")
 	}
 	data, err := encodeImageFor(name, img)
 	if err != nil {
-		return err
+		return false, err
 	}
-	_, err = writeAssetBytes(e, template, name, data)
-	return err
+	return writeAssetBytes(e, template, name, data)
 }
 
 var assetExts = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".ttf": true, ".otf": true}

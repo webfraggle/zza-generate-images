@@ -148,10 +148,10 @@ func TestWriteAssetBytes_RefusesNonRegular(t *testing.T) {
 	if _, err := writeAssetBytes(e, "sbb-105-v1", "../x.png", []byte("x")); err == nil {
 		t.Errorf("traversal accepted")
 	}
-	if err := writePNGFile(e, "sbb-105-v1", "new.png", solid(4, 4, color.NRGBA{1, 1, 1, 255})); err != nil {
+	if _, err := writePNGFile(e, "sbb-105-v1", "new.png", solid(4, 4, color.NRGBA{1, 1, 1, 255})); err != nil {
 		t.Errorf("writePNGFile: %v", err)
 	}
-	if err := writePNGFile(e, "sbb-105-v1", "new.jpg", solid(4, 4, color.NRGBA{})); err == nil {
+	if _, err := writePNGFile(e, "sbb-105-v1", "new.jpg", solid(4, 4, color.NRGBA{})); err == nil {
 		t.Errorf("writePNGFile accepted .jpg")
 	}
 }

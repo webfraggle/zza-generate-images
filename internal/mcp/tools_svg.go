@@ -29,9 +29,10 @@ type svgToPNGIn struct {
 }
 
 type svgToPNGOut struct {
-	Name   string `json:"name"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
+	Name     string `json:"name"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Replaced bool   `json:"replaced"`
 }
 
 func registerSVGTools(s *sdk.Server, e *env) {
@@ -207,10 +208,11 @@ func (e *env) svgToPNG(ctx context.Context, in svgToPNGIn) (*sdk.CallToolResult,
 
 	e.writeMu.Lock()
 	defer e.writeMu.Unlock()
-	if err := writePNGFile(e, in.Template, name, img); err != nil {
+	replaced, err := writePNGFile(e, in.Template, name, img)
+	if err != nil {
 		return nil, zero, err
 	}
-	out := svgToPNGOut{Name: name, Width: in.Width, Height: in.Height}
+	out := svgToPNGOut{Name: name, Width: in.Width, Height: in.Height, Replaced: replaced}
 	shown := image.Image(img)
 	if in.Width <= canvasSize && in.Height <= canvasSize {
 		shown = scaleNearest(img, 2)

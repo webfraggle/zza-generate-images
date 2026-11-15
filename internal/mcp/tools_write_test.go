@@ -304,7 +304,7 @@ func TestImportImage_PixelLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	res := callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": p})
-	requireToolError(t, res, "max 25000000 pixels")
+	requireToolError(t, res, "max 25 megapixels")
 }
 
 func TestWriteFile_CaseVariantsRejected(t *testing.T) {

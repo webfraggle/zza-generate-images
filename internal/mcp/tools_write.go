@@ -81,6 +81,7 @@ type importImageOut struct {
 	Width      int    `json:"width"`
 	Height     int    `json:"height"`
 	ScaledFrom *dims  `json:"scaled_from,omitempty"`
+	Replaced   bool   `json:"replaced"`
 }
 
 func registerWriteTools(s *sdk.Server, e *env) {
@@ -414,7 +415,7 @@ func (e *env) importImage(in importImageIn) (*sdk.CallToolResult, importImageOut
 			return nil, zero, err
 		}
 	}
-	if _, err := writeAssetBytes(e, in.Template, name, data); err != nil {
+	if out.Replaced, err = writeAssetBytes(e, in.Template, name, data); err != nil {
 		return nil, zero, err
 	}
 	hint := fmt.Sprintf("Stored as %s (%dx%d). Coordinates for photo tools refer to %dx%d pixels.", name, out.Width, out.Height, out.Width, out.Height)
