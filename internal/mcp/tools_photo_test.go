@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -285,7 +286,8 @@ func TestPhotoTools_OutputLimit(t *testing.T) {
 
 func TestQuantizeColors_LargeInputFast(t *testing.T) {
 	cs, dir := photoSession(t)
-	big := image.NewNRGBA(image.Rect(0, 0, 6000, 4000))
+	// Above the 2048 px output limit, so the scale-down path is taken.
+	big := image.NewNRGBA(image.Rect(0, 0, 2400, 1600))
 	for i := range big.Pix {
 		big.Pix[i] = uint8(i * 13)
 	}
@@ -293,7 +295,13 @@ func TestQuantizeColors_LargeInputFast(t *testing.T) {
 	start := time.Now()
 	res := callTool(t, cs, "quantize_colors", map[string]any{"template": photoTpl, "src": "big.png", "dst": "bq.png", "colors": 16})
 	requireOK(t, res)
-	if d := time.Since(start); d > 30*time.Second {
+	d := time.Since(start)
+	var out photoOut
+	if err := json.Unmarshal([]byte(resultText(res)), &out); err != nil || !strings.Contains(out.Note, "scaled down from 2400x1600") {
+		t.Fatalf("note: %+v %v", out, err)
+	}
+	// The race detector slows this down several times; only time it without.
+	if !raceEnabled && d > 10*time.Second {
 		t.Fatalf("took %v", d)
 	}
 }
