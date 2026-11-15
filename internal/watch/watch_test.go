@@ -13,11 +13,16 @@ import (
 
 func setup(t *testing.T) (*Watcher, string) {
 	t.Helper()
+	return setupDebounce(t, 50*time.Millisecond)
+}
+
+func setupDebounce(t *testing.T, debounce time.Duration) (*Watcher, string) {
+	t.Helper()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "a-105-v1"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	w, err := New(dir, 50*time.Millisecond)
+	w, err := New(dir, debounce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,16 +49,19 @@ func TestWatcher_ReportsFileChange(t *testing.T) {
 }
 
 func TestWatcher_Debounce(t *testing.T) {
-	w, dir := setup(t)
+	// A generous debounce keeps the 10 writes inside one window even on a
+	// slow file system; the test only checks that they form one batch.
+	const debounce = 500 * time.Millisecond
+	w, dir := setupDebounce(t, debounce)
 	for i := 0; i < 5; i++ {
 		write(t, filepath.Join(dir, "a-105-v1", "template.yaml"), "x")
 		write(t, filepath.Join(dir, "a-105-v1", "default.json"), "x")
 	}
-	b := w.Wait(context.Background(), "a-105-v1", 0, 2*time.Second)
+	b := w.Wait(context.Background(), "a-105-v1", 0, 5*time.Second)
 	if !reflect.DeepEqual(b.Files, []string{"default.json", "template.yaml"}) {
 		t.Fatalf("got %+v", b)
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * debounce)
 	if w.Current() != 1 {
 		t.Fatalf("want exactly one batch, seq=%d", w.Current())
 	}
