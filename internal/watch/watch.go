@@ -48,6 +48,7 @@ type Watcher struct {
 	// resetBefore: clients with since < resetBefore must reload everything
 	// (set after an fsnotify event overflow).
 	resetBefore uint64
+	afterScan   func() // test hook: runs between ring scan and blocking
 	callbacks   []func(template string, files []string)
 }
 
@@ -232,7 +233,7 @@ func (w *Watcher) Current() uint64 {
 }
 
 // Wait returns the merged changes for template with seq > since, waiting up to
-// timeout. On timeout or cancelled ctx it returns {Seq: current, Files: []}. If
+// timeout. On timeout or cancelled ctx it returns {Seq: <seq of the scan>, Files: []}. If
 // since is older than the ring (or newer than the current seq, e.g. after a
 // restart) it returns Reset with Files ["*"]. A non-empty result carries the
 // current seq, so unrelated templates' batches never push the client out of
@@ -265,12 +266,15 @@ func (w *Watcher) Wait(ctx context.Context, template string, since uint64, timeo
 			sort.Strings(files)
 			return editor.ChangeBatch{Seq: cur, Files: files}
 		}
+		if w.afterScan != nil {
+			w.afterScan()
+		}
 		select {
 		case <-ch:
 		case <-timer.C:
-			return editor.ChangeBatch{Seq: w.Current(), Files: []string{}}
+			return editor.ChangeBatch{Seq: cur, Files: []string{}}
 		case <-ctx.Done():
-			return editor.ChangeBatch{Seq: w.Current(), Files: []string{}}
+			return editor.ChangeBatch{Seq: cur, Files: []string{}}
 		}
 	}
 }

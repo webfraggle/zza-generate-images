@@ -204,3 +204,32 @@ func TestWatcher_StaleDebounceIgnored(t *testing.T) {
 		t.Fatal("stale flush published")
 	}
 }
+
+func TestWatcher_TimeoutSeqIsScanConsistent(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		w, _ := setup(t)
+		first := true
+		w.afterScan = func() {
+			if first {
+				first = false
+				w.record("a-105-v1", "template.yaml")
+				w.mu.Lock()
+				gen := w.gens["a-105-v1"]
+				w.mu.Unlock()
+				w.flush("a-105-v1", gen) // batch published between scan and return
+			}
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		b := w.Wait(ctx, "a-105-v1", 0, time.Second)
+		if len(b.Files) == 0 && b.Seq >= 1 {
+			t.Fatalf("empty result must not carry the new seq: %+v", b)
+		}
+		if len(b.Files) == 0 {
+			next := w.Wait(context.Background(), "a-105-v1", b.Seq, time.Second)
+			if !reflect.DeepEqual(next.Files, []string{"template.yaml"}) {
+				t.Fatalf("batch lost: %+v", next)
+			}
+		}
+	}
+}
