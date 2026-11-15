@@ -60,6 +60,7 @@ type listFontsOut struct {
 	FontsDirExists bool          `json:"fonts_dir_exists"`
 	Fonts          []fontEntry   `json:"fonts"`
 	Skipped        []skippedFont `json:"skipped"`
+	Truncated      bool          `json:"truncated,omitempty"`
 	Note           string        `json:"note,omitempty"`
 }
 
@@ -136,15 +137,11 @@ func fontNames(data []byte) (family, style, license string, err error) {
 
 // readFontFile reads a regular font file with the size limit applied.
 func readFontFile(path string) ([]byte, error) {
-	fi, err := os.Lstat(path)
-	if err != nil || !fi.Mode().IsRegular() {
-		return nil, fmt.Errorf("cannot read font file")
-	}
-	if fi.Size() > maxFontBytes {
+	data, err := readRegularFile(path, maxFontBytes)
+	switch {
+	case errors.Is(err, errFileTooLarge):
 		return nil, fmt.Errorf("font file too large (max %d MiB)", maxFontBytes>>20)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
+	case err != nil:
 		return nil, fmt.Errorf("cannot read font file")
 	}
 	return data, nil
@@ -289,16 +286,25 @@ func (e *env) listFonts(in listFontsIn) listFontsOut {
 		if q == "" || strings.Contains(strings.ToLower(f.Family+"\x00"+f.Style+"\x00"+f.File), q) {
 			if len(out.Fonts) < maxFontResults {
 				out.Fonts = append(out.Fonts, f)
+			} else {
+				out.Truncated = true
 			}
 		}
 	}
 	for _, s := range skipped {
 		if q == "" || strings.Contains(strings.ToLower(s.Key), q) {
-			out.Skipped = append(out.Skipped, s)
+			if len(out.Skipped) < maxFontResults {
+				out.Skipped = append(out.Skipped, s)
+			} else {
+				out.Truncated = true
+			}
 		}
 	}
+	if out.Truncated {
+		out.Note = fmt.Sprintf("Results are limited to %d entries; narrow the list with query. ", maxFontResults)
+	}
 	if inFontsDir == 0 {
-		out.Note = fmt.Sprintf("Put .ttf/.otf files into %s to make more fonts available.", e.fontsDir)
+		out.Note += fmt.Sprintf("Put .ttf/.otf files into %s to make more fonts available.", e.fontsDir)
 	}
 	return out
 }
@@ -332,9 +338,31 @@ func resolveFontKey(e *env, key string) (path string, err error) {
 	return p, nil
 }
 
-// addFontDef registers {id, file} under fonts: in the template YAML src,
-// keeping comments. If an entry for file exists, nothing is added and its id
-// is returned in existingID. A missing fonts: key is inserted before layers:.
+// maxNodeLine returns the last source line covered by n and its children.
+func maxNodeLine(n *yaml.Node) int {
+	m := n.Line
+	for _, c := range n.Content {
+		if l := maxNodeLine(c); l > m {
+			m = l
+		}
+	}
+	return m
+}
+
+func yamlScalar(v string) string {
+	b, err := yaml.Marshal(v)
+	if err != nil {
+		return v
+	}
+	return strings.TrimRight(string(b), "\r\n")
+}
+
+// addFontDef registers {id, file} under fonts: in the template YAML src.
+// The entry is inserted as text next to the existing entries, so the rest of
+// the file (comments, blank lines, line endings) stays byte-identical. If an
+// entry for file exists, nothing is added and its id is returned in
+// existingID. A missing fonts: key is inserted before layers:. Flow-style or
+// empty fonts lists fall back to re-encoding the document.
 func addFontDef(src []byte, id, file string) (out []byte, existingID string, err error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(src, &doc); err != nil {
@@ -344,19 +372,111 @@ func addFontDef(src []byte, id, file string) (out []byte, existingID string, err
 		return nil, "", fmt.Errorf("template YAML is not a mapping")
 	}
 	root := doc.Content[0]
-	var seq *yaml.Node
+	var seq, layersKey *yaml.Node
 	layersAt := -1
 	for i := 0; i+1 < len(root.Content); i += 2 {
 		switch root.Content[i].Value {
 		case "fonts":
 			seq = root.Content[i+1]
-			if seq.Kind == yaml.ScalarNode && seq.Tag == "!!null" {
-				*seq = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
-			}
 		case "layers":
-			layersAt = i
+			layersAt, layersKey = i, root.Content[i]
 		}
 	}
+	if seq != nil && seq.Kind != yaml.SequenceNode && !(seq.Kind == yaml.ScalarNode && seq.Tag == "!!null") {
+		return nil, "", fmt.Errorf("fonts is not a list")
+	}
+	if seq != nil && seq.Kind == yaml.SequenceNode {
+		for _, item := range seq.Content {
+			var eid, efile string
+			if item.Kind == yaml.MappingNode {
+				for i := 0; i+1 < len(item.Content); i += 2 {
+					switch item.Content[i].Value {
+					case "id":
+						eid = item.Content[i+1].Value
+					case "file":
+						efile = item.Content[i+1].Value
+					}
+				}
+			}
+			if strings.EqualFold(efile, file) {
+				return src, eid, nil
+			}
+			if eid == id {
+				return nil, "", fmt.Errorf("font id %q is already used for %s", id, efile)
+			}
+		}
+	}
+
+	before, err := renderer.ParseTemplate(src, "")
+	if err != nil {
+		return nil, "", fmt.Errorf("template.yaml is invalid: %w", err)
+	}
+
+	eol := "\n"
+	if bytes.Contains(src, []byte("\r\n")) {
+		eol = "\r\n"
+	}
+	lines := strings.Split(string(src), "\n")
+	cr := ""
+	if eol == "\r\n" {
+		cr = "\r"
+	}
+	insertAt := -1 // index in lines before which new lines go
+	var add []string
+	switch {
+	case seq != nil && seq.Kind == yaml.SequenceNode && seq.Style&yaml.FlowStyle == 0 && len(seq.Content) > 0:
+		last := seq.Content[len(seq.Content)-1]
+		if last.Kind == yaml.MappingNode && last.Line-1 < len(lines) {
+			first := lines[last.Line-1]
+			indent := first[:len(first)-len(strings.TrimLeft(first, " "))]
+			inner := strings.Repeat(" ", last.Column-1)
+			if strings.HasPrefix(strings.TrimLeft(first, " "), "- ") {
+				insertAt = maxNodeLine(last)
+				add = []string{indent + "- id: " + yamlScalar(id) + cr, inner + "file: " + yamlScalar(file) + cr}
+			}
+		}
+	case seq == nil && layersKey != nil:
+		at := layersKey.Line - 1
+		for at > 0 && strings.HasPrefix(strings.TrimSpace(lines[at-1]), "#") {
+			at--
+		}
+		insertAt = at
+		add = []string{"fonts:" + cr, "  - id: " + yamlScalar(id) + cr, "    file: " + yamlScalar(file) + cr, cr}
+	}
+	_ = layersAt
+	if insertAt >= 0 && insertAt <= len(lines) {
+		nl := append([]string{}, lines[:insertAt]...)
+		nl = append(nl, add...)
+		nl = append(nl, lines[insertAt:]...)
+		out = []byte(strings.Join(nl, "\n"))
+	} else {
+		out, err = reencodeWithFont(&doc, root, seq, layersAt, id, file)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	after, err := renderer.ParseTemplate(out, "")
+	if err != nil {
+		return nil, "", fmt.Errorf("template.yaml would become invalid: %w", err)
+	}
+	if len(after.Fonts) != len(before.Fonts)+1 {
+		return nil, "", fmt.Errorf("internal error: unexpected fonts list after edit")
+	}
+	for i, f := range before.Fonts {
+		if after.Fonts[i] != f {
+			return nil, "", fmt.Errorf("internal error: fonts list changed unexpectedly")
+		}
+	}
+	if n := after.Fonts[len(after.Fonts)-1]; n.ID != id || n.File != file {
+		return nil, "", fmt.Errorf("internal error: new font entry not as expected")
+	}
+	return out, "", nil
+}
+
+// reencodeWithFont is the fallback for flow-style or empty fonts lists and
+// templates without layers: it re-encodes the whole document.
+func reencodeWithFont(doc, root, seq *yaml.Node, layersAt int, id, file string) ([]byte, error) {
 	if seq == nil {
 		seq = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
 		kn := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "fonts"}
@@ -366,28 +486,8 @@ func addFontDef(src []byte, id, file string) (out []byte, existingID string, err
 			rest := append([]*yaml.Node{kn, seq}, root.Content[layersAt:]...)
 			root.Content = append(root.Content[:layersAt:layersAt], rest...)
 		}
-	}
-	if seq.Kind != yaml.SequenceNode {
-		return nil, "", fmt.Errorf("fonts is not a list")
-	}
-	for _, item := range seq.Content {
-		var eid, efile string
-		if item.Kind == yaml.MappingNode {
-			for i := 0; i+1 < len(item.Content); i += 2 {
-				switch item.Content[i].Value {
-				case "id":
-					eid = item.Content[i+1].Value
-				case "file":
-					efile = item.Content[i+1].Value
-				}
-			}
-		}
-		if efile == file {
-			return src, eid, nil
-		}
-		if eid == id {
-			return nil, "", fmt.Errorf("font id %q is already used for %s", id, efile)
-		}
+	} else if seq.Kind == yaml.ScalarNode {
+		*seq = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
 	}
 	str := func(v string) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v} }
 	seq.Content = append(seq.Content, &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map",
@@ -395,13 +495,13 @@ func addFontDef(src []byte, id, file string) (out []byte, existingID string, err
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
-	if err := enc.Encode(&doc); err != nil {
-		return nil, "", fmt.Errorf("encoding template YAML: %w", err)
+	if err := enc.Encode(doc); err != nil {
+		return nil, fmt.Errorf("encoding template YAML: %w", err)
 	}
 	if err := enc.Close(); err != nil {
-		return nil, "", fmt.Errorf("encoding template YAML: %w", err)
+		return nil, fmt.Errorf("encoding template YAML: %w", err)
 	}
-	return buf.Bytes(), "", nil
+	return buf.Bytes(), nil
 }
 
 func (e *env) addFont(in addFontIn) (addFontOut, error) {
@@ -439,7 +539,7 @@ func (e *env) addFont(in addFontIn) (addFontOut, error) {
 	}
 	newYAML, existingID, err := addFontDef(yamlSrc, id, file)
 	if err != nil {
-		return zero, err
+		return zero, fmt.Errorf("%s", e.scrubErr(err, maxErrLen))
 	}
 	added := existingID == ""
 	if added {
@@ -452,16 +552,15 @@ func (e *env) addFont(in addFontIn) (addFontOut, error) {
 
 	copied := true
 	target := filepath.Join(dir, file)
-	if fi, err := os.Lstat(target); err == nil {
-		if !fi.Mode().IsRegular() {
-			return zero, fmt.Errorf("refusing to overwrite non-regular file %q", file)
-		}
+	if _, err := os.Lstat(target); err == nil {
 		differs := fmt.Errorf("%s already exists in %s with different content", file, in.Template)
-		if fi.Size() != int64(len(data)) {
+		cur, err := readRegularFile(target, maxFontBytes)
+		switch {
+		case errors.Is(err, errNotRegular):
+			return zero, fmt.Errorf("refusing to overwrite non-regular file %q", file)
+		case errors.Is(err, errFileTooLarge):
 			return zero, differs
-		}
-		cur, err := os.ReadFile(target)
-		if err != nil {
+		case err != nil:
 			return zero, fmt.Errorf("cannot read %q", file)
 		}
 		if !bytes.Equal(cur, data) {
@@ -476,11 +575,15 @@ func (e *env) addFont(in addFontIn) (addFontOut, error) {
 	}
 	if added {
 		_, err := editor.WriteTextFileIfMatch(e.templatesDir, in.Template, "template.yaml", newYAML, editor.FileVersion(yamlSrc))
+		hint := ""
+		if copied {
+			hint = "; font file was copied, retry add_font"
+		}
 		switch {
 		case errors.Is(err, editor.ErrVersionConflict):
-			return zero, fmt.Errorf("conflict: template.yaml was changed while adding the font. Call read_template again and retry.")
+			return zero, fmt.Errorf("conflict: template.yaml was changed while adding the font%s. Call read_template again and retry.", hint)
 		case err != nil:
-			return zero, fmt.Errorf("cannot write template.yaml")
+			return zero, fmt.Errorf("cannot write template.yaml%s", hint)
 		}
 	}
 	return addFontOut{ID: id, File: file, Added: added, Copied: copied, LicenseNote: fontLicenseNote}, nil

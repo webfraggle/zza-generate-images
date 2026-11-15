@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -231,6 +232,9 @@ func TestAddFont_NoFontsKey(t *testing.T) {
 	if fi, li := strings.Index(s, "fonts:"), strings.Index(s, "layers:"); fi < 0 || fi > li {
 		t.Errorf("fonts: not inserted before layers:\n%s", s)
 	}
+	if !strings.Contains(s, "height: 240\n\nfonts:") || !strings.Contains(s, "\n\n# layers follow\nlayers:") {
+		t.Errorf("blank lines not preserved:\n%s", s)
+	}
 	tmpl, err := renderer.LoadTemplate(tdir, "sbb-105-v1")
 	if err != nil {
 		t.Fatal(err)
@@ -257,5 +261,77 @@ func TestAddFont_BadKeys(t *testing.T) {
 	}
 	if strings.Contains(errText, "plain text") {
 		t.Error("error leaks file content")
+	}
+}
+
+// onlyAdded fails unless after equals before plus inserted lines.
+func onlyAdded(t *testing.T, before, after string) []string {
+	t.Helper()
+	bl, al := strings.Split(before, "\n"), strings.Split(after, "\n")
+	var added []string
+	i := 0
+	for _, l := range al {
+		if i < len(bl) && l == bl[i] {
+			i++
+			continue
+		}
+		added = append(added, l)
+	}
+	if i != len(bl) {
+		t.Fatalf("original lines changed or removed (matched %d of %d)", i, len(bl))
+	}
+	return added
+}
+
+func TestAddFont_OnlyAddsLines(t *testing.T) {
+	for _, tn := range []string{"sbb-105-v1", "oebb-105-v1"} {
+		tdir, _ := fontFixture(t)
+		p := filepath.Join(tdir, tn, "template.yaml")
+		before, _ := os.ReadFile(p)
+		if _, errText := addFontCall(t, tdir, map[string]any{"template": tn, "font": "@fonts/LLPIXEL3.ttf"}); errText != "" {
+			t.Fatal(errText)
+		}
+		after, _ := os.ReadFile(p)
+		added := onlyAdded(t, string(before), string(after))
+		if len(added) != 2 || !strings.Contains(added[0], "id: llpixel3") || !strings.Contains(added[1], "file: LLPIXEL3.ttf") {
+			t.Errorf("%s: added = %q", tn, added)
+		}
+	}
+}
+
+func TestAddFont_CRLFAndCase(t *testing.T) {
+	tdir, _ := fontFixture(t)
+	p := filepath.Join(tdir, "sbb-105-v1", "template.yaml")
+	b, _ := os.ReadFile(p)
+	crlf := strings.ReplaceAll(string(b), "\n", "\r\n")
+	if err := os.WriteFile(p, []byte(crlf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, errText := addFontCall(t, tdir, map[string]any{"template": "sbb-105-v1", "font": "@fonts/LLPIXEL3.ttf"}); errText != "" {
+		t.Fatal(errText)
+	}
+	after, _ := os.ReadFile(p)
+	if strings.Count(string(after), "\n") != strings.Count(string(after), "\r\n") {
+		t.Error("mixed line endings")
+	}
+	// A differently cased entry for the same file is reused.
+	_, eid, err := addFontDef([]byte("fonts:\n  - id: a\n    file: llpixel3.ttf\nlayers: []\n"), "b", "LLPIXEL3.ttf")
+	if err != nil || eid != "a" {
+		t.Errorf("eid=%q err=%v", eid, err)
+	}
+}
+
+func TestListFonts_Truncated(t *testing.T) {
+	tdir, fdir := fontFixture(t)
+	data, _ := os.ReadFile(filepath.Join(fdir, "LLPIXEL3.ttf"))
+	for i := 0; i < maxFontResults+1; i++ {
+		name := fmt.Sprintf("copy%03d.ttf", i)
+		if err := os.WriteFile(filepath.Join(fdir, name), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out := listFontsCall(t, tdir, nil)
+	if !out.Truncated || len(out.Fonts) != maxFontResults {
+		t.Errorf("truncated=%v fonts=%d", out.Truncated, len(out.Fonts))
 	}
 }
