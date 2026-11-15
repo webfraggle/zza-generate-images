@@ -160,6 +160,7 @@ Lesende Tools sperren nicht. Jeder Render-Aufruf erzeugt einen frischen
 | Foto-Werkzeuge Eingabe | ≤ 25 Megapixel, ≤ 8192 px je Seite, Datei ≤ 64 MiB |
 | Foto-Werkzeuge Ausgabe | 1–2048 px je Seite (`quantize_colors`/`color_to_alpha` verkleinern größere Eingaben vorher und melden das in `note`) |
 | `svg_to_png` SVG-Text | ≤ 256 KiB; Ausgabe 1–1024 px je Seite; ≤ 2000 Pfade |
+| `svg_to_png` Rechenbudget | Pfade × Breite × Höhe ≤ 2^26 (≈ 67 Mio., schlimmster Fall ca. 5 s); Rasterzeit ≤ 10 s (sonst `svg rendering timed out`, nichts geschrieben) |
 | `render_preview` `scale` | 1–4 (Standard 2 für PNG, 1 für GIF) |
 | `render_preview` `data` | ≤ 64 KiB (als JSON) |
 | `render_preview` GIF-Kontaktbogen | ≤ 12 Frames, 4 Spalten, längste Seite ≤ 2048 px (sonst `scale` reduziert) |

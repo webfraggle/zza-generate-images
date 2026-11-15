@@ -1,5 +1,7 @@
 package mcp
 
+import "time"
+
 // Limits of the MCP tools (see the "Limits" table in the design spec).
 const (
 	maxTextFileBytes    = 256 << 10 // write_file content
@@ -19,9 +21,11 @@ const (
 	maxToolInputSide   = 8192
 	maxToolOutputSide  = 2048
 
-	maxSVGBytes = 256 << 10
-	maxSVGSide  = 1024
-	maxSVGPaths = 2000
+	maxSVGBytes      = 256 << 10
+	maxSVGSide       = 1024
+	maxSVGPaths      = 2000
+	maxSVGCost       = 1 << 26 // paths * width * height
+	maxSVGRenderTime = 10 * time.Second
 
 	maxPreviewDataBytes = 64 << 10 // render_preview data
 	maxSheetFrames      = 12       // GIF contact sheet
