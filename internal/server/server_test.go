@@ -35,6 +35,21 @@ func newTestServer(t *testing.T) *Server {
 	return srv
 }
 
+func TestForgetPreview(t *testing.T) {
+	srv := newTestServer(t)
+	srv.previewMu.Lock()
+	srv.previewGIFs["x"] = previewEntry{data: []byte("gif")}
+	srv.previewMu.Unlock()
+	srv.ForgetPreview("x")
+	srv.previewMu.Lock()
+	_, ok := srv.previewGIFs["x"]
+	srv.previewMu.Unlock()
+	if ok {
+		t.Error("entry still present")
+	}
+	srv.ForgetPreview("unknown") // must not panic
+}
+
 func TestServer_Health(t *testing.T) {
 	srv := newTestServer(t)
 

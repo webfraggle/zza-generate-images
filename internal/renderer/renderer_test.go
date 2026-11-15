@@ -3,9 +3,52 @@ package renderer
 import (
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestGetFont_ReloadsChangedFile(t *testing.T) {
+	src := filepath.Join("..", "..", "templates", "umuc-105-v1")
+	a, err := os.ReadFile(filepath.Join(src, "Roboto-Bold.ttf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(src, "RobotoCondensed-Regular.ttf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.ttf")
+	if err := os.WriteFile(p, a, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := New(dir)
+	f1, err := r.getFont(dir, "f.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f1b, _ := r.getFont(dir, "f.ttf")
+	if f1 != f1b {
+		t.Error("unchanged file must hit the cache")
+	}
+	if err := os.WriteFile(p, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(p, later, later); err != nil {
+		t.Fatal(err)
+	}
+	f2, err := r.getFont(dir, "f.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f2 == f1 {
+		t.Error("changed file must be reloaded")
+	}
+}
 
 // --- test helpers ---
 

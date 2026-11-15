@@ -31,7 +31,7 @@ import (
 type Renderer struct {
 	TemplatesDir string
 	fontMu       sync.RWMutex
-	fontCache    map[string]*opentype.Font // key: absolute file path; guarded by fontMu
+	fontCache    map[string]*opentype.Font // key: abs path \x00 file size \x00 mtime ns; guarded by fontMu
 	nowFunc      func() time.Time          // injectable clock for tests; nil = time.Now
 }
 
@@ -805,18 +805,21 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 
 	absPath := filepath.Join(dir, filename)
 
+	// Security: limit font file size before reading into memory.
+	// The stat also feeds the cache key so a replaced font file is reloaded.
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("getFont: stat %q: %w", filename, err)
+	}
+	key := absPath + "\x00" + strconv.FormatInt(info.Size(), 10) + "\x00" + strconv.FormatInt(info.ModTime().UnixNano(), 10)
+
 	r.fontMu.RLock()
-	cached, ok := r.fontCache[absPath]
+	cached, ok := r.fontCache[key]
 	r.fontMu.RUnlock()
 	if ok {
 		return cached, nil
 	}
 
-	// Security: limit font file size before reading into memory.
-	info, err := os.Stat(absPath)
-	if err != nil {
-		return nil, fmt.Errorf("getFont: stat %q: %w", filename, err)
-	}
 	if info.Size() > maxFontFileBytes {
 		return nil, fmt.Errorf("getFont: font file %q exceeds maximum size of %d MB", filename, maxFontFileBytes/1024/1024)
 	}
@@ -832,7 +835,12 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 	}
 
 	r.fontMu.Lock()
-	r.fontCache[absPath] = otf
+	for k := range r.fontCache { // drop stale versions of the same file
+		if strings.HasPrefix(k, absPath+"\x00") {
+			delete(r.fontCache, k)
+		}
+	}
+	r.fontCache[key] = otf
 	r.fontMu.Unlock()
 	return otf, nil
 }

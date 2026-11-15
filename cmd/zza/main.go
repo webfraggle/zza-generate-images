@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/webfraggle/zza-generate-images/internal/cli"
@@ -16,6 +18,7 @@ import (
 	"github.com/webfraggle/zza-generate-images/internal/mcp"
 	"github.com/webfraggle/zza-generate-images/internal/server"
 	"github.com/webfraggle/zza-generate-images/internal/version"
+	"github.com/webfraggle/zza-generate-images/internal/watch"
 	"github.com/webfraggle/zza-generate-images/web"
 )
 
@@ -141,7 +144,15 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 		return nil, err
 	}
 	srv.SetEditorEnabled(true)
-	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache))
+	h := editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache)
+	if w, err := watch.New(tdir, 200*time.Millisecond); err != nil {
+		log.Printf("watch disabled: %v", err)
+	} else {
+		w.OnChange(func(t string, _ []string) { srv.ForgetPreview(t) })
+		go w.Run(context.Background())
+		h.Feed = w
+	}
+	srv.RegisterEditor(h)
 	return srv, nil
 }
 

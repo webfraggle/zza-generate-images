@@ -3,6 +3,7 @@ module github.com/webfraggle/zza-generate-images
 go 1.26.1
 
 require (
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/cobra v1.8.0
 	github.com/wailsapp/wails/v2 v2.9.3
