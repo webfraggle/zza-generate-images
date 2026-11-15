@@ -164,8 +164,11 @@ func writeAssetBytes(e *env, template, name string, data []byte) (replaced bool,
 		return false, fmt.Errorf("file type of %q is not allowed", name)
 	}
 	p, err := editor.SafeFilePath(e.templatesDir, template, name)
+	if err == nil {
+		err = editor.ValidateWriteName(name)
+	}
 	if err != nil {
-		return false, fmt.Errorf("invalid file name %q (allowed: letters, digits, . _ -)", name)
+		return false, errInvalidWriteName(name)
 	}
 	if fi, err := os.Lstat(p); err == nil {
 		if !fi.Mode().IsRegular() {
@@ -185,6 +188,11 @@ func writeAssetBytes(e *env, template, name string, data []byte) (replaced bool,
 		return false, fmt.Errorf("cannot write %q", name)
 	}
 	return replaced, nil
+}
+
+// errInvalidWriteName is the error for names editor.ValidateWriteName rejects.
+func errInvalidWriteName(name string) error {
+	return fmt.Errorf("invalid file name %q (allowed: letters, digits, . _ -; not starting with a dot; no Windows device names like CON or NUL)", name)
 }
 
 // checkTemplateCapacity verifies that adding or replacing newName with

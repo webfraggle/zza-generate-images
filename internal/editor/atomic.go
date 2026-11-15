@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // ErrNotRegular is returned by AtomicWrite when the target exists but is not
@@ -23,8 +22,8 @@ var ErrNotRegular = fmt.Errorf("%w: target is not a regular file", ErrForbidden)
 // Temp names start with "." and end in ".tmp"; the file watcher and the
 // template capacity check ignore such names.
 func AtomicWrite(dir, name string, data []byte) (err error) {
-	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) || filepath.Base(name) != name {
-		return ErrInvalidName
+	if err := ValidateWriteName(name); err != nil {
+		return err
 	}
 	target := filepath.Join(dir, name)
 	if err := checkRegularOrMissing(target); err != nil {

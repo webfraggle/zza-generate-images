@@ -208,8 +208,11 @@ func (e *env) writeFile(in writeFileIn) (writeFileOut, error) {
 		}
 	}
 	p, err := editor.SafeFilePath(e.templatesDir, in.Template, in.Name)
+	if err == nil {
+		err = editor.ValidateWriteName(in.Name)
+	}
 	if err != nil {
-		return zero, fmt.Errorf("invalid file name %q (allowed: letters, digits, . _ -)", in.Name)
+		return zero, errInvalidWriteName(in.Name)
 	}
 	content := []byte(in.Content)
 	if len(content) > maxTextFileBytes {
