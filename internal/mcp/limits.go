@@ -14,6 +14,7 @@ const (
 	maxImportSide       = 8192
 	maxStoredImportSide = 2048
 
+	maxToolInputBytes  = 64 << 20   // photo tools input file
 	maxToolInputPixels = 25_000_000 // photo tools input
 	maxToolInputSide   = 8192
 	maxToolOutputSide  = 2048

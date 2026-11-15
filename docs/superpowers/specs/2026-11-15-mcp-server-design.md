@@ -157,8 +157,8 @@ Lesende Tools sperren nicht. Jeder Render-Aufruf erzeugt einen frischen
 | `upload_image` Bildmaße | ≤ 4096 × 4096 |
 | `import_image` Quelldatei | ≤ 20 MiB, ≤ 8192 px je Seite |
 | `import_image` gespeicherte Größe | längste Seite ≤ 2048 px (sonst verkleinert) |
-| Foto-Werkzeuge Eingabe | ≤ 25 Megapixel, ≤ 8192 px je Seite |
-| Foto-Werkzeuge Ausgabe | 1–2048 px je Seite |
+| Foto-Werkzeuge Eingabe | ≤ 25 Megapixel, ≤ 8192 px je Seite, Datei ≤ 64 MiB |
+| Foto-Werkzeuge Ausgabe | 1–2048 px je Seite (`quantize_colors`/`color_to_alpha` verkleinern größere Eingaben vorher und melden das in `note`) |
 | `svg_to_png` SVG-Text | ≤ 256 KiB; Ausgabe 1–1024 px je Seite; ≤ 2000 Pfade |
 | `render_preview` `scale` | 1–4 (Standard 2 für PNG, 1 für GIF) |
 | `render_preview` `data` | ≤ 64 KiB (als JSON) |
