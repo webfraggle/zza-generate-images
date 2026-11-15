@@ -216,15 +216,22 @@ Dieselbe Funktion liefert die ETags des Editors.
 - `template.yaml`: `renderer.ParseTemplate(content, templateDir)`; danach
   `meta.canvas` muss **240 × 240** sein; danach Probe-Render (`Render`, Standbild) mit
   `default.json` (fehlt/ungültig → `{}`). Jeder Fehler → nichts wird geschrieben,
-  Fehlertext geht an die KI (`template.yaml rejected: <fehler>`).
+  Fehlertext geht an die KI (`template.yaml rejected: <fehler>`). Render-Fehler werden
+  gekürzt (`tidyRenderMsg`): Go-Funktionspräfixe (`renderer: Render:`, `renderImage:` …)
+  entfallen, die Layer-Position steht wie in den Warnungen (`layers[5] (image): …`,
+  `layers[2].layers[0] (text): …`, 0-basiert). Fehlende Bilddatei →
+  `file "<f>" not found in template — create it first with svg_to_png, upload_image or import_image`;
+  unbekannte Font-ID → `font ID "<id>" not found in template — add it with add_font and reference its id`.
+  Gilt auch für `render_preview` (`render failed: …`). Gibt es unbekannte Schlüssel,
+  wird `(unknown keys, maybe typos: line N: unknown key "…"; …)` an den Ablehnungstext angehängt.
 - Andere `.yaml`-Dateien: nur YAML-Syntax prüfen.
 - `default.json`: nach dem Schreiben Probe-Render des Templates; ein Render-Fehler ist
   hier nur eine **Warnung** (sonst könnte ein kaputtes `template.yaml` das Reparieren
   der Testdaten blockieren).
 - Warnungen (blockieren nicht), nur für `template.yaml`:
   - `bottom half (y 120-239) is empty — the back side of the display shows nothing; rebuild it with copy layers (see get_design_guide)` — wenn alle Pixel der unteren Hälfte im Probe-Render vollständig transparent sind.
-  - `text layer <pfad> uses size <s> px — below 10 px is hard to read on the 1.05" display` — für jeden Text-Layer (rekursiv) mit `0 < size < 10`; `<pfad>` = `layers[i]` bzw. `layers[i].layers[j]`.
-  - `layer <pfad> draws static text "<value>" that looks like train data — use {{zug1.…}} placeholders` — wenn ein Text-Layer ohne `{{` einen Wert hat, der wie eine Uhrzeit (`^\d{1,2}:\d{2}$`) aussieht.
+  - `<pfad> (text): size <s> px — below 10 px is hard to read on the 1.05" display` — für jeden Text-Layer (rekursiv) mit `0 < size < 10`; `<pfad>` = `layers[i]` bzw. `layers[i].layers[j]` (0-basiert, dieselbe Schreibweise wie in Ablehnungstexten).
+  - `<pfad> (text): static text "<value>" looks like train data — use {{zug1.…}} placeholders` — wenn ein Text-Layer ohne `{{` einen Wert hat, der wie eine Uhrzeit (`^\d{1,2}:\d{2}$`) aussieht.
 - Ergebnis: JSON `{name, version, warnings}`.
 
 **Entscheidung Canvas:** Ablehnen statt warnen. Das Gerät zeigt ausschließlich

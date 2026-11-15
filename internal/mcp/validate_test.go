@@ -66,8 +66,8 @@ layers:
 	}
 	want := []string{
 		"bottom half (y 120-239) is empty — the back side of the display shows nothing; rebuild it with copy layers (see get_design_guide)",
-		`text layer layers[1] uses size 8 px — below 10 px is hard to read on the 1.05" display`,
-		`layer layers[2] draws static text "15:54" that looks like train data — use {{zug1.…}} placeholders`,
+		`layers[1] (text): size 8 px — below 10 px is hard to read on the 1.05" display`,
+		`layers[2] (text): static text "15:54" looks like train data — use {{zug1.…}} placeholders`,
 	}
 	if !reflect.DeepEqual(w, want) {
 		t.Errorf("warnings:\n got %q\nwant %q", w, want)

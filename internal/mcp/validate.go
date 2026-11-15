@@ -49,7 +49,7 @@ func validateTemplateContent(e *env, template string, content []byte) (warnings 
 	}
 	walkLayers(tmpl.Layers, "layers", func(path string, l renderer.Layer) {
 		if l.Type == "text" && l.Size > 0 && l.Size < 10 {
-			warnings = append(warnings, fmt.Sprintf("text layer %s uses size %g px — below 10 px is hard to read on the 1.05\" display", path, l.Size))
+			warnings = append(warnings, fmt.Sprintf("%s (text): size %g px — below 10 px is hard to read on the 1.05\" display", path, l.Size))
 		}
 	})
 	walkLayers(tmpl.Layers, "layers", func(path string, l renderer.Layer) {
@@ -58,7 +58,7 @@ func validateTemplateContent(e *env, template string, content []byte) (warnings 
 		}
 		v := l.Value.String()
 		if !strings.Contains(v, "{{") && clockRe.MatchString(strings.TrimSpace(v)) {
-			warnings = append(warnings, fmt.Sprintf("layer %s draws static text %q that looks like train data — use {{zug1.…}} placeholders", path, v))
+			warnings = append(warnings, fmt.Sprintf("%s (text): static text %q looks like train data — use {{zug1.…}} placeholders", path, v))
 		}
 	})
 	return warnings, nil

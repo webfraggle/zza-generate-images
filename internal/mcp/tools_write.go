@@ -116,10 +116,12 @@ func registerWriteTools(s *sdk.Server, e *env) {
 	})
 }
 
-// scrubErr removes the templates path from an error text and limits its length.
+// scrubErr removes the templates path from an error text, shortens renderer
+// error chains (tidyRenderMsg) and limits the length.
 func (e *env) scrubErr(err error, limit int) string {
 	s := strings.ReplaceAll(err.Error(), e.templatesDir+string(filepath.Separator), "")
 	s = strings.ReplaceAll(s, e.templatesDir, "")
+	s = tidyRenderMsg(s)
 	if r := []rune(s); len(r) > limit {
 		s = string(r[:limit])
 	}
