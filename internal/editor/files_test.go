@@ -184,3 +184,13 @@ func isErrForbidden(err error) bool {
 	return errors.Is(err, ErrForbidden) || errors.Is(err, ErrInvalidName)
 }
 func isErrNotFound(err error) bool { return errors.Is(err, ErrFileNotFound) }
+
+func TestFileVersion(t *testing.T) {
+	v := FileVersion([]byte("hello"))
+	if v != "2cf24dba5fb0a30e" { // sha256("hello")[:8] hex
+		t.Errorf("got %q", v)
+	}
+	if FileVersion(nil) != "e3b0c44298fc1c14" {
+		t.Errorf("empty: got %q", FileVersion(nil))
+	}
+}

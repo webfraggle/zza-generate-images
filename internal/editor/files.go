@@ -5,7 +5,9 @@
 package editor
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -256,4 +258,11 @@ func DeleteFile(templatesDir, templateName, filename string) error {
 		return fmt.Errorf("editor: deleting file: %w", err)
 	}
 	return nil
+}
+
+// FileVersion returns the version identifier of file content: the first 16
+// hex characters of its SHA-256. Used for optimistic concurrency (ETag, MCP).
+func FileVersion(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:8])
 }

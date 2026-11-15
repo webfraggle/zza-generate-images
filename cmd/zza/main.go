@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/webfraggle/zza-generate-images/internal/cli"
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/internal/desktop"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
+	"github.com/webfraggle/zza-generate-images/internal/mcp"
 	"github.com/webfraggle/zza-generate-images/internal/server"
 	"github.com/webfraggle/zza-generate-images/internal/version"
 	"github.com/webfraggle/zza-generate-images/web"
@@ -38,6 +41,7 @@ func rootCmd() *cobra.Command {
 		"path to templates directory (defaults to sibling of executable)")
 	root.AddCommand(cli.RenderCmd()) // render has its own --templates-dir (default ./templates)
 	root.AddCommand(serveCmd())
+	root.AddCommand(mcpCmd())
 	root.AddCommand(versionCmd())
 	return root
 }
@@ -66,6 +70,36 @@ func serveCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&port, "port", "8080", "TCP port to listen on")
+	c.Flags().StringVar(&templatesDir, "templates-dir", "",
+		"path to templates directory (defaults to sibling of executable)")
+	return c
+}
+
+func mcpCmd() *cobra.Command {
+	var templatesDir string
+	c := &cobra.Command{
+		Use:   "mcp",
+		Short: "Run an MCP server on stdin/stdout for AI clients (Claude Desktop, Claude Code)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			exe, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("locating executable: %w", err)
+			}
+			tdir, err := desktop.ResolveTemplatesDir(templatesDir, exe)
+			if err != nil {
+				return err
+			}
+			if err := desktop.EnsureTemplatesDir(tdir); err != nil {
+				return err
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			return mcp.Run(ctx, mcp.Config{TemplatesDir: tdir})
+		},
+	}
+	// stdout belongs to the MCP protocol: Cobra must never write usage or help there.
+	c.SilenceUsage = true
+	c.SetOut(os.Stderr)
 	c.Flags().StringVar(&templatesDir, "templates-dir", "",
 		"path to templates directory (defaults to sibling of executable)")
 	return c
