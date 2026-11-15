@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"image"
 	"image/color"
 	"os"
@@ -187,5 +188,16 @@ func TestSVGToPNG_Timeout(t *testing.T) {
 	requireToolError(t, res, "svg rendering timed out")
 	if _, err := os.Stat(filepath.Join(dir, "sbb-105-v1", "t.png")); err == nil {
 		t.Error("file written after timeout")
+	}
+}
+
+// A client cancel is not a timeout.
+func TestSVGToPNG_CancelledNotTimeout(t *testing.T) {
+	e, _ := sbbEnv(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, err := e.svgToPNG(ctx, svgToPNGIn{Template: "sbb-105-v1", Name: "c.png", SVG: redSquare, Width: 500, Height: 500})
+	if err == nil || err.Error() != "svg rendering cancelled" {
+		t.Fatalf("got %v", err)
 	}
 }

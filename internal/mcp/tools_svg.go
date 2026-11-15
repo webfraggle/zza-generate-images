@@ -192,18 +192,26 @@ func (e *env) svgToPNG(ctx context.Context, in svgToPNGIn) (*sdk.CallToolResult,
 		img, err := rasterizeSVGCtx(rctx, in.SVG, in.Width, in.Height, aa)
 		ch <- result{img, err}
 	}()
+	// ctxErr maps a context error: deadline = timeout, anything else = the
+	// client cancelled the call.
+	ctxErr := func(err error) error {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return errors.New("svg rendering timed out")
+		}
+		return errors.New("svg rendering cancelled")
+	}
 	var img *image.NRGBA
 	select {
 	case r := <-ch:
 		if r.err != nil {
-			if errors.Is(r.err, context.DeadlineExceeded) {
-				return nil, zero, errors.New("svg rendering timed out")
+			if errors.Is(r.err, context.DeadlineExceeded) || errors.Is(r.err, context.Canceled) {
+				return nil, zero, ctxErr(r.err)
 			}
 			return nil, zero, r.err
 		}
 		img = r.img
 	case <-rctx.Done():
-		return nil, zero, errors.New("svg rendering timed out")
+		return nil, zero, ctxErr(rctx.Err())
 	}
 
 	e.writeMu.Lock()

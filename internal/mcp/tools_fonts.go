@@ -445,7 +445,6 @@ func addFontDef(src []byte, id, file string) (out []byte, existingID string, err
 		insertAt = at
 		add = []string{"fonts:" + cr, "  - id: " + yamlScalar(id) + cr, "    file: " + yamlScalar(file) + cr, cr}
 	}
-	_ = layersAt
 	if insertAt >= 0 && insertAt <= len(lines) {
 		nl := append([]string{}, lines[:insertAt]...)
 		nl = append(nl, add...)
