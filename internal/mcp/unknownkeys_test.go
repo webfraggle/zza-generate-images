@@ -89,6 +89,40 @@ layers:
 	}
 }
 
+// The YAML merge key "<<" is not a template key and must not be reported.
+func TestUnknownKeys_MergeKeyIgnored(t *testing.T) {
+	src := `meta:
+  canvas: {width: 240, height: 240}
+layers:
+  - &base {type: rect, x: 0, y: 0, width: 10, height: 10, color: "#fff"}
+  - <<: *base
+    x: 20
+`
+	if got := unknownKeyWarnings([]byte(src)); len(got) != 0 {
+		t.Errorf("got %q", got)
+	}
+}
+
+// Conditional values (StringOrCond) only know if/elif/then/else.
+func TestUnknownKeys_ConditionalKeys(t *testing.T) {
+	src := `meta:
+  canvas: {width: 240, height: 240}
+layers:
+  - type: text
+    value: "a"
+    color:
+      if: "isEmpty(gleis)"
+      then: "#ffffff"
+      elif: "isEmpty(zug1.zeit)"
+      then: "#00ff00"
+      els: "#000000"
+`
+	want := []string{`line 11: unknown key "els"`}
+	if got := unknownKeyWarnings([]byte(src)); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+}
+
 func TestUnknownKeys_TopLevelAndCap(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("meta:\n  canvas: {width: 240, height: 240}\nlayer: []\nlayers:\n")

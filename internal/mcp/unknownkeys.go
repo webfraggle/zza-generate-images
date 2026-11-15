@@ -16,7 +16,11 @@ const maxUnknownKeyWarnings = 10
 var (
 	unmarshalerType = reflect.TypeOf((*yaml.Unmarshaler)(nil)).Elem()
 	layerType       = reflect.TypeOf(renderer.Layer{})
+	condType        = reflect.TypeOf(renderer.StringOrCond{})
 )
+
+// condKeys are the only keys of a conditional value (StringOrCond mapping).
+var condKeys = map[string]bool{"if": true, "elif": true, "then": true, "else": true}
 
 // unknownKeyWarnings reports mapping keys of template.yaml that the renderer
 // types do not know (typos such as "src_widht" or "iff" are otherwise
@@ -59,6 +63,18 @@ func checkKeys(n *yaml.Node, t reflect.Type, out *[]string) {
 	default:
 		return
 	}
+	if t == condType {
+		if n.Kind == yaml.MappingNode {
+			for i := 0; i+1 < len(n.Content); i += 2 {
+				if k := n.Content[i]; !condKeys[k.Value] && !isMergeKey(k) {
+					if !addUnknown(out, k) {
+						return
+					}
+				}
+			}
+		}
+		return
+	}
 	if t != layerType && reflect.PointerTo(t).Implements(unmarshalerType) {
 		return
 	}
@@ -68,16 +84,31 @@ func checkKeys(n *yaml.Node, t reflect.Type, out *[]string) {
 	fields := yamlFields(t)
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		k := n.Content[i]
+		if isMergeKey(k) {
+			continue // YAML merge key "<<: *anchor"
+		}
 		ft, ok := fields[k.Value]
 		if !ok {
-			if len(*out) >= maxUnknownKeyWarnings {
+			if !addUnknown(out, k) {
 				return
 			}
-			*out = append(*out, fmt.Sprintf("line %d: unknown key %q", k.Line, k.Value))
 			continue
 		}
 		checkKeys(n.Content[i+1], ft, out)
 	}
+}
+
+// addUnknown records an unknown key; it reports false once the cap is reached.
+func addUnknown(out *[]string, k *yaml.Node) bool {
+	if len(*out) >= maxUnknownKeyWarnings {
+		return false
+	}
+	*out = append(*out, fmt.Sprintf("line %d: unknown key %q", k.Line, k.Value))
+	return true
+}
+
+func isMergeKey(k *yaml.Node) bool {
+	return k.Kind == yaml.ScalarNode && k.Tag == "!!merge"
 }
 
 // yamlFields maps the YAML key of each exported field of struct t to its
