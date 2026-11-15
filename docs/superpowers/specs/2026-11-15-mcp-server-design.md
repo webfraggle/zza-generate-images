@@ -203,12 +203,21 @@ Dieselbe Funktion liefert die ETags des Editors.
 - `name` muss `renderer.ValidateTemplateName` erfüllen **und** auf `-105-v1` enden
   (Fehler: `template names must end in "-105-v1" (only 1.05" displays are supported)`).
 - Existiert der Ordner: `template "<n>" already exists — use read_template / write_file`.
+- `title` ≤ 200, `description` ≤ 1000 Zeichen (`title too long (max 200 characters)`,
+  `description too long (max 1000 characters)`).
 - Legt per `editor.InitTemplate` Starter-`template.yaml` + `default.json` an; setzt
-  `meta.name` (Standard: `name`) und `meta.description` per `yaml.Node`.
+  `meta.name` (Standard: `name`) und `meta.description` **textuell** (`setMetaScalars`):
+  nur die Wertzeilen ändern sich (Werte als JSON-Strings = gültige YAML-Skalare),
+  fehlende Schlüssel werden nach der `name`-Zeile eingefügt, Leerzeilen und Kommentare
+  des Starters bleiben byte-gleich. Andere Layouts (Flow-Stil, Blockskalare,
+  mehrzeilige Werte) fallen auf Neukodieren per `yaml.Node` zurück.
 - Ergebnis: JSON `{template, files, versions}` + Vorschau-Bild (Scale 2).
 
 **`write_file(template, name, content, expected_version?)`**
-- Nur `.yaml`/`.json`, ≤ 256 KiB.
+- Nur `.yaml`/`.json`, ≤ 256 KiB. `template.yaml`/`default.json` nur in genau dieser
+  Schreibweise — `Template.yaml`, `DEFAULT.json` u. ä. werden abgelehnt
+  (`file name must be "template.yaml" (lowercase)`), sonst würde auf
+  case-insensitiven Dateisystemen die Prüfung umgangen.
 - `expected_version` gesetzt und ≠ aktueller Version (oder Datei fehlt):
   `conflict: <name> was changed since you read it (current version <v>). Call read_file/read_template again and re-apply your change.`
   Nichts wird geschrieben.
@@ -229,6 +238,10 @@ Dieselbe Funktion liefert die ETags des Editors.
   hier nur eine **Warnung** (sonst könnte ein kaputtes `template.yaml` das Reparieren
   der Testdaten blockieren).
 - Warnungen (blockieren nicht), nur für `template.yaml`:
+  - `line <n>: unknown key "<k>"` — Schlüssel, die die Renderer-Typen nicht kennen
+    (Tippfehler wie `src_widht`, `iff`; bei Bedingungswerten nur `if`/`elif`/`then`/`else`;
+    YAML-Merge-Key `<<` zählt nicht), höchstens 10. Wird `template.yaml` abgelehnt,
+    hängen sie am Ablehnungstext (siehe oben).
   - `bottom half (y 120-239) is empty — the back side of the display shows nothing; rebuild it with copy layers (see get_design_guide)` — wenn alle Pixel der unteren Hälfte im Probe-Render vollständig transparent sind.
   - `<pfad> (text): size <s> px — below 10 px is hard to read on the 1.05" display` — für jeden Text-Layer (rekursiv) mit `0 < size < 10`; `<pfad>` = `layers[i]` bzw. `layers[i].layers[j]` (0-basiert, dieselbe Schreibweise wie in Ablehnungstexten).
   - `<pfad> (text): static text "<value>" looks like train data — use {{zug1.…}} placeholders` — wenn ein Text-Layer ohne `{{` einen Wert hat, der wie eine Uhrzeit (`^\d{1,2}:\d{2}$`) aussieht.
@@ -327,7 +340,13 @@ eines Dateiauswahldialogs und wird akzeptiert.
     gezeichnet; jedes Pixel mit Alpha ≥ 128 wird mit Alpha 255 und seiner Farbe ins
     Ergebnis geschrieben, alle anderen bleiben unberührt. Ergebnis: harte Kanten auch
     zwischen zwei Formen. Halbtransparenz geht dabei verloren (steht in der Beschreibung).
-- Ergebnis: JSON `{name, width, height}` + Bild (bis 240 px je Seite ×2 Nearest
+- `name` wird per `editor.SanitizeFilename` bereinigt (der tatsächlich verwendete Name
+  steht im Ergebnis). Leeres SVG oder SVG ohne zeichenbare Formen →
+  `svg contains no drawable shapes`. Abbruch durch den Client →
+  `svg rendering cancelled` (Zeitlimit → `svg rendering timed out`); in beiden Fällen
+  wird nichts geschrieben.
+- Gerastert wird ohne Schreib-Lock; nur das Schreiben läuft unter dem Lock.
+- Ergebnis: JSON `{name, width, height, replaced}` + Bild (bis 240 px je Seite ×2 Nearest
   Neighbour, sonst 1:1).
 - Bibliothek: `github.com/srwiley/oksvg` + `github.com/srwiley/rasterx`
   (CGO-frei, nur Desktop-Build). Geprüft: `StrictErrorMode` meldet
@@ -337,7 +356,11 @@ eines Dateiauswahldialogs und wird akzeptiert.
 
 Gemeinsam: `src` ist eine `.png`/`.jpg`/`.jpeg` im Template; `dst` endet auf `.png`,
 darf nicht gleich `src` sein (`dst must differ from src — originals are kept`);
-Eingabe-Limits siehe oben; Ergebnis JSON `{name, width, height}` + Bild (≤ 768 px).
+Eingabe-Limits siehe oben (Laden über `loadImageFile`; Fehlertexte `cannot read <src>`,
+`image file too large (max 64 MiB)`, `image too large: WxH (max 25 megapixels)`,
+`not a PNG or JPEG image`); Ergebnis JSON `{name, width, height, replaced, note?, palette?}`
++ Bild (≤ 768 px). Laden und Transformieren laufen ohne Schreib-Lock; nur die
+`SameFile`-Prüfung `dst`≠`src`, die Kapazitätsprüfung und das Schreiben laufen unter dem Lock.
 
 | Tool | Parameter | Verhalten |
 |---|---|---|
@@ -346,7 +369,7 @@ Eingabe-Limits siehe oben; Ergebnis JSON `{name, width, height}` + Bild (≤ 768
 | `resize_image` | `template, src, dst, width, height, mode` | `mode`: `nearest` (Pixel-Optik) oder `smooth` (CatmullRom, Standard). Keine Seitenverhältnis-Automatik. |
 | `quantize_colors` | `template, src, dst, colors` | `renderer.Quantize` (Median-Cut) auf 2–64 Farben; Ergebnis zusätzlich `palette: ["#rrggbb", …]`. |
 | `color_to_alpha` | `template, src, dst, color, tolerance` | `color` `#rrggbb`; Pixel mit `max(|Δr|,|Δg|,|Δb|) ≤ tolerance` (0–255, Standard 24) werden voll transparent. |
-| `sample_colors` | `template, src, points: [{x,y}], radius` | Mittelwert über das Quadrat (2·radius+1)², am Rand beschnitten; Ergebnis `{colors: [{x, y, hex}]}`, kein Bild, schreibt nichts. Punkt außerhalb → Fehler mit Bildmaßen. |
+| `sample_colors` | `template, src, points: [{x,y}], radius` | Mittelwert über das Quadrat (2·radius+1)², am Rand beschnitten; Ergebnis `{colors: [{x, y, hex, alpha}]}` (`alpha` 0–255), kein Bild, schreibt nichts. Punkt außerhalb → Fehler mit Bildmaßen. |
 
 Reines Go (`golang.org/x/image/draw` ist bereits Abhängigkeit), keine neue Bibliothek.
 
