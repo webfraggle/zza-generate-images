@@ -3,6 +3,7 @@ package renderer
 import (
 	"image"
 	"image/color"
+	"strings"
 	"testing"
 )
 
@@ -235,5 +236,23 @@ func TestRender_BlockIf_MixedWithRegular(t *testing.T) {
 	// Center (2,2) is red (covered by red square).
 	if got := nrgbaAt(img, 2, 2); got != (color.NRGBA{R: 0xff, A: 0xff}) {
 		t.Errorf("pixel (2,2) = %v, want red", got)
+	}
+}
+
+func TestParseTemplate(t *testing.T) {
+	tmpl, err := ParseTemplate([]byte("meta:\n  canvas: {width: 240, height: 240}\nlayers: []\n"), "/abs/dir")
+	if err != nil {
+		t.Fatalf("ParseTemplate: %v", err)
+	}
+	if tmpl.Dir != "/abs/dir" || tmpl.Meta.Canvas.Width != 240 {
+		t.Errorf("unexpected template: dir=%q width=%d", tmpl.Dir, tmpl.Meta.Canvas.Width)
+	}
+	_, err = ParseTemplate([]byte("meta:\n  canvas: {width: 240, height: 240, colors: 1}\n"), "/abs/dir")
+	if err == nil || !strings.Contains(err.Error(), "renderer: ParseTemplate: canvas.colors must be between 2 and 256") {
+		t.Errorf("colors error = %v", err)
+	}
+	_, err = ParseTemplate([]byte("layers: [::"), "/abs/dir")
+	if err == nil || !strings.Contains(err.Error(), "decoding YAML") {
+		t.Errorf("syntax error = %v", err)
 	}
 }

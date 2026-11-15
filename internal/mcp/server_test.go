@@ -20,7 +20,7 @@ func TestNewServer_ListsReadTools(t *testing.T) {
 			t.Errorf("tool %s has empty description", tool.Name)
 		}
 	}
-	for _, want := range []string{"get_template_spec", "get_design_guide", "list_templates", "read_template", "read_file"} {
+	for _, want := range []string{"get_template_spec", "get_design_guide", "list_templates", "read_template", "read_file", "create_template", "write_file", "upload_image", "import_image", "render_preview"} {
 		if !have[want] {
 			t.Errorf("missing tool %s (have %v)", want, have)
 		}

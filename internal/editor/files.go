@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // MaxUploadBytes is the maximum size for uploaded asset files (10 MiB).
@@ -30,6 +31,9 @@ var (
 	ErrFileNotFound = errors.New("editor: file not found")
 	ErrForbidden    = errors.New("editor: access denied")
 	ErrInvalidName  = errors.New("editor: invalid filename")
+	// ErrVersionConflict is returned by WriteTextFileIfMatch when the file
+	// changed since the caller read it.
+	ErrVersionConflict = errors.New("editor: version conflict")
 )
 
 // editableExts are the extensions that can be read and written as text.
@@ -216,6 +220,45 @@ func WriteTextFile(templatesDir, templateName, filename string, data []byte) err
 		return fmt.Errorf("editor: renaming file: %w", err)
 	}
 	return nil
+}
+
+// writeMu serialises WriteTextFileIfMatch within the process so that the
+// version check and the write are one step.
+var writeMu sync.Mutex
+
+// CurrentVersion returns the version (FileVersion) of a text file, or "" and
+// nil if the file does not exist.
+func CurrentVersion(templatesDir, templateName, filename string) (string, error) {
+	data, err := ReadTextFile(templatesDir, templateName, filename)
+	if errors.Is(err, ErrFileNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return FileVersion(data), nil
+}
+
+// WriteTextFileIfMatch writes a text file only if its current version equals
+// expected. expected "" or "*" writes unconditionally; a missing file never
+// matches a concrete version. It returns the new version. On mismatch the
+// error wraps ErrVersionConflict and names the current version.
+func WriteTextFileIfMatch(templatesDir, templateName, filename string, data []byte, expected string) (string, error) {
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	if expected != "" && expected != "*" {
+		cur, err := CurrentVersion(templatesDir, templateName, filename)
+		if err != nil {
+			return "", err
+		}
+		if cur != expected {
+			return "", fmt.Errorf("%w: current version %s", ErrVersionConflict, cur)
+		}
+	}
+	if err := WriteTextFile(templatesDir, templateName, filename, data); err != nil {
+		return "", err
+	}
+	return FileVersion(data), nil
 }
 
 // UploadFile writes an asset file (image or font) to the template directory.
