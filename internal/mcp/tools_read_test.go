@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/webfraggle/zza-generate-images/docs"
@@ -136,5 +138,75 @@ func mustWrite(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestListTemplates_ErrorSanitized(t *testing.T) {
+	dir := copyTemplates(t)
+	long := "layers: [\n" + strings.Repeat("  - {type: bogus_"+strings.Repeat("x", 100)+"}\n", 20) + "x: ::"
+	mustWrite(t, filepath.Join(dir, "broken-105-v1", "template.yaml"), long)
+	cs := newSession(t, dir)
+	res := callTool(t, cs, "list_templates", nil)
+	requireOK(t, res)
+	var out struct {
+		Templates []templateSummary `json:"templates"`
+	}
+	if err := json.Unmarshal([]byte(resultText(res)), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Templates) != 1 || out.Templates[0].Error == "" {
+		t.Fatalf("unexpected: %+v", out.Templates)
+	}
+	got := out.Templates[0].Error
+	if strings.Contains(got, dir) {
+		t.Errorf("error leaks templates path: %q", got)
+	}
+	if n := len([]rune(got)); n > 300 {
+		t.Errorf("error not truncated: %d chars", n)
+	}
+}
+
+func TestTemplateDir_RejectsSymlinkFolder(t *testing.T) {
+	dir := copyTemplates(t, "sbb-105-v1")
+	if err := os.Symlink(filepath.Join(dir, "sbb-105-v1"), filepath.Join(dir, "link-105-v1")); err != nil {
+		t.Skip("symlinks not supported")
+	}
+	cs := newSession(t, dir)
+	res := callTool(t, cs, "read_template", map[string]any{"template": "link-105-v1"})
+	requireToolError(t, res, `template "link-105-v1" not found`)
+}
+
+func TestReadFile_SizeAndKind(t *testing.T) {
+	dir := copyTemplates(t, "sbb-105-v1")
+	big := strings.Repeat("a", maxTextFileBytes+1)
+	mustWrite(t, filepath.Join(dir, "sbb-105-v1", "big.json"), big)
+	if err := os.Mkdir(filepath.Join(dir, "sbb-105-v1", "dir.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "sbb-105-v1", "default.json"), filepath.Join(dir, "sbb-105-v1", "ln.json")); err != nil {
+		t.Skip("symlinks not supported")
+	}
+	cs := newSession(t, dir)
+	res := callTool(t, cs, "read_file", map[string]any{"template": "sbb-105-v1", "name": "big.json"})
+	requireToolError(t, res, "file too large")
+	res = callTool(t, cs, "read_file", map[string]any{"template": "sbb-105-v1", "name": "dir.json"})
+	requireToolError(t, res, "not a regular file")
+	res = callTool(t, cs, "read_file", map[string]any{"template": "sbb-105-v1", "name": "ln.json"})
+	requireToolError(t, res, "not a regular file")
+
+	// read_template: oversized template.yaml / default.json
+	mustWrite(t, filepath.Join(dir, "sbb-105-v1", "default.json"), big)
+	res = callTool(t, cs, "read_template", map[string]any{"template": "sbb-105-v1"})
+	requireToolError(t, res, "file too large")
+}
+
+func TestSanitizeErr(t *testing.T) {
+	e := &env{templatesDir: "/secret/templates"}
+	got := e.sanitizeErr(fmt.Errorf("open /secret/templates/x-105-v1/bg.png: %s", strings.Repeat("é", 400)))
+	if strings.Contains(got, "/secret") {
+		t.Errorf("path leaked: %q", got)
+	}
+	if n := len([]rune(got)); n != 300 {
+		t.Errorf("len = %d, want 300", n)
 	}
 }

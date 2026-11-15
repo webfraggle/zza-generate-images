@@ -100,6 +100,12 @@ func safeFilePath(templatesDir, templateName, filename string) (string, error) {
 	return p, nil
 }
 
+// SafeFilePath returns the absolute path of filename inside the template
+// directory, rejecting invalid names and path traversal.
+func SafeFilePath(templatesDir, templateName, filename string) (string, error) {
+	return safeFilePath(templatesDir, templateName, filename)
+}
+
 // SanitizeFilename strips disallowed characters from a filename.
 // Only [a-zA-Z0-9._-] are kept; everything else becomes "_".
 // Any directory component is removed first.

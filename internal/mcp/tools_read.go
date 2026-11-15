@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -123,7 +124,7 @@ func (e *env) listTemplates() (listTemplatesOut, error) {
 		sum.HasDefault = defErr == nil
 		tmpl, err := renderer.LoadTemplate(e.templatesDir, name)
 		if err != nil {
-			sum.Error = err.Error()
+			sum.Error = e.sanitizeErr(err)
 		} else {
 			sum.Title = tmpl.Meta.Name
 			sum.Description = tmpl.Meta.Description
@@ -141,7 +142,7 @@ func (e *env) readTemplate(name string) (readTemplateOut, error) {
 	if _, err := e.templateDir(name); err != nil {
 		return readTemplateOut{}, err
 	}
-	yamlData, err := editor.ReadTextFile(e.templatesDir, name, "template.yaml")
+	yamlData, err := e.readText(name, "template.yaml")
 	if err != nil {
 		return readTemplateOut{}, fileErr("template.yaml", err)
 	}
@@ -150,7 +151,7 @@ func (e *env) readTemplate(name string) (readTemplateOut, error) {
 		TemplateYAML: string(yamlData),
 		Versions:     map[string]string{"template.yaml": editor.FileVersion(yamlData)},
 	}
-	switch def, err := editor.ReadTextFile(e.templatesDir, name, "default.json"); {
+	switch def, err := e.readText(name, "default.json"); {
 	case err == nil:
 		out.DefaultJSON = string(def)
 		out.Versions["default.json"] = editor.FileVersion(def)
@@ -173,11 +174,44 @@ func (e *env) readFile(tmpl, name string) (readFileOut, error) {
 	if _, err := e.templateDir(tmpl); err != nil {
 		return readFileOut{}, err
 	}
-	data, err := editor.ReadTextFile(e.templatesDir, tmpl, name)
+	data, err := e.readText(tmpl, name)
 	if err != nil {
 		return readFileOut{}, fileErr(name, err)
 	}
 	return readFileOut{Name: name, Content: string(data), Version: editor.FileVersion(data)}, nil
+}
+
+var (
+	errFileTooLarge = errors.New("file too large")
+	errNotRegular   = errors.New("not a regular file")
+)
+
+// readText reads a .yaml/.json file of a template after checking that it is a
+// regular file (no symlink, directory, FIFO) of at most maxTextFileBytes.
+func (e *env) readText(tmpl, name string) ([]byte, error) {
+	if p, err := editor.SafeFilePath(e.templatesDir, tmpl, name); err == nil {
+		fi, err := os.Lstat(p)
+		switch {
+		case err != nil:
+			// not found etc. is reported by ReadTextFile
+		case !fi.Mode().IsRegular():
+			return nil, errNotRegular
+		case fi.Size() > maxTextFileBytes:
+			return nil, errFileTooLarge
+		}
+	}
+	return editor.ReadTextFile(e.templatesDir, tmpl, name)
+}
+
+// sanitizeErr shortens a renderer error for tool output: the absolute
+// templates path is removed and the text is cut to 300 characters.
+func (e *env) sanitizeErr(err error) string {
+	s := strings.ReplaceAll(err.Error(), e.templatesDir+string(filepath.Separator), "")
+	s = strings.ReplaceAll(s, e.templatesDir, "")
+	if r := []rune(s); len(r) > 300 {
+		s = string(r[:300])
+	}
+	return s
 }
 
 // fileErr maps editor errors to short, content-free tool errors.
@@ -185,6 +219,10 @@ func fileErr(name string, err error) error {
 	switch {
 	case errors.Is(err, editor.ErrFileNotFound):
 		return fmt.Errorf("file %q not found", name)
+	case errors.Is(err, errFileTooLarge):
+		return fmt.Errorf("file too large (max %d KiB)", maxTextFileBytes>>10)
+	case errors.Is(err, errNotRegular):
+		return fmt.Errorf("not a regular file")
 	case errors.Is(err, editor.ErrForbidden):
 		return fmt.Errorf("only .yaml and .json files can be read as text")
 	case errors.Is(err, editor.ErrInvalidName):

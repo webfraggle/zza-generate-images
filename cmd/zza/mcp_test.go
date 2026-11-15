@@ -62,8 +62,6 @@ func TestMCPCmd_StdoutOnlyProtocol(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
 	t.Cleanup(func() { _ = cmd.Process.Kill() })
 
 	if _, err := io.WriteString(stdin, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`+"\n"); err != nil {
@@ -101,18 +99,30 @@ func TestMCPCmd_StdoutOnlyProtocol(t *testing.T) {
 	}
 
 	_ = stdin.Close()
+	// Read stdout to EOF before Wait (Wait closes the pipe).
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		for line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			if !json.Valid([]byte(line)) {
+				t.Errorf("non-JSON line on stdout: %q", line)
+			}
+		}
+	}()
 	select {
-	case <-done:
+	case <-drained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stdout not closed after stdin closed")
+	}
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- cmd.Wait() }()
+	select {
+	case <-waitErr:
 	case <-time.After(5 * time.Second):
 		t.Fatal("process did not exit after stdin closed")
-	}
-	for line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		if !json.Valid([]byte(line)) {
-			t.Errorf("non-JSON line on stdout: %q", line)
-		}
 	}
 	if !strings.Contains(stderr.String(), "zza mcp: templates=") {
 		t.Errorf("stderr lacks startup log: %q", stderr.String())

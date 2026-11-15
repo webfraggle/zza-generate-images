@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -72,6 +73,10 @@ func NewServer(cfg Config) (*sdk.Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newServer(e), nil
+}
+
+func newServer(e *env) *sdk.Server {
 	s := sdk.NewServer(
 		&sdk.Implementation{Name: "zza", Title: "Zugzielanzeiger", Version: version.Version},
 		&sdk.ServerOptions{
@@ -84,7 +89,7 @@ func NewServer(cfg Config) (*sdk.Server, error) {
 	for _, g := range groups {
 		g.register(s, e)
 	}
-	return s, nil
+	return s
 }
 
 // Run serves MCP on stdin/stdout until ctx ends or stdin closes. Logs go to
@@ -94,10 +99,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	s, err := NewServer(cfg)
-	if err != nil {
-		return err
-	}
+	s := newServer(e)
 	log.Printf("zza mcp: templates=%s fonts=%s", e.templatesDir, e.fontsDir)
 	return s.Run(ctx, &sdk.StdioTransport{})
 }
@@ -109,6 +111,9 @@ func (e *env) templateDir(name string) (string, error) {
 		return "", fmt.Errorf("invalid template name: %s", strings.TrimPrefix(err.Error(), "renderer: "))
 	}
 	dir := filepath.Join(e.templatesDir, name)
+	if fi, err := os.Lstat(dir); err != nil || !fi.Mode().IsDir() {
+		return "", fmt.Errorf("template %q not found", name)
+	}
 	if fi, err := statRegular(filepath.Join(dir, "template.yaml")); err != nil || !fi {
 		return "", fmt.Errorf("template %q not found", name)
 	}
