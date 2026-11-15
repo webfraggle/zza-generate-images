@@ -369,15 +369,13 @@ func (e *env) importImage(in importImageIn) (*sdk.CallToolResult, importImageOut
 	if !filepath.IsAbs(path) {
 		return nil, zero, fmt.Errorf("path must be absolute")
 	}
-	fi, err := os.Lstat(path)
-	if err != nil {
-		return nil, zero, fmt.Errorf("cannot read %s", in.Path)
-	}
-	if !fi.Mode().IsRegular() {
-		return nil, zero, fmt.Errorf("not a regular file")
-	}
+	// Extension first, then one generic text for missing / not regular /
+	// unreadable: the tool must not reveal whether arbitrary paths exist.
 	if _, ok := imageExt(path); !ok {
 		return nil, zero, fmt.Errorf("only .png, .jpg and .jpeg images can be imported")
+	}
+	if fi, err := os.Lstat(path); err != nil || !fi.Mode().IsRegular() {
+		return nil, zero, errCannotReadImage
 	}
 	name := editor.SanitizeFilename(filepath.Base(path))
 	if in.Name != "" {
@@ -387,8 +385,11 @@ func (e *env) importImage(in importImageIn) (*sdk.CallToolResult, importImageOut
 	if !ok {
 		return nil, zero, fmt.Errorf("only .png, .jpg and .jpeg images are allowed")
 	}
-	img, format, raw, err := loadImageBytes(path, maxImportBytes, maxImportSide, 0)
-	if err != nil {
+	img, format, raw, err := loadImageBytes(path, maxImportBytes, maxImportSide, maxToolInputPixels)
+	switch {
+	case errors.Is(err, errNotRegular), errors.Is(err, errReadFailed):
+		return nil, zero, errCannotReadImage
+	case err != nil:
 		return nil, zero, err
 	}
 	b := img.Bounds()

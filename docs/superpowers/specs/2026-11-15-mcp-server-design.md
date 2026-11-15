@@ -238,8 +238,10 @@ Formate je Namens-Suffix.
   nennt stattdessen den Pfad (oder zieht die Datei ins Terminal/den Chat, der den Pfad
   zeigt).
 - `path` muss absolut sein; `~/` am Anfang wird zum Home-Verzeichnis aufgelöst.
-- `os.Lstat`: reguläre Datei, **kein Symlink**; Endung `.png`/`.jpg`/`.jpeg`
-  (Groß-/Kleinschreibung egal); ≤ 20 MiB; muss als PNG/JPEG dekodierbar sein; ≤ 8192 px je Seite.
+- Zuerst die Endung `.png`/`.jpg`/`.jpeg` (Groß-/Kleinschreibung egal), erst danach
+  wird die Datei angefasst. `os.Lstat`: reguläre Datei, **kein Symlink**; ≤ 20 MiB;
+  muss als PNG/JPEG dekodierbar sein; ≤ 8192 px je Seite und ≤ 25 Mio. Pixel
+  (`maxToolInputPixels`, geprüft vor dem Dekodieren).
 - Längste Seite > 2048 px → auf 2048 verkleinert (`CatmullRom`), gespeichert als PNG
   bzw. JPEG (Qualität 90) je nach Zielendung; sonst Byte-Kopie.
 - `name` opt., Standard `SanitizeFilename(filepath.Base(path))`, Endung muss erlaubt sein.
@@ -248,8 +250,9 @@ Formate je Namens-Suffix.
 - Ergebnis: JSON `{name, width, height, scaled_from?: {width, height}}` + Bild
   (längste Seite ≤ 768) + Hinweis, dass Koordinaten für Foto-Werkzeuge sich auf
   `width`×`height` beziehen.
-- Fehler unterscheiden nicht zwischen „fehlt“ und „keine Rechte“
-  (`cannot read <path>`), Dateiinhalte erscheinen nie im Fehlertext.
+- „Fehlt“, „keine reguläre Datei/Symlink“ und „nicht lesbar“ ergeben denselben Text
+  `cannot read image file` (kein Orakel für die Existenz beliebiger Pfade);
+  Dateiinhalte erscheinen nie im Fehlertext.
 
 **Sicherheitsabwägung `import_image`:** Das Tool liest beliebige Pfade, die der
 Nutzer lesen kann — eine KI könnte damit fremde Bilder in den Chat holen. Gegenmaßnahmen:

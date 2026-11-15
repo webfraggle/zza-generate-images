@@ -1,9 +1,12 @@
 package mcp
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"image"
 	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -251,13 +254,13 @@ func TestImportImage(t *testing.T) {
 	requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": "photo.jpg"}), "path must be absolute")
 	link := filepath.Join(src, "link.png")
 	if err := os.Symlink(small, link); err == nil {
-		requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": link}), "not a regular file")
+		requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": link}), "cannot read image file")
 	}
 	sub := filepath.Join(src, "dir.png")
 	if err := os.Mkdir(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": sub}), "not a regular file")
+	requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": sub}), "cannot read image file")
 	secret := filepath.Join(src, "secret.png")
 	if err := os.WriteFile(secret, []byte("TOPSECRET"), 0o644); err != nil {
 		t.Fatal(err)
@@ -268,7 +271,40 @@ func TestImportImage(t *testing.T) {
 		t.Errorf("error leaks file content")
 	}
 	missing := filepath.Join(src, "nope.png")
-	requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": missing}), "cannot read "+missing)
+	requireToolError(t, callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": missing}), "cannot read image file")
+	// Extension is checked before the file is looked at: no existence oracle
+	// for arbitrary paths.
+	for _, p := range []string{filepath.Join(src, "nope.txt"), filepath.Join(src, "orig.png", "x"), small + ".bak"} {
+		res := callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": p})
+		requireToolError(t, res, "only .png, .jpg and .jpeg images can be imported")
+	}
+	// Missing, directory, symlink and unreadable all give the same text.
+	texts := map[string]bool{}
+	for _, p := range []string{missing, sub, link, filepath.Join(src, "nodir", "x.png")} {
+		texts[resultText(callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": p}))] = true
+	}
+	if len(texts) != 1 {
+		t.Errorf("import_image errors differ by path state: %v", texts)
+	}
+}
+
+// A 16-bit PNG 8192x8192 is only ~0.5 MiB compressed but decodes to 1 GiB:
+// import_image must enforce the pixel limit before decoding.
+func TestImportImage_PixelLimit(t *testing.T) {
+	dir := copyTemplates(t, "sbb-105-v1")
+	cs := newSession(t, dir)
+	p := filepath.Join(t.TempDir(), "big.png")
+	// 6000x6000 = 36 M pixels: within maxImportSide, above maxToolInputPixels.
+	img := image.NewNRGBA64(image.Rect(0, 0, 6000, 6000))
+	var buf bytes.Buffer
+	if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := callTool(t, cs, "import_image", map[string]any{"template": "sbb-105-v1", "path": p})
+	requireToolError(t, res, "max 25000000 pixels")
 }
 
 func TestWriteFile_CaseVariantsRejected(t *testing.T) {

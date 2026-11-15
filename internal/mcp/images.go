@@ -18,7 +18,11 @@ import (
 	"github.com/webfraggle/zza-generate-images/internal/editor"
 )
 
-var errNotImage = errors.New("not a PNG or JPEG image")
+var (
+	errNotImage        = errors.New("not a PNG or JPEG image")
+	errReadFailed      = errors.New("cannot read")
+	errCannotReadImage = errors.New("cannot read image file")
+)
 
 // loadImageFile reads and decodes a PNG or JPEG file. The size is checked
 // before reading, the dimensions before decoding. Errors never contain file
@@ -37,7 +41,7 @@ func loadImageBytes(path string, maxBytes int64, maxSide, maxPixels int) (image.
 	case errors.Is(err, errFileTooLarge):
 		return nil, "", nil, fmt.Errorf("image file too large (max %d MiB)", maxBytes>>20)
 	case err != nil:
-		return nil, "", nil, fmt.Errorf("cannot read %s", path)
+		return nil, "", nil, fmt.Errorf("%w %s", errReadFailed, path)
 	}
 	img, format, err := decodeImage(data, maxSide, maxPixels)
 	if err != nil {
