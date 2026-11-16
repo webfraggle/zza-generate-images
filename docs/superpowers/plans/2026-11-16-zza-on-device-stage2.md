@@ -104,9 +104,9 @@ testdata/devtemplates/            Funktionsabdeckungs- und Worst-Case-Templates 
 
 - [ ] **Step 1: Failing tests** in `internal/devicerender/devicerender_test.go`:
   - `TestVersion`: `Version() == "zzarender/1"`.
-  - `TestBudgetNoMem`: `r := New(1024)`; über eine Test-only-C-Funktion `zza_test_alloc(r, 4096)` (in `capi.cpp` hinter `#ifdef ZZA_TESTING`, per `#cgo CXXFLAGS: -DZZA_TESTING` nur im Test-Build… ) → Rückgabe `ZZA_ERR_NOMEM`, `MemUsed() == 0` danach, `zza_test_alloc(r, 512) == ZZA_OK`, `MemPeak() >= 512`.
-  - `TestSha256`: C-Funktion `zza_test_sha256("abc")` == Go `sha256.Sum256([]byte("abc"))`, außerdem 1 MB Zufallsdaten.
-  (Testhilfen: `#cgo` darf in `_test.go` nicht stehen → Testhelfer als `export_test.go`-ähnliche Datei `testhooks.go` mit Build-Tag `zzatesting` ist **nicht** nötig: die Test-C-Funktionen sind immer einkompiliert, aber nur über den nicht exportierten Go-Wrapper `testAlloc`/`testSHA256` in `testhooks.go` erreichbar.)
+  - `TestBudgetNoMem`: `r := New(1024)`; `testAlloc(r, 4096)` → `ZZA_ERR_NOMEM`, danach `MemUsed() == 0`; `testAlloc(r, 512) == ZZA_OK`, `MemPeak() >= 512`.
+  - `TestSha256`: `testSHA256([]byte("abc"))` == Go `sha256.Sum256`, außerdem 1 MB Zufallsdaten.
+  - Testhilfen: Die C-Funktionen `zza_test_*` (in `capi.cpp`, deklariert in `zzarender_c.h` unter „nur für Tests“) sind immer einkompiliert. Go erreicht sie nur über nicht exportierte Wrapper in `internal/devicerender/testhooks.go` (`testAlloc`, `testSHA256`, später `testEval`, `testIntExpr`, `testRegex`), denn `import "C"` ist in `_test.go`-Dateien nicht erlaubt.
 - [ ] **Step 2:** `go test ./internal/devicerender/` → FAIL (Paket fehlt).
 - [ ] **Step 3:** Implementieren. `capi.cpp` fängt an jeder API-Grenze `std::bad_alloc` → `ZZA_ERR_NOMEM`, `std::exception` → `ZZA_ERR_TEMPLATE` mit `what()` als Fehlertext; nie eine Exception über die C-Grenze. ArduinoJson aus `.pio/libdeps/…/ArduinoJson/src` der Firmware als Single-Header vendoren (`ArduinoJson-v6.21.6.h`), Version im Kopfkommentar.
 - [ ] **Step 4:** Tests grün; `CGO_ENABLED=0 go build ./cmd/zza-server` ok; Prüfbefehl aus den Global Constraints leer; `device/README.md` beschreibt Host-Build, Mac-libc++-Eigenheit und „Master-Kopie, Firmware-Kopie nie direkt bearbeiten“.
