@@ -5,6 +5,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -28,6 +29,8 @@ type Incompatible struct{ Reasons []string }
 func (e *Incompatible) Error() string {
 	return "nicht ZZA-kompatibel: " + strings.Join(e.Reasons, "; ")
 }
+
+var interpRe = regexp.MustCompile(`\{\{(?:'[^']*'|"[^"]*"|[^}])+\}\}`)
 
 // layerRef is a JSON layer object that gets an annotation once names are assigned.
 type layerRef struct {
@@ -84,12 +87,12 @@ func (a *analysis) check(tmpl *renderer.Template, doc map[string]any) {
 		a.reason("Canvas ist %d × %d, das Gerät unterstützt nur 240 × 240", c.Width, c.Height)
 	}
 	layers, _ := doc["layers"].([]any)
-	a.walkLayers(tmpl.Layers, layers)
+	a.walkLayers(tmpl.Layers, layers, "layers")
 	a.scanMatches("layers", layers)
 	a.checkRegexes()
 }
 
-func (a *analysis) walkLayers(layers []renderer.Layer, js []any) {
+func (a *analysis) walkLayers(layers []renderer.Layer, js []any, path string) {
 	for i := range layers {
 		if i >= len(js) {
 			return
@@ -99,9 +102,10 @@ func (a *analysis) walkLayers(layers []renderer.Layer, js []any) {
 			continue
 		}
 		l := &layers[i]
+		lp := fmt.Sprintf("%s[%d]", path, i)
 		switch l.Type {
 		case "text":
-			a.textLayer(l, obj)
+			a.textLayer(l, obj, lp)
 		case "image":
 			a.imageLayer(l, obj)
 		}
@@ -114,7 +118,7 @@ func (a *analysis) walkLayers(layers []renderer.Layer, js []any) {
 			}
 		}
 		sub, _ := obj["layers"].([]any)
-		a.walkLayers(l.Layers, sub)
+		a.walkLayers(l.Layers, sub, lp+".layers")
 	}
 }
 
@@ -140,7 +144,7 @@ func layerStrings(v any) []string {
 	return nil
 }
 
-func (a *analysis) textLayer(l *renderer.Layer, obj map[string]any) {
+func (a *analysis) textLayer(l *renderer.Layer, obj map[string]any, path string) {
 	file, ok := a.fontsBy[l.Font]
 	if !ok {
 		a.reason("Schrift %q ist im Template nicht definiert", l.Font)
@@ -166,13 +170,16 @@ func (a *analysis) textLayer(l *renderer.Layer, obj map[string]any) {
 	}
 	for _, s := range layerStrings(obj["value"]) {
 		if strings.Contains(s, "{{") {
-			g.dynamic = true // dynamic text: full set; characters > U+00FF are drawn as '?' on the device
-			continue
+			g.dynamic = true // dynamic text: full set
+		} else {
+			for _, r := range s {
+				g.chars[r] = true
+			}
 		}
-		for _, r := range s {
-			g.chars[r] = true
+		// Literal segments (outside {{ }}) are constants: the device would draw '?'.
+		for _, r := range interpRe.ReplaceAllString(s, "") {
 			if r > 0xFF {
-				a.reason("Konstanter Text %q enthält Zeichen außerhalb von Latin-1 (%q)", s, r)
+				a.reason("%s (value): Zeichen U+%04X %q in %q liegt außerhalb von Latin-1", path, r, r, s)
 			}
 		}
 	}

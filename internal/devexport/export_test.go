@@ -64,8 +64,9 @@ func gradient(w, h int) *image.NRGBA {
 }
 
 // knownIncompatible lists shipped templates the exporter rightly rejects.
-// rhb-105-v1 draws a constant "•" (U+2022), which is outside Latin-1.
-var knownIncompatible = map[string]string{"rhb-105-v1": "Latin-1"}
+// rhb-105-v1 draws a constant "•" (U+2022), sbb-105-v1 has "’" (U+2019) in the
+// literal part of "+{{…}}’"; both are outside Latin-1.
+var knownIncompatible = map[string]string{"rhb-105-v1": "U+2022", "sbb-105-v1": "U+2019"}
 
 func TestExportAllShippedTemplates(t *testing.T) {
 	root := "../../templates"
@@ -439,4 +440,24 @@ func imgFlat(w, h int) *image.NRGBA {
 		copy(img.Pix[i:], []byte{10, 20, 30, 255})
 	}
 	return img
+}
+
+func TestLiteralPartsOfInterpolatedTextAreChecked(t *testing.T) {
+	layer := func(v string) string {
+		return "  - type: text\n    font: b\n    x: 0\n    y: 0\n    color: \"#fff\"\n    value: " + v + "\n"
+	}
+	dir, name := writeTemplate(t, canvas240, layer(`"x{{a}}€"`), nil)
+	_, err := Export(dir, name)
+	inc, ok := err.(*Incompatible)
+	if !ok {
+		t.Fatalf("err = %v", err)
+	}
+	r := strings.Join(inc.Reasons, "|")
+	if !strings.Contains(r, "Latin-1") || !strings.Contains(r, "U+20AC") || !strings.Contains(r, "layers[0]") {
+		t.Errorf("reasons = %q", r)
+	}
+	dir, name = writeTemplate(t, canvas240, layer(`"x{{a}}é"`), nil)
+	if _, err := Export(dir, name); err != nil {
+		t.Fatal(err)
+	}
 }
