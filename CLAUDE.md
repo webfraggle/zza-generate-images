@@ -11,7 +11,7 @@ Dual-Build aus einer Go-Codebase:
 | `cmd/zza-server` | Galerie + Vorschau + Render-Endpoint + ZIP-Download | Docker-Image auf VM (gen.yuv.de) |
 | `cmd/zza` | Editor + Vorschau + Render + native GUI (Wails v2) | ZIPs für macOS arm64/intel + Windows x64 |
 
-Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
+Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/devicerender` und `internal/devpreview` nicht importieren (Prüfung: `CGO_ENABLED=0 go build ./cmd/zza-server && go list -deps ./cmd/zza-server | grep -E 'fsnotify|modelcontextprotocol|oksvg|rasterx|internal/mcp|internal/watch|internal/devicerender|internal/devpreview'` muss leer sein). Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
 
 **Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health`.
 
@@ -35,6 +35,11 @@ internal/
   cli/                   # DESKTOP-ONLY — Render-CLI
   editor/                # DESKTOP-ONLY — File-System-Editor (FSHandlers, files.go, starter)
   desktop/               # DESKTOP-ONLY — Wails-Bootstrap, Browser-Fallback, Templates-Pfad-Resolution
+  devicerender/          # DESKTOP-ONLY — cgo-Brücke zum C++-Kern device/zzarender (Mac: CGO_CXXFLAGS, siehe device/README.md)
+  devpreview/            # DESKTOP-ONLY — Vorschau über den On-Device-Renderer (geplant)
+device/
+  zzarender/             # C++-Kern des On-Device-Renderers (Master-Kopie; Firmware-Kopie nie direkt bearbeiten)
+  README.md
 web/                     # Frontend-Assets (HTML-Templates, CSS, JS) — embedded
 templates/               # YAML-Templates
 docs/                    # Specs, Pläne, User-Guide
