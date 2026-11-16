@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"path"
 	"sort"
@@ -27,16 +28,22 @@ func (p *Package) ZIP() ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	for _, n := range names {
-		w, err := zw.CreateHeader(&zip.FileHeader{
-			Name:         n,
-			Method:       zip.Store,
-			ModifiedDate: (2000-1980)<<9 | 1<<5 | 1, // 2000-01-01
-			ModifiedTime: 0,
+		data := p.Files[n]
+		// CreateRaw with CRC and sizes filled in: no data descriptor (flag bit 3),
+		// so the local header is complete for sequential readers.
+		w, err := zw.CreateRaw(&zip.FileHeader{
+			Name:               n,
+			Method:             zip.Store,
+			ModifiedDate:       (2000-1980)<<9 | 1<<5 | 1, // 2000-01-01
+			ModifiedTime:       0,
+			CRC32:              crc32.ChecksumIEEE(data),
+			CompressedSize64:   uint64(len(data)),
+			UncompressedSize64: uint64(len(data)),
 		})
 		if err != nil {
 			return nil, err
 		}
-		if _, err := w.Write(p.Files[n]); err != nil {
+		if _, err := w.Write(data); err != nil {
 			return nil, err
 		}
 	}

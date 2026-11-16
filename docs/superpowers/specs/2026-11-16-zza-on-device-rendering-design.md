@@ -223,6 +223,8 @@ Der Exporter lehnt ab, mit konkreter Meldung „nicht ZZA-kompatibel: …“, we
 - Texte enthalten Zeichen außerhalb von Latin-1. Geprüft werden Konstanten; dynamische Zugdaten ersetzt das Gerät zur Laufzeit durch `?` **[P]**.
 - Eine Funktion, ein Filter oder eine Variable fehlt im C++-Evaluator.
 - Ein `match`-Muster ist ungültig (dieselbe Prüfung wie Go `regexp`).
+- Ein `match`-Muster ist nicht konstant, d. h. das Musterargument ist kein in Anführungszeichen stehendes Literal (z. B. Muster aus `{{…}}`/Variable). Go erlaubt das, das Gerät kann zur Laufzeit nicht kompilieren; die einzige Format-Einschränkung dieser Art. Meldung: „Regex-Muster muss konstant sein“.
+- Das kompilierte Programm eines konstanten `match`-Musters hat mehr als 2 000 Instruktionen oder mehr als 8 000 Runes insgesamt. Meldung: „Regex-Muster zu groß für das Gerät“.
 - Ein Ressourcenlimit (§8.3) wird überschritten.
 
 `canvas.colors` wirkt nur auf die GIF-Ausgabe und wird ignoriert.

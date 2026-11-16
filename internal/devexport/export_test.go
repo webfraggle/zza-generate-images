@@ -461,3 +461,38 @@ func TestLiteralPartsOfInterpolatedTextAreChecked(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestZIPLocalHeadersComplete reads the ZIP front to back using only local
+// file headers (no central directory), as a streaming firmware reader would.
+func TestZIPLocalHeadersComplete(t *testing.T) {
+	p := &Package{Name: "x", Files: map[string][]byte{
+		"manifest.json": []byte(`{"name":"x"}`), "a.img": bytes.Repeat([]byte{1, 2, 3}, 100), "t.json": []byte("{}"), "empty": {},
+	}}
+	z, err := p.ZIP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]byte{}
+	for pos := 0; pos+30 <= len(z) && binary.LittleEndian.Uint32(z[pos:]) == 0x04034b50; {
+		flags := binary.LittleEndian.Uint16(z[pos+6:])
+		method := binary.LittleEndian.Uint16(z[pos+8:])
+		csize := int(binary.LittleEndian.Uint32(z[pos+18:]))
+		usize := int(binary.LittleEndian.Uint32(z[pos+22:]))
+		nl, el := int(binary.LittleEndian.Uint16(z[pos+26:])), int(binary.LittleEndian.Uint16(z[pos+28:]))
+		if flags&8 != 0 || method != 0 || csize != usize {
+			t.Fatalf("entry at %d: flags %#x method %d sizes %d/%d", pos, flags, method, csize, usize)
+		}
+		name := string(z[pos+30 : pos+30+nl])
+		start := pos + 30 + nl + el
+		got[name] = z[start : start+csize]
+		pos = start + csize
+	}
+	if len(got) != len(p.Files) {
+		t.Fatalf("recovered %d files, want %d", len(got), len(p.Files))
+	}
+	for n, b := range p.Files {
+		if !bytes.Equal(got[n], b) {
+			t.Errorf("%s differs", n)
+		}
+	}
+}

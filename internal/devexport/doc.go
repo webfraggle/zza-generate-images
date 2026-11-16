@@ -8,7 +8,10 @@
 // # Package (ZIP)
 //
 // Method 0 (stored), manifest.json first, the rest sorted by name, timestamp
-// 2000-01-01 00:00:00, so equal input gives equal bytes. ReadZIP also accepts
+// 2000-01-01 00:00:00, so equal input gives equal bytes. Local file headers are
+// complete (no data descriptor, general-purpose flag bit 3 clear: CRC-32 and both
+// sizes are in the local header), so a sequential reader works without the
+// central directory. ReadZIP also accepts
 // a ZIP with a single top-level folder.
 //
 //	manifest.json  {"format":1,"name":…,"canvas":[240,240],
@@ -38,7 +41,10 @@
 //   - Top-level "_re":{"<pattern>":[start,numCap,[[op,out,arg,[runes…]],…]]}
 //     holds the compiled program (Prog, see CompileRegex) of every constant
 //     pattern of a match filter. The device cannot compile regexes, so a
-//     pattern that is not a quoted literal is rejected.
+//     pattern that is not a quoted literal is rejected. The key is the pattern
+//     text exactly as the unquoted filter argument (the characters between the
+//     quotes, no escape processing), the same string the device finds when it
+//     evaluates match('…', n).
 //
 // # iN.img
 //
@@ -66,8 +72,40 @@
 //	mask area: A8 masks
 //
 // flags bit 0: every mask is stored RLE-compressed on its own (same RLE as
-// above over 1-byte values, decoding to exactly w*h bytes); off then points
-// into the compressed stream. Bit 0 clear: raw w*h bytes per mask.
+// above over 1-byte values); off is then a BYTE offset into the compressed mask
+// area (start of that glyph's RLE stream) and the stream decodes to exactly w*h
+// bytes (the decoder stops after w*h bytes; the next glyph's stream follows
+// directly). Bit 0 clear: off is a byte offset of w*h raw bytes.
+//
+// # Text layout on the device (contract for the C++ loader)
+//
+// Units: adv and kern are natural (unscaled) 26.6 values (64 = 1 px). ascent,
+// descent, height are whole pixels. bx/by/w/h are final pixels (scale_x/scale_y
+// already applied to the mask) and must not be scaled again.
+//
+//   - ascent = round(natural ascent * scale_y); height = round(natural line
+//     height * scale_y); descent is the natural, UNscaled descent (scale_y is
+//     not applied). line_height is not in the file: at run time
+//     lineHeight = round(height * line_height) when line_height > 0 && != 1,
+//     else height. First-line top = y; baseline = y + ascent (valign: baseline:
+//     baseline = y).
+//   - Pen: kept in natural 26.6 as an integer sum over the drawn glyphs
+//     pen = Σ (adv(g) + kern(prev, g)); kern(prev, g) is added before g when a
+//     previous glyph exists, and is 0 if the pair is not in the table.
+//     Total line width in natural pixels is measured from the same sum.
+//   - Glyph placement (every glyph, also with scale_x == 1):
+//     gx = x + round(pen_before_g * scale_x / 64), pen_before_g including the
+//     kern of g; round = floor(v + 0.5) in float. The mask's top-left is at
+//     (gx + bx, baselineY + by). scale_x/scale_y of 0 mean 1.
+//     Natural line width W = round(pen_total / 64) (like font.MeasureString(...).Round());
+//     the on-canvas width used for alignment and <id>.width is ceil(W * scale_x)
+//     (W when scale_x == 1).
+//   - Subpixel: masks are rasterised at subpixel 0, so glyphs sit on whole
+//     pixels; this is the accepted deviation from Go (checked by the "near"
+//     comparison, not bit-exact).
+//   - Missing glyph: a code point that is > 0xFF, < 0x20 or absent from the
+//     table is replaced by '?' (always present) before layout, so '?' provides
+//     advance, mask and kerning for it.
 //
 // Glyph set per font combination (file, size, scale_x, scale_y): all characters
 // of its constant texts; as soon as one text of the combination contains "{{",
