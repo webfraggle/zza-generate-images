@@ -31,10 +31,16 @@ func testSHA256(data []byte) [32]byte {
 type zzaTime struct{ Year, Month, Day, Hour, Minute, Second, Weekday int }
 
 // testEval evaluates expr (as condition if isCond) with the C++ evaluator.
+// regexJSON is a `_re` table {"<pattern>": <program>, …} for match ("" = none).
 // The second result is a ZZA_ERR_* code (0 = ok).
-func testEval(dataJSON string, now zzaTime, frame, frames, delayCS int, expr string, isCond bool) (string, int) {
+func testEval(dataJSON, regexJSON string, now zzaTime, frame, frames, delayCS int, expr string, isCond bool) (string, int) {
 	cData := C.CString(dataJSON)
 	defer C.free(unsafe.Pointer(cData))
+	var cRegex *C.char
+	if regexJSON != "" {
+		cRegex = C.CString(regexJSON)
+		defer C.free(unsafe.Pointer(cRegex))
+	}
 	cExpr := C.CString(expr)
 	defer C.free(unsafe.Pointer(cExpr))
 	t := C.zza_time{
@@ -48,7 +54,7 @@ func testEval(dataJSON string, now zzaTime, frame, frames, delayCS int, expr str
 	}
 	buf := make([]byte, 4096)
 	for {
-		n := int(C.zza_test_eval(cData, &t, C.int(frame), C.int(frames), C.int(delayCS), cExpr, cond,
+		n := int(C.zza_test_eval(cData, cRegex, &t, C.int(frame), C.int(frames), C.int(delayCS), cExpr, cond,
 			(*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))))
 		if n < 0 {
 			return "", -n
@@ -58,6 +64,25 @@ func testEval(dataJSON string, now zzaTime, frame, frames, delayCS int, expr str
 		}
 		buf = make([]byte, n+1)
 	}
+}
+
+// testRegex runs a program (devexport.Prog JSON) on in and returns capture
+// group g with Go matchGroup semantics; the second result is a ZZA_* code.
+func testRegex(progJSON, in string, group int) (string, int) {
+	cProg := C.CString(progJSON)
+	defer C.free(unsafe.Pointer(cProg))
+	b := []byte(in)
+	var p *C.char
+	if len(b) > 0 {
+		p = (*C.char)(unsafe.Pointer(&b[0]))
+	}
+	out := make([]byte, len(b)+1) // a group is a substring of in
+	n := int(C.zza_test_regex(cProg, p, C.size_t(len(b)), C.int(group),
+		(*C.char)(unsafe.Pointer(&out[0])), C.size_t(len(out))))
+	if n < 0 {
+		return "", -n
+	}
+	return string(out[:n]), 0
 }
 
 // testIntExpr evaluates a coordinate expression; the second result is a ZZA_* code.

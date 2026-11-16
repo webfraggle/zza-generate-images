@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
+	"github.com/webfraggle/zza-generate-images/internal/devexport"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 )
 
@@ -24,17 +26,30 @@ type corpusEntry struct {
 	Vars map[string]int  `json:"vars"`
 }
 
-// pendingRegex lists expression substrings that need the regex engine (Task 3);
-// matching corpus entries are skipped until it is implemented.
-var pendingRegex = []string{"match("}
+// matchPatternRe finds the pattern argument of match filters in an expression.
+var matchPatternRe = regexp.MustCompile(`match\(\s*('[^']*'|"[^"]*"|[^,)]*)`)
 
-func isPending(expr string) bool {
-	for _, p := range pendingRegex {
-		if strings.Contains(expr, p) {
-			return true
+// regexTableFor compiles the constant match patterns of exprs into a `_re`
+// table (as the exporter does); invalid patterns get no program.
+func regexTableFor(t *testing.T, exprs ...string) string {
+	t.Helper()
+	table := map[string]devexport.Prog{}
+	for _, expr := range exprs {
+		for _, m := range matchPatternRe.FindAllStringSubmatch(expr, -1) {
+			p := strings.TrimSpace(m[1])
+			if len(p) >= 2 && (p[0] == '\'' || p[0] == '"') && p[len(p)-1] == p[0] {
+				p = p[1 : len(p)-1]
+			}
+			if prog, err := devexport.CompileRegex(p); err == nil {
+				table[p] = prog
+			}
 		}
 	}
-	return false
+	b, err := json.Marshal(table)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 func loadCorpus(t *testing.T) []corpusEntry {
@@ -55,14 +70,14 @@ func toZza(tm time.Time) zzaTime {
 }
 
 // compareEval runs one entry through Go and C++ and reports a mismatch.
-func compareEval(t *testing.T, idx int, dataJSON string, now time.Time, anim []int, expr string, cond bool) {
+func compareEval(t *testing.T, idx int, dataJSON, regexJSON string, now time.Time, anim []int, expr string, cond bool) {
 	t.Helper()
 	var data map[string]any
 	if err := json.Unmarshal([]byte(dataJSON), &data); err != nil {
 		t.Fatalf("entry %d: bad data: %v", idx, err)
 	}
 	want := renderer.EvalForTest(data, now, anim[0], anim[1], anim[2], expr, cond)
-	got, rc := testEval(dataJSON, toZza(now), anim[0], anim[1], anim[2], expr, cond)
+	got, rc := testEval(dataJSON, regexJSON, toZza(now), anim[0], anim[1], anim[2], expr, cond)
 	if rc != 0 {
 		t.Errorf("entry %d %q: C++ error code %d", idx, expr, rc)
 		return
@@ -74,25 +89,63 @@ func compareEval(t *testing.T, idx int, dataJSON string, now time.Time, anim []i
 
 func TestEvalCorpus(t *testing.T) {
 	corpus := loadCorpus(t)
-	n, skipped := 0, 0
+	var exprs []string
+	for _, e := range corpus {
+		exprs = append(exprs, e.Expr)
+	}
+	regexJSON := regexTableFor(t, exprs...)
+	n, nMatch := 0, 0
 	for i, e := range corpus {
 		if e.Int {
-			continue
-		}
-		if isPending(e.Expr) {
-			skipped++
 			continue
 		}
 		now, err := time.Parse(time.RFC3339, e.Now)
 		if err != nil {
 			t.Fatalf("entry %d: %v", i, err)
 		}
-		compareEval(t, i, string(e.Data), now, e.Anim, e.Expr, e.Cond)
+		compareEval(t, i, string(e.Data), regexJSON, now, e.Anim, e.Expr, e.Cond)
 		n++
+		if strings.Contains(e.Expr, "match(") {
+			nMatch++
+		}
 	}
-	t.Logf("compared %d entries, skipped %d pending regex entries", n, skipped)
-	if skipped > 0 && len(pendingRegex) == 0 {
-		t.Fatal("pendingRegex is empty but entries were skipped")
+	t.Logf("compared %d entries (%d with match)", n, nMatch)
+	if nMatch == 0 {
+		t.Fatal("corpus has no match entries")
+	}
+}
+
+// match with Go's limits: overlong pattern (even with a program), overlong
+// value, negative group; and a pattern without program behaves as invalid.
+func TestEvalMatchLimits(t *testing.T) {
+	now := time.Date(2024, 3, 5, 7, 8, 9, 0, time.UTC)
+	long := strings.Repeat("a", 101)
+	exprs := []string{
+		"{{v | match('" + long + "', 0)}}",
+		"{{v | match('" + long[:100] + "', 0)}}",
+		"{{w | match('a+', 0)}}",
+		"{{x | match('a+', 0)}}",
+		"{{v | match('(a)', -1)}}",
+		"{{v | match(\"(a+)\", 1)}}",
+	}
+	big := strings.Repeat("a", 64*1024)
+	data, _ := json.Marshal(map[string]string{"v": strings.Repeat("a", 120), "w": big + "a", "x": big})
+	regexJSON := regexTableFor(t, exprs...)
+	if !strings.Contains(regexJSON, long) {
+		t.Fatal("table must hold the overlong pattern so the C++ limit is exercised")
+	}
+	for i, expr := range exprs {
+		compareEval(t, 200000+i, string(data), regexJSON, now, []int{0, 1, 0}, expr, false)
+	}
+	// No program for the pattern: "" (Go yields "aaa" here, but the exporter
+	// only accepts templates whose patterns all have programs).
+	got, rc := testEval(`{"v":"aaa"}`, "", toZza(now), 0, 1, 0, "{{v | match('a+', 0)}}", false)
+	if rc != 0 || got != "" {
+		t.Errorf("match without program = %q (rc %d), want \"\"", got, rc)
+	}
+	// A malformed table is a format error.
+	if _, rc := testEval(`{"v":"a"}`, `{"a":[0,2,[]]}`, toZza(now), 0, 1, 0, "{{v}}", false); rc != 1 { // ZZA_ERR_FORMAT
+		t.Errorf("malformed regex table: rc %d, want ZZA_ERR_FORMAT", rc)
 	}
 }
 
@@ -114,7 +167,7 @@ func TestEvalInvalidUTF8(t *testing.T) {
 		"{{v | prefix('\xef\xbf\xbd') | upper}}",
 		"{{v | prefix('ä\xffö') | upper | lower}}",
 	} {
-		compareEval(t, 100000+i, data, now, []int{0, 1, 0}, expr, false)
+		compareEval(t, 100000+i, data, "", now, []int{0, 1, 0}, expr, false)
 	}
 }
 
@@ -158,7 +211,7 @@ func TestEvalLongInput(t *testing.T) {
 	_ = json.Unmarshal(dataBytes, &data)
 	want := renderer.EvalForTest(data, now, 0, 1, 0, expr, false)
 	start := time.Now()
-	got, rc := testEval(string(dataBytes), toZza(now), 0, 1, 0, expr, false)
+	got, rc := testEval(string(dataBytes), "", toZza(now), 0, 1, 0, expr, false)
 	el := time.Since(start)
 	if rc != 0 || got != want {
 		t.Fatalf("long input mismatch (rc=%d, len go=%d c++=%d)", rc, len(want), len(got))
@@ -173,7 +226,7 @@ func TestEvalLongInput(t *testing.T) {
 	expr = "{{v | replace('a','bb') | upper | before('x')}}"
 	want = renderer.EvalForTest(data, now, 0, 1, 0, expr, false)
 	start = time.Now()
-	got, rc = testEval(string(dataBytes), toZza(now), 0, 1, 0, expr, false)
+	got, rc = testEval(string(dataBytes), "", toZza(now), 0, 1, 0, expr, false)
 	if rc != 0 || got != want {
 		t.Fatalf("60KB mismatch (rc=%d, len go=%d c++=%d)", rc, len(want), len(got))
 	}
@@ -190,7 +243,7 @@ func TestEvalLongInput(t *testing.T) {
 	expr = "{{v | stripBetween('[',']') | upper}}"
 	want = renderer.EvalForTest(data, now, 0, 1, 0, expr, false)
 	start = time.Now()
-	got, rc = testEval(string(dataBytes), toZza(now), 0, 1, 0, expr, false)
+	got, rc = testEval(string(dataBytes), "", toZza(now), 0, 1, 0, expr, false)
 	if rc != 0 || got != want {
 		t.Fatalf("stripBetween mismatch (rc=%d)", rc)
 	}

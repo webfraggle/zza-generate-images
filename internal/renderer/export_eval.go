@@ -16,3 +16,10 @@ func EvalForTest(data map[string]any, now time.Time, frame, frames, delayCS int,
 	}
 	return e.Interpolate(expr)
 }
+
+// MatchGroupForTest exposes the match filter's core (limits, regexp
+// compilation, group selection) so the C++ regex engine can be checked
+// against Go; the renderer itself does not use it.
+func MatchGroupForTest(value, pattern string, n int) string {
+	return matchGroup(value, pattern, n)
+}

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "intexpr.h"
+#include "regex.h"
 #include "third_party/ArduinoJson.h"
 #include "zzarender_c.h"
 
@@ -26,6 +27,11 @@ class Eval {
   void setStrVar(std::string_view name, std::string_view value);
   void setIntVar(std::string_view name, int value);
   const IntVars& intVars() const { return intVars_; }
+
+  // Programs for `match` patterns (not owned; must outlive the Eval). Without a
+  // source, or for a pattern it does not know, match yields "" like an
+  // invalid pattern in Go.
+  void setRegexSource(const RegexSource* src) { regex_ = src; }
 
   // Replaces every {{expr}} in s.
   std::string interpolate(const std::string& s) const;
@@ -55,6 +61,7 @@ class Eval {
   int animFrame_, animFrames_, animDelayCs_;
   std::vector<StrVar> strVars_;
   IntVars intVars_;
+  const RegexSource* regex_;
 };
 
 }  // namespace zza

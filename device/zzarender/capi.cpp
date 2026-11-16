@@ -4,6 +4,7 @@
 #include <new>
 
 #include "eval.h"
+#include "regex.h"
 #include "sha256.h"
 #include "utf8.h"
 #include "zzarender.h"
@@ -90,25 +91,42 @@ int zza_test_sha256(const unsigned char* data, size_t len, unsigned char out[32]
   });
 }
 
-int zza_test_eval(const char* dataJson, const zza_time* now, int frame, int frames, int delayCs,
-                  const char* expr, int isCond, char* out, size_t outLen) {
+// Budget for the test hooks' scratch memory (regex programs and VM).
+static const size_t kTestBudget = 64u << 20;
+
+// Copies res into out (NUL-terminated, truncated to outLen).
+static void copyOut(const std::string& res, char* out, size_t outLen) {
+  if (out && outLen > 0) {
+    size_t c = res.size() < outLen - 1 ? res.size() : outLen - 1;
+    memcpy(out, res.data(), c);
+    out[c] = 0;
+  }
+}
+
+int zza_test_eval(const char* dataJson, const char* regexJson, const zza_time* now, int frame, int frames,
+                  int delayCs, const char* expr, int isCond, char* out, size_t outLen) {
   if (!dataJson || !now || !expr) return -ZZA_ERR_STATE;
   int len = 0;
   int rc = guarded(nullptr, [&]() {
     size_t n = strlen(dataJson);
     DynamicJsonDocument doc(n * 12 + 1024);
     if (deserializeJson(doc, dataJson, n)) return (int)ZZA_ERR_DATA;
+    ZzaBudget budget(kTestBudget);
+    zza::RegexTable regex(&budget);
+    size_t rn = regexJson ? strlen(regexJson) : 0;
+    DynamicJsonDocument reDoc(rn * 32 + 256);
+    if (regexJson) {
+      if (deserializeJson(reDoc, regexJson, rn)) return (int)ZZA_ERR_DATA;
+      if (!regex.load(reDoc.as<JsonObjectConst>())) return (int)ZZA_ERR_FORMAT;
+    }
     zza::Eval ev(doc.as<JsonVariantConst>(), *now);
     ev.setAnim(frame, frames, delayCs);
+    ev.setRegexSource(&regex);
     std::string res;
     if (isCond) res = ev.cond(expr) ? "true" : "false";
     else res = ev.interpolate(expr);
     len = (int)res.size();
-    if (out && outLen > 0) {
-      size_t c = res.size() < outLen - 1 ? res.size() : outLen - 1;
-      memcpy(out, res.data(), c);
-      out[c] = 0;
-    }
+    copyOut(res, out, outLen);
     return (int)ZZA_OK;
   });
   return rc == ZZA_OK ? len : -rc;
@@ -127,6 +145,24 @@ int zza_test_intexpr(const char* expr, const char* varsJson, int* out) {
     *out = v;
     return (int)ZZA_OK;
   });
+}
+
+int zza_test_regex(const char* progJson, const char* in, size_t inLen, int group, char* out, size_t outLen) {
+  if (!progJson || (!in && inLen > 0)) return -ZZA_ERR_STATE;
+  int len = 0;
+  int rc = guarded(nullptr, [&]() {
+    size_t n = strlen(progJson);
+    DynamicJsonDocument doc(n * 32 + 256);  // dense arrays: up to one slot per 2 chars
+    if (deserializeJson(doc, progJson, n)) return (int)ZZA_ERR_FORMAT;
+    ZzaBudget budget(kTestBudget);
+    zza::RegexProg prog(&budget);
+    if (!prog.load(doc.as<JsonArrayConst>())) return (int)ZZA_ERR_FORMAT;
+    std::string res = zza::matchGroup(prog, std::string_view(in ? in : "", inLen), group);
+    len = (int)res.size();
+    copyOut(res, out, outLen);
+    return (int)ZZA_OK;
+  });
+  return rc == ZZA_OK ? len : -rc;
 }
 
 int zza_test_latin1(const char* in, size_t len, int strict, unsigned char* out, size_t outLen) {

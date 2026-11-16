@@ -16,17 +16,11 @@ namespace {
 
 constexpr int kMaxPipelineDepth = 4;
 constexpr int kMaxCondDepth = 10;
-constexpr size_t kMaxFilterValueLen = 64 * 1024;
 constexpr double kMaxFormatOffsetSec = 3.2e9;
 
 const char* const kWeekdayLong[7] = {"Sonntag", "Montag", "Dienstag", "Mittwoch",
                                      "Donnerstag", "Freitag", "Samstag"};
 const char* const kWeekdayShort[7] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
-
-// match is implemented with the regex engine (Task 3); until then it yields "".
-std::string regexMatchGroup(std::string_view /*value*/, std::string_view /*pattern*/, int /*n*/) {
-  return std::string();
-}
 
 // ---- time helpers (proleptic Gregorian, no time zones) ----
 
@@ -293,7 +287,7 @@ void fmtValue(JsonVariantConst v, std::string& out, int depth) {
 }  // namespace
 
 Eval::Eval(JsonVariantConst data, const zza_time& now)
-    : data_(data), now_(now), animFrame_(0), animFrames_(1), animDelayCs_(0) {
+    : data_(data), now_(now), animFrame_(0), animFrames_(1), animDelayCs_(0), regex_(nullptr) {
   zza::setIntVar(intVars_, "anim.frame", 0);
   zza::setIntVar(intVars_, "anim.frames", 1);
 }
@@ -551,7 +545,14 @@ std::string Eval::applyFilter(std::string value, std::string_view filter, int de
       long long n;
       int ni = -1;
       if (parseInt64(trimSpace(a), &n)) ni = n > 0x7fffffff ? 0x7fffffff : (n < -1 ? -1 : static_cast<int>(n));
-      return regexMatchGroup(value, unquote(args[0]), ni);
+      // Go matchGroup: limits first, then the compiled pattern (no program for
+      // the pattern = invalid pattern in Go).
+      std::string_view pattern = unquote(args[0]);
+      if (ni < 0 || runeCount(pattern) > kMaxMatchPatternLen || value.size() > kMaxFilterValueLen)
+        return std::string();
+      const RegexProg* prog = regex_ ? regex_->find(pattern) : nullptr;
+      if (!prog) return std::string();
+      return matchGroup(*prog, value, ni);
     }
   } else if (name == "mul") {
     if (na == 1) return mathOp('*');
