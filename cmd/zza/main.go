@@ -37,6 +37,7 @@ func rootCmd() *cobra.Command {
 	root.Flags().StringVar(&templatesDir, "templates-dir", "",
 		"path to templates directory (defaults to sibling of executable)")
 	root.AddCommand(cli.RenderCmd()) // render has its own --templates-dir (default ./templates)
+	root.AddCommand(cli.ExportCmd()) // export has its own --templates-dir (default ./templates)
 	root.AddCommand(serveCmd())
 	root.AddCommand(versionCmd())
 	return root
