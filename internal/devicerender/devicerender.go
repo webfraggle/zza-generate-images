@@ -14,6 +14,10 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"unsafe"
+
+	"github.com/webfraggle/zza-generate-images/internal/devexport"
 )
 
 // Sentinel errors; the core's error text is appended via fmt.Errorf("%w: ...").
@@ -27,7 +31,8 @@ var (
 
 // Renderer wraps a C renderer instance. Not safe for concurrent use.
 type Renderer struct {
-	c *C.zza_renderer
+	c      *C.zza_renderer
+	closed bool
 }
 
 // New creates a renderer with the given memory budget in bytes.
@@ -44,6 +49,65 @@ func (r *Renderer) Close() {
 		C.zza_delete(r.c)
 		r.c = nil
 	}
+	r.closed = true
+}
+
+// usable reports why the renderer cannot be used: the core instance could not
+// be created (allocation failure) or Close was called.
+func (r *Renderer) usable() error {
+	if r.c != nil {
+		return nil
+	}
+	if r.closed {
+		return fmt.Errorf("%w: renderer is closed", ErrState)
+	}
+	return fmt.Errorf("%w: creating the renderer failed", ErrNoMem)
+}
+
+// Load replaces the loaded package. The file data is copied into C memory for
+// the call (cgo pointer rules), the core copies what it keeps into its budget.
+// A failed load leaves the renderer without a package.
+func (r *Renderer) Load(p *devexport.Package) error {
+	if err := r.usable(); err != nil {
+		return err
+	}
+	names := make([]string, 0, len(p.Files))
+	for n := range p.Files {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var (
+		arr   *C.zza_file
+		ptrs  []unsafe.Pointer
+		files []C.zza_file
+	)
+	defer func() {
+		for _, q := range ptrs {
+			C.free(q)
+		}
+		if arr != nil {
+			C.free(unsafe.Pointer(arr))
+		}
+	}()
+	if len(names) > 0 {
+		arr = (*C.zza_file)(C.malloc(C.size_t(len(names)) * C.size_t(unsafe.Sizeof(C.zza_file{}))))
+		if arr == nil {
+			return fmt.Errorf("%w: file table", ErrNoMem)
+		}
+		files = unsafe.Slice(arr, len(names))
+	}
+	for i, n := range names {
+		cn := C.CString(n)
+		ptrs = append(ptrs, unsafe.Pointer(cn))
+		data := p.Files[n]
+		var cd unsafe.Pointer
+		if len(data) > 0 {
+			cd = C.CBytes(data)
+			ptrs = append(ptrs, cd)
+		}
+		files[i] = C.zza_file{name: cn, data: (*C.uchar)(cd), len: C.size_t(len(data))}
+	}
+	return r.errFor(C.zza_load(r.c, arr, C.int(len(names))))
 }
 
 // Version returns the core version string, e.g. "zzarender/1".

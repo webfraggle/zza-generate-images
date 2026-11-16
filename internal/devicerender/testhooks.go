@@ -115,3 +115,12 @@ func testLatin1(s string, strict bool) ([]byte, bool) {
 	}
 	return out[:n], true
 }
+
+// testHash returns the core's FNV-1a of the decoded data of image/font id ("i0", "f1").
+func testHash(r *Renderer, id string) (uint32, int) {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+	var out C.uint
+	rc := int(C.zza_test_hash(r.c, cid, &out))
+	return uint32(out), rc
+}

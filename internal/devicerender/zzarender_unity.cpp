@@ -4,6 +4,7 @@
 #include "eval.cpp"
 #include "intexpr.cpp"
 #include "numfmt.cpp"
+#include "package.cpp"
 #include "regex.cpp"
 #include "sha256.cpp"
 #include "utf8.cpp"

@@ -55,7 +55,22 @@ void zza_delete(zza_renderer* r) { delete r; }
 
 const char* zza_version(void) { return "zzarender/1"; }
 
-int zza_load(zza_renderer* r, const zza_file*, int) { return not_implemented(r); }
+int zza_load(zza_renderer* r, const zza_file* files, int n) {
+  if (!r) return ZZA_ERR_STATE;
+  return guarded(r, [&]() {
+    r->pkg.reset();  // a failed or repeated load never keeps the old package
+    r->error.clear();
+    std::unique_ptr<zza::Package> p(new zza::Package(&r->budget));
+    std::string err;
+    int rc = p->load(files, n, err);
+    if (rc != ZZA_OK) {
+      r->error = err;
+      return rc;
+    }
+    r->pkg = std::move(p);
+    return (int)ZZA_OK;
+  });
+}
 
 int zza_render(zza_renderer* r, const char*, size_t, const zza_time*, unsigned char*) {
   return not_implemented(r);
@@ -80,6 +95,25 @@ int zza_test_alloc(zza_renderer* r, size_t n) {
     b.resize(n);
     return (int)ZZA_OK;
   });
+}
+
+int zza_test_hash(zza_renderer* r, const char* id, unsigned int* out) {
+  if (!r || !r->pkg || !id || !out) return ZZA_ERR_STATE;
+  const uint8_t* p = nullptr;
+  size_t n = 0;
+  if (const zza::Img* im = r->pkg->image(id)) {
+    p = im->px.data();
+    n = im->px.size();
+  } else if (const zza::Font* f = r->pkg->font(id)) {
+    p = f->masks.data();
+    n = f->masks.size();
+  } else {
+    return ZZA_ERR_STATE;
+  }
+  uint32_t h = 2166136261u;
+  for (size_t i = 0; i < n; i++) h = (h ^ p[i]) * 16777619u;
+  *out = h;
+  return ZZA_OK;
 }
 
 int zza_test_sha256(const unsigned char* data, size_t len, unsigned char out[32]) {

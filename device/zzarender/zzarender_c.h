@@ -44,6 +44,10 @@ int zza_test_regex(const char* progJson, const char* in, size_t inLen, int group
 /* UTF-8 -> Latin-1 ('?' for runes above U+00FF; strict: fail instead). Returns length or -1. */
 int zza_test_latin1(const char* in, size_t len, int strict, unsigned char* out, size_t outLen);
 
+/* FNV-1a 32 of the decoded pixel data (image id "iN") or of the decoded mask area (font id "fN") of the
+   loaded package. ZZA_ERR_STATE if no package / no such id. */
+int zza_test_hash(zza_renderer*, const char* id, unsigned int* out);
+
 #ifdef __cplusplus
 }
 #endif
