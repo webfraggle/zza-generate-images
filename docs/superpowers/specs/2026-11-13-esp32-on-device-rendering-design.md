@@ -1,6 +1,6 @@
 # Templates direkt auf dem ZZA rendern (ESP32-S3) — Design
 
-Datum: 2026-11-13 · Status: **zurückgestellt** (für später vorgemerkt, nicht in Umsetzung)
+Datum: 2026-11-13 · Status: **abgelöst** durch `2026-11-16-zza-on-device-rendering-design.md`
 
 Legende: **[C]** = von Christoph so entschieden · **[P]** = Entscheidung des Planers (darf Christoph kippen) · **[B]** = dem Umsetzer überlassen · **[?]** = offen, vor Umsetzung klären
 
