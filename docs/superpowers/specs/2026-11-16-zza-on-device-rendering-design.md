@@ -39,6 +39,11 @@ Was das bringt:
 5. **[C]** Zeichensatz **Latin-1** (ISO 8859-1).
 6. **[C]** Gleichheit nach **Weg B** (§5): Es gibt **einen** C++-Renderer. Das Gerät nutzt ihn, und die Desktop-App bindet ihn per cgo für eine „ZZA-Vorschau“ ein. Die ZZA-Vorschau ist damit pixelgleich mit dem Gerät.
 7. **[C]** Der C++-Code wird **zwischen den Repos kopiert**. Ein eigenes Bibliotheks-Repo gibt es vorerst nicht.
+8. **[C] Allgemeingültig, keine Sonderwege.** Das Gerät unterstützt das **Template-Format**, nicht die heute vorhandenen Templates. Nutzer (und die KI) bauen künftig Templates, die niemand vorhersieht. Daraus folgt:
+   - Keine Regel, Einschränkung oder Optimierung darf sich an einzelnen Templates, deren Namen oder an „was die heutigen Templates nutzen“ orientieren.
+   - Abgelehnt wird nur, was die Hardware grundsätzlich nicht kann (Canvas ≠ 240 × 240, Zeichen außerhalb Latin-1 in Konstanten, Überschreitung der Limits aus §8.3). Alles andere, was der Go-Renderer rendert, rendert auch das Gerät.
+   - Optimierungen sind allgemeine Regeln mit klarer Gültigkeitsbedingung. Greift die Bedingung nicht, läuft der normale Pfad — langsamer, aber korrekt.
+   - Laufzeit- und Speicherverhalten wird gegen **Worst-Case-Templates** an den Limits geprüft, nicht nur gegen die mitgelieferten.
 
 ## 3. Nicht-Ziele
 
@@ -196,6 +201,7 @@ Das Format ist **Implementierungsdetail des Kerns**, da nur C++ es liest. Festge
   - `meta.animation` und `timezone` werden übernommen.
 - **Bilder:**
   - **vorskaliert**, wenn `width`/`height` konstant sind; die Skalierung macht der Exporter mit demselben Catmull-Rom wie der Go-Renderer;
+  - bei **dynamischem** `width`/`height` (Ausdruck) liegt das Original im Paket und der Kern skaliert zur Laufzeit (Catmull-Rom, Ergebnis pro Größe gecacht);
   - Ablage als RGBA8888 **[P]** (siehe §8.1), roh oder RLE **[B]**;
   - Speicher ist mit 16 MB Flash unkritisch; PNG-Dekodierung auf dem Gerät entfällt.
 - **Schriften:**
@@ -214,10 +220,9 @@ Das Format ist **Implementierungsdetail des Kerns**, da nur C++ es liest. Festge
 
 Der Exporter lehnt ab, mit konkreter Meldung „nicht ZZA-kompatibel: …“, wenn eine dieser Bedingungen zutrifft:
 - Die Canvas ist nicht 240 × 240.
-- `image`-Layer haben **dynamische** `width`/`height`. Die heutigen Templates nutzen das nicht.
 - Texte enthalten Zeichen außerhalb von Latin-1. Geprüft werden Konstanten; dynamische Zugdaten ersetzt das Gerät zur Laufzeit durch `?` **[P]**.
 - Eine Funktion, ein Filter oder eine Variable fehlt im C++-Evaluator.
-- Ein `match`-Muster liegt außerhalb der Regex-Teilmenge (§8.1).
+- Ein `match`-Muster ist ungültig (dieselbe Prüfung wie Go `regexp`).
 - Ein Ressourcenlimit (§8.3) wird überschritten.
 
 `canvas.colors` wirkt nur auf die GIF-Ausgabe und wird ignoriert.
@@ -243,10 +248,10 @@ Jeder Bestandteil ist eine Portierung der Go-Logik unter `internal/renderer/`:
 **Festlegungen für die Portierung [P]:**
 
 - **Reguläre Ausdrücke (`match`):**
-  - Die Templates nutzen `match` 32-mal, mit einfachen Mustern: Zeichenklassen, `+`, `*`, `^`, Gruppen, Alternativen. Beispiele: `[0-9]+`, `([a-zA-Z]+)`, `^(ICE|TGV|…)`.
-  - Der Kern bekommt eine **kleine eigene Regex-Engine** für diese Teilmenge mit Leftmost-First-Semantik wie RE2. Er nutzt nicht `std::regex`, das auf dem ESP32 groß und langsam ist und andere Semantik hat.
-  - Die Teilmenge: Literale, `.`, `[…]`, `[^…]`, `^`, `$`, `*`, `+`, `?`, `(…)`, `|`, Escapes `\d \w \s`.
-  - Die Muster sind Konstanten im Template. Der Exporter prüft sie mit `regexp/syntax` gegen die Teilmenge und lehnt andere ab.
+  - Der Kern unterstützt die **volle RE2-Syntax, die Go `regexp` akzeptiert** (Klassen inkl. `[[:alpha:]]`, `\d \w \s \b`, Wiederholungen inkl. `{n,m}` und nicht-gierig, Gruppen inkl. benannt und nicht-fangend, Flags `(?i)` usw.), mit RE2-Semantik (Leftmost-First, Gruppen wie Go).
+  - Eigene Engine, kein `std::regex` (groß, langsam, andere Semantik). Laufzeit **linear** in der Eingabelänge (Pike-VM wie RE2, kein Backtracking), weil Muster vom Nutzer und Eingaben aus den Zugdaten kommen.
+  - Der Exporter kompiliert die Muster vorab mit Go `regexp/syntax` und legt sie als Programm ins Paket **[B]** oder das Gerät kompiliert selbst **[B]**; abgelehnt wird nur, was auch Go ablehnt.
+  - Getestet gegen einen gemeinsamen Korpus (Muster, Eingabe, erwartete Gruppe), der in Go und C++ läuft, plus Fuzzing gegen Go `regexp`.
 - **Farbtiefe intern:**
   - Der Kern zeichnet intern in **8 Bit pro Kanal** (RGB888-Leinwand, ≈ 173 KB im PSRAM) und wandelt erst am Ende nach RGB565.
   - So bleiben Alpha-Mischen, `copy` und Split-Flap-Schnappschüsse nah am Go-Renderer.
@@ -291,6 +296,8 @@ Jeder Bestandteil ist eine Portierung der Go-Logik unter `internal/renderer/`:
 - **Evaluator:**
   - Eine gemeinsame Testfall-Datei (Ausdruck, Daten, erwartetes Ergebnis) wird vom Go-Evaluator **und** vom C++-Evaluator geprüft.
   - So bleibt die Semantik gleich, auch wenn die Server-Vorschau anders rastert.
+- **Funktionsabdeckung unabhängig von den mitgelieferten Templates [C]:** eine Sammlung von Test-Templates, die jede Funktion des Template-Formats einzeln und kombiniert nutzt (alle Layer-Typen, Filter, Bedingungen, Koordinaten-Ausdrücke, `loop`, `fit_items`, dynamische Bildgrößen, `rotate`, `scale_x`/`scale_y`, beide Animationsmodi), dazu zufällig erzeugte Templates (Generator auf Basis der Spec). C++-Kern und Go-Renderer werden auf allen verglichen (Schwellwert wie oben).
+- **Worst-Case auf dem Gerät:** Templates an den Limits (max. Layer, 64 Module, 64 Reel-Einträge, 125 Frames, große Bilder, lange Texte) — geprüft werden Speicher (intern/PSRAM), Laufzeit, kein Absturz, sauberer Rückfall.
 - **Robustheit:**
   - Fuzzing von Paket-Parser und Evaluator auf dem Host (`go test -fuzz` über cgo oder libFuzzer **[B]**).
   - Limit-Tests: lange Texte, maximale Module, defekte Pakete.
@@ -363,6 +370,11 @@ Bildvergleich C++ ↔ Go-Renderer: Layout, Bilder, Bedingungen, Filter, Zeiger u
 1. **Speicher:** Kerning, Glyphen und alle Tabellen als zusammenhängende Blöcke. Der Renderer bekommt eine Allokator-Schnittstelle, die Firmware gibt PSRAM (`heap_caps_malloc(MALLOC_CAP_SPIRAM)`). Viele kleine Allokationen (`std::map`-Knoten, kleine Leaves) haben im Spike den internen Heap geleert. Der interne Heap-Verbrauch wird Testkriterium (nach Laden und nach Animation ≥ 120 KB frei).
 2. **Stack:** Der Renderer läuft in einem eigenen Task mit festem Stack (Loop-Task hat ~5 KB frei). Keine großen Objekte auf dem Stack.
 3. **Rechnen:** kein `double` im Pixelpfad (die S3-FPU rechnet nur `float`; Zeigerdrehung 392 → 45 ms). Festkomma für Gewichte.
-4. **Animation: vorrendern, dann abspielen [P].** Der Zugwechsel ist nicht zeitkritisch (Idee Christoph). Gemessen: alle 33 Frames vorrendern 1,7 s, abgelegt als fertige RGB565-Teilrechtecke je Display-Hälfte im PSRAM (2,5 MB), danach Abspielen mit nur Push Ø 17,7 ms / max 22 ms → **20 fps, 0 verspätete Frames, 1,66 s Laufzeit** wie das GIF. Live-Rendern schaffte 14 fps. Dazu: statische Ebenen vor dem ersten `splitflap` einmal rendern (umgesetzt). PSRAM wird nach dem Abspielen freigegeben. **QUAD:** zwei Gleise gleichzeitig bräuchten ~5 MB → Vorrendern der Gleise nacheinander, oder bei knappem PSRAM Rückfall auf Live-Rendern **[B]**. Die Uhr (Frame-Modus) rendert weiter live (45 ms je Frame bei 1 s Takt; 60 Vollbilder vorzurendern wären 6,9 MB).
+4. **Animation: vorrendern, dann abspielen [P]** — als allgemeine Regel für **jede** Animation (Split-Flap und Frame-Modus), nicht abhängig vom Template:
+   - Der Adapter rendert die Frames vor und legt nur die geänderten Rechtecke je Display-Hälfte als fertiges RGB565 im PSRAM ab, solange ein **PSRAM-Budget** reicht (Wert **[B]**, z. B. 3 MB je Gleis).
+   - Wird das Budget beim Vorrendern überschritten, verwirft er die Teilergebnisse und rendert **live** (langsamer, Ablauf identisch).
+   - Frame-Modus mit `loop`: die vorgerenderten Frames werden wiederholt abgespielt; passt die Schleife nicht ins Budget, wird jeder Frame live gerendert.
+   - Messwerte dazu: Der Zugwechsel ist nicht zeitkritisch (Idee Christoph). Gemessen: alle 33 Frames vorrendern 1,7 s, abgelegt als fertige RGB565-Teilrechtecke je Display-Hälfte im PSRAM (2,5 MB), danach Abspielen mit nur Push Ø 17,7 ms / max 22 ms → **20 fps, 0 verspätete Frames, 1,66 s Laufzeit** wie das GIF. Live-Rendern schaffte 14 fps. Dazu: statische Ebenen vor dem ersten `splitflap` einmal rendern (umgesetzt). PSRAM wird nach dem Abspielen freigegeben. **QUAD:** zwei Gleise gleichzeitig bräuchten ~5 MB → Vorrendern der Gleise nacheinander, oder bei knappem PSRAM Rückfall auf Live-Rendern **[B]**. Beispiel Uhr (Frame-Modus): 60 Frames mit kleinen geänderten Flächen (Zeiger) passen ins Budget und werden vorgerendert; eine Schleife mit großflächigen Änderungen fiele auf Live-Rendern zurück (im Spike 45 ms je Frame).
+5a. **Statischer Vorspann [P]:** Ebenen vor dem ersten `splitflap` werden in einer Split-Flap-Animation einmal gerendert und pro Frame zurückkopiert. Gültigkeitsbedingung: Im Split-Flap-Modus ist `now` eingefroren und `anim.*` konstant, diese Ebenen ändern sich also nie. Setzt der erste `splitflap` eine `if`-Kette fort, entfällt die Optimierung.
 5. **Paketgröße / LittleFS:** Partition 3,375 MB, belegt ~0,9 MB → nur 2–3 weitere Templates in Rohform. v1 braucht: Bilder RLE-komprimiert (oder PNG), Glyphen auf die möglichen Zeichen beschränken wo statisch bestimmbar (Reels, konstante Texte), sonst voller Latin-1-Satz. Kerning bleibt drin (≈ 1 800 Paare je Schrift, sichtbar). Eine größere LittleFS-Partition ist eine Option für später (App-Partitionen haben 6,25 MB, Firmware braucht 1,2 MB), aber nur mit einmaligem USB-Flash.
 6. **Ladezeit** 1,4 s: zulässig für Template-Wechsel; beim Booten wird zuerst das eingebaute Layout gezeigt, falls das Laden länger dauert **[B]**.
