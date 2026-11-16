@@ -29,6 +29,15 @@ size_t        zza_mem_peak(const zza_renderer*);
 /* ---- test only (always compiled in; used by the Go test hooks) ---- */
 int zza_test_alloc(zza_renderer*, size_t n);                              /* allocate+free n bytes via budget */
 int zza_test_sha256(const unsigned char* data, size_t len, unsigned char out[32]);
+/* Evaluates expr (interpolation, or condition if isCond: "true"/"false") against dataJson into out
+   (NUL-terminated, truncated to outLen). Returns the full result length (>= 0), or -ZZA_ERR_*. */
+int zza_test_eval(const char* dataJson, const zza_time* now, int frame, int frames, int delayCs,
+                  const char* expr, int isCond, char* out, size_t outLen);
+/* Coordinate expression; varsJson is an object of ints. ZZA_OK, or an error if the expression is
+   invalid or the result does not fit an int. */
+int zza_test_intexpr(const char* expr, const char* varsJson, int* out);
+/* UTF-8 -> Latin-1 ('?' for runes above U+00FF; strict: fail instead). Returns length or -1. */
+int zza_test_latin1(const char* in, size_t len, int strict, unsigned char* out, size_t outLen);
 
 #ifdef __cplusplus
 }

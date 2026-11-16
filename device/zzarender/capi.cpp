@@ -1,8 +1,11 @@
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <new>
 
+#include "eval.h"
 #include "sha256.h"
+#include "utf8.h"
 #include "zzarender.h"
 
 void* (*zza_raw_malloc)(size_t) = malloc;
@@ -85,6 +88,58 @@ int zza_test_sha256(const unsigned char* data, size_t len, unsigned char out[32]
     s.final(out);
     return (int)ZZA_OK;
   });
+}
+
+int zza_test_eval(const char* dataJson, const zza_time* now, int frame, int frames, int delayCs,
+                  const char* expr, int isCond, char* out, size_t outLen) {
+  if (!dataJson || !now || !expr) return -ZZA_ERR_STATE;
+  int len = 0;
+  int rc = guarded(nullptr, [&]() {
+    size_t n = strlen(dataJson);
+    DynamicJsonDocument doc(n * 12 + 1024);
+    if (deserializeJson(doc, dataJson, n)) return (int)ZZA_ERR_DATA;
+    zza::Eval ev(doc.as<JsonVariantConst>(), *now);
+    ev.setAnim(frame, frames, delayCs);
+    std::string res;
+    if (isCond) res = ev.cond(expr) ? "true" : "false";
+    else res = ev.interpolate(expr);
+    len = (int)res.size();
+    if (out && outLen > 0) {
+      size_t c = res.size() < outLen - 1 ? res.size() : outLen - 1;
+      memcpy(out, res.data(), c);
+      out[c] = 0;
+    }
+    return (int)ZZA_OK;
+  });
+  return rc == ZZA_OK ? len : -rc;
+}
+
+int zza_test_intexpr(const char* expr, const char* varsJson, int* out) {
+  if (!expr || !varsJson || !out) return ZZA_ERR_STATE;
+  return guarded(nullptr, [&]() {
+    DynamicJsonDocument doc(strlen(varsJson) * 12 + 256);
+    if (deserializeJson(doc, varsJson)) return (int)ZZA_ERR_DATA;
+    zza::IntVars vars;
+    for (JsonPair p : doc.as<JsonObject>()) vars.push_back(zza::IntVar{p.key().c_str(), p.value().as<int>()});
+    bool ok = false;
+    int v = zza::evalIntExpr(expr, vars, &ok);
+    if (!ok) return (int)ZZA_ERR_TEMPLATE;
+    *out = v;
+    return (int)ZZA_OK;
+  });
+}
+
+int zza_test_latin1(const char* in, size_t len, int strict, unsigned char* out, size_t outLen) {
+  int res = -1;
+  guarded(nullptr, [&]() {
+    std::string o;
+    if (zza::utf8ToLatin1(std::string_view(in, len), o, strict != 0)) {
+      res = (int)o.size();
+      if (o.size() <= outLen) memcpy(out, o.data(), o.size());
+    }
+    return (int)ZZA_OK;
+  });
+  return res;
 }
 
 }  // extern "C"

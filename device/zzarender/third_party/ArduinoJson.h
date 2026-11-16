@@ -7730,6 +7730,8 @@ inline bool parseNumber(const char* s, VariantData& result) {
 
   ARDUINOJSON_ASSERT(s != 0);
 
+  const char* zza_number_start = s;  // ZZA PATCH: floats are re-parsed with strtod below
+
   bool is_negative = false;
   switch (*s) {
     case '-':
@@ -7774,7 +7776,9 @@ inline bool parseNumber(const char* s, VariantData& result) {
   }
 
   if (*s == '\0') {
-    if (is_negative) {
+    if (is_negative && mantissa == 0) {
+      // ZZA PATCH: "-0" stays a float (-0.0) like Go's float64 decoding
+    } else if (is_negative) {
       const mantissa_t sintMantissaMax = mantissa_t(1)
                                          << (sizeof(JsonInteger) * 8 - 1);
       if (mantissa <= sintMantissaMax) {
@@ -7841,10 +7845,13 @@ inline bool parseNumber(const char* s, VariantData& result) {
   if (*s != '\0')
     return false;
 
-  JsonFloat final_result =
-      make_float(static_cast<JsonFloat>(mantissa), exponent);
+  // ZZA PATCH: ArduinoJson's make_float rounds more than once and drops digits
+  // beyond the mantissa; the Go renderer decodes JSON numbers with correct
+  // rounding, so the syntax checked above is converted again with strtod.
+  (void)exponent;
+  JsonFloat final_result = JsonFloat(strtod(zza_number_start, 0));
 
-  result.setFloat(is_negative ? -final_result : final_result);
+  result.setFloat(final_result);
   return true;
 }
 
