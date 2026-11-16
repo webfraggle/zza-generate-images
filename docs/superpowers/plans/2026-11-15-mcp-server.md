@@ -777,7 +777,7 @@ Run: `node --test web/static/test/editor-sync.test.mjs` → FAIL (module not fou
 
 - [ ] **Step 5: Tests + Commit**
 
-Run: `node --test web/static/test/ && go test ./...` → PASS.
+Run: `node --test 'web/static/test/*.test.mjs' && go test ./...` → PASS.
 ```bash
 git add web/static/editor-sync.js web/static/test/editor-sync.test.mjs web/templates/edit-editor.html web/static/app.css
 git commit -m "feat(editor): live reload on external changes and conflict dialog"
@@ -828,7 +828,7 @@ Prüfen: `claude mcp list` im Repo-Root (nach Bestätigung des Projekt-Servers) 
 
 Run:
 ```bash
-go test -race ./... && go vet ./... && node --test web/static/test/ \
+go test -race ./... && go vet ./... && node --test 'web/static/test/*.test.mjs' \
  && CGO_ENABLED=0 go build ./cmd/zza-server \
  && ! go list -deps ./cmd/zza-server | grep -E 'fsnotify|modelcontextprotocol|oksvg|rasterx|internal/mcp|internal/watch'
 ```

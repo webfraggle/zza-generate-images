@@ -109,8 +109,11 @@ Kommandozeile:
   zza version         — gibt die Version aus
 EOF
 
-    # Zip the staging dir (contents, not the dir itself).
-    (cd "$staging" && zip -rq "../release/$zip_name" .)
+    # Zip the staging dir (contents, not the dir itself). Remove any previous
+    # ZIP first: `zip -r` adds to an existing archive, so templates deleted
+    # from the repo would otherwise linger in every later release.
+    rm -f "$RELEASE_DIR/$zip_name"
+    (cd "$staging" && zip -rq "../release/$zip_name" . -x '*.DS_Store')
     rm -rf "$staging"
     echo "  → $RELEASE_DIR/$zip_name"
     ok=$((ok+1))

@@ -11,9 +11,9 @@ um Erlaubnis — jeweils erlauben und dabei prüfen, dass Tool-Name und Paramete
 
 | # | Aktion | Erwartung |
 |---|---|---|
-| 0.1 | `go test -race ./... && node --test web/static/test/` | alles grün |
+| 0.1 | `go test -race ./... && node --test 'web/static/test/*.test.mjs'` | alles grün (98 JS-Tests) |
 | 0.2 | `CGO_ENABLED=0 go build ./cmd/zza-server && go list -deps ./cmd/zza-server \| grep -E 'fsnotify\|modelcontextprotocol\|oksvg\|internal/mcp\|internal/watch'` | Build ok, `grep` ohne Ausgabe |
-| 0.3 | Testordner anlegen: `cp -R templates /tmp/zza-mt/templates`, `mkdir /tmp/zza-mt/fonts`, eine freie Schrift (z. B. `templates/rhb-105-v1/LLPIXEL3.ttf`) nach `/tmp/zza-mt/fonts/` kopieren | Ordner vorhanden |
+| 0.3 | Testordner anlegen: `mkdir -p /tmp/zza-mt/fonts && cp -R templates /tmp/zza-mt/templates && cp templates/rhb-105-v1/LLPIXEL3.ttf /tmp/zza-mt/fonts/` | Ordner vorhanden |
 | 0.4 | Desktop-Build bauen (`./build.sh` oder `cd cmd/zza && wails build -s`) | `zza.app` / `zza.exe` vorhanden |
 | 0.5 | Referenzfoto bereitlegen: Foto eines echten Zugzielanzeigers, schräg aufgenommen, als JPEG, z. B. `~/Desktop/anzeiger.jpg` | Datei vorhanden |
 
