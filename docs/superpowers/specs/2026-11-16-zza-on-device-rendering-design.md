@@ -340,3 +340,29 @@ Jede Stufe folgt dem üblichen Ablauf: Spec-Detail, Plan mit TDD-Tasks, manuelle
 ## 11. Offen
 
 - **[?]** Wie viele Templates sollen gleichzeitig auf dem Gerät liegen dürfen? Das hängt von der Messung in Stufe 1 ab (Paketgröße gegen LittleFS-Platz). Begrenzt wird über den Platz, nicht über eine feste Anzahl **[P]**.
+
+## 12. Nachtrag: Messwerte Stufe 1 (2026-11-16)
+
+Details und Rohwerte: `spike/RESULTS.md` auf Branch `spike/zza-render` (Firmware-Spike: `spike/template-render`). Gemessen auf einem DUAL-Controller (S3 N16R8, 1,05").
+
+**Entscheidung: Go [P].**
+
+| | faltblatt (Split-Flap) | umuc (Uhr) |
+|---|---|---|
+| Paketgröße (roh) | 566 KB | 384 KB |
+| Laden aus LittleFS | 1,4 s | 1,4 s |
+| Standbild (render + 565 + push) | 88 ms | 93 ms |
+| Animation pro Frame | ≈ 70 ms → **14 fps** (Soll 20) | 45 ms bei 1 s Takt |
+| Interner Heap frei danach | 150 KB, stabil | 181 KB |
+| Firmware-Größe | +49 KB | +49 KB |
+
+Bildvergleich C++ ↔ Go-Renderer: Layout, Bilder, Bedingungen, Filter, Zeiger und Split-Flap-Ablauf (Seed) gleich; Abweichungen nur an Glyphenkanten (4–7 % der Pixel), weil Glyphen bei Subpixel 0 vorgerastert werden. Für Weg B unkritisch.
+
+**Festlegungen für Stufe 2 aus den Messungen [P]:**
+
+1. **Speicher:** Kerning, Glyphen und alle Tabellen als zusammenhängende Blöcke. Der Renderer bekommt eine Allokator-Schnittstelle, die Firmware gibt PSRAM (`heap_caps_malloc(MALLOC_CAP_SPIRAM)`). Viele kleine Allokationen (`std::map`-Knoten, kleine Leaves) haben im Spike den internen Heap geleert. Der interne Heap-Verbrauch wird Testkriterium (nach Laden und nach Animation ≥ 120 KB frei).
+2. **Stack:** Der Renderer läuft in einem eigenen Task mit festem Stack (Loop-Task hat ~5 KB frei). Keine großen Objekte auf dem Stack.
+3. **Rechnen:** kein `double` im Pixelpfad (die S3-FPU rechnet nur `float`; Zeigerdrehung 392 → 45 ms). Festkomma für Gewichte.
+4. **Animation:** statische Ebenen vor dem ersten `splitflap` einmal rendern und pro Frame zurückkopieren (umgesetzt im Spike). Für 20 fps zusätzlich: DMA-Push parallel zum Rendern, Wiederherstellung und Dirty-Suche nur über Modul-Rechtecke und ihre `copy`-Ziele. Bleibt es darunter, sinkt die effektive fps — der Ablauf (Seed, Flip-Folge) bleibt gleich, nur langsamer.
+5. **Paketgröße / LittleFS:** Partition 3,375 MB, belegt ~0,9 MB → nur 2–3 weitere Templates in Rohform. v1 braucht: Bilder RLE-komprimiert (oder PNG), Glyphen auf die möglichen Zeichen beschränken wo statisch bestimmbar (Reels, konstante Texte), sonst voller Latin-1-Satz. Kerning bleibt drin (≈ 1 800 Paare je Schrift, sichtbar). Eine größere LittleFS-Partition ist eine Option für später (App-Partitionen haben 6,25 MB, Firmware braucht 1,2 MB), aber nur mit einmaligem USB-Flash.
+6. **Ladezeit** 1,4 s: zulässig für Template-Wechsel; beim Booten wird zuerst das eingebaute Layout gezeigt, falls das Laden länger dauert **[B]**.
