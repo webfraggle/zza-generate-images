@@ -1,8 +1,8 @@
 #include "text.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string_view>
-#include <vector>
 
 #include "utf8.h"
 
@@ -10,8 +10,19 @@ namespace zza {
 
 namespace {
 
-// Bound for line heights and positions so that line arithmetic cannot overflow.
+// Bound for line heights, widths and positions so that line arithmetic cannot
+// overflow (far beyond any canvas).
 constexpr long long kMaxCoord = 1LL << 24;
+
+long long clampSpan(long long v, long long lo, long long hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+// Range-checked double -> integer: NaN gives 0, the rest is clamped to ±lim.
+long long toLL(double v, long long lim) {
+  if (!(v == v)) return 0;
+  if (v <= -(double)lim) return -lim;
+  if (v >= (double)lim) return lim;
+  return (long long)v;
+}
 
 long long floorDiv64(long long v) { return v >= 0 ? v / 64 : -((-v + 63) / 64); }
 
@@ -37,10 +48,15 @@ struct Meas {
   int first, last;
 };
 
-Meas measure(const Font& f, std::string_view s) {
+Meas emptyMeas() {
   Meas m;
   m.pen = 0;
   m.first = m.last = -1;
+  return m;
+}
+
+Meas measure(const Font& f, std::string_view s) {
+  Meas m = emptyMeas();
   for (unsigned char ch : s) {
     uint8_t c;
     const Glyph* g = glyphFor(f, ch, &c);
@@ -63,113 +79,145 @@ Meas concat(const Font& f, const Meas& a, const Meas& b) {
   return m;
 }
 
-int natWidth(const Meas& m) {
-  long long w = round26(m.pen);
-  return (int)(w > kMaxCoord ? kMaxCoord : w < -kMaxCoord ? -kMaxCoord : w);
-}
+long long natWidth(const Meas& m) { return clampSpan(round26(m.pen), -kMaxCoord, kMaxCoord); }
 
 // scaledWidth: on-canvas width of a natural width; scale 0 = inactive.
-int scaledWidth(int w, double scale) { return scale <= 0 ? w : (int)std::ceil((double)w * scale); }
+long long scaledWidth(long long w, double scale) {
+  return scale <= 0 ? w : toLL(std::ceil((double)w * scale), kMaxCoord);
+}
 
-struct Line {
-  std::string s;  // Latin-1
+// The text as Latin-1 (one byte per rune, '?' above U+00FF and for invalid
+// bytes) with a flag per byte whether the rune was a Unicode space, so that
+// splitting and trimming keep Go's UTF-8 semantics. Budget memory.
+struct Latin1Text {
+  ZzaBytes s;
+  ZzaBytes space;
+  explicit Latin1Text(ZzaBudget* b) : s(ZzaAlloc<uint8_t>(b)), space(ZzaAlloc<uint8_t>(b)) {}
+  std::string_view view(size_t off, size_t len) const {
+    return std::string_view(reinterpret_cast<const char*>(s.data()) + off, len);
+  }
+};
+
+void toLatin1(std::string_view in, Latin1Text& t) {
+  t.s.reserve(in.size());
+  t.space.reserve(in.size());
+  size_t i = 0;
+  while (i < in.size()) {
+    uint32_t r;
+    i += decodeRune(in.data() + i, in.size() - i, &r);
+    t.s.push_back(r <= 0xFF ? (uint8_t)r : (uint8_t)'?');
+    t.space.push_back(isSpaceRune(r) ? 1 : 0);
+  }
+}
+
+// A line of the layout: bytes [off, off+len) of a buffer, with its measure.
+struct LineRef {
+  uint32_t off, len;
   Meas m;
 };
 
-std::string toLatin1(std::string_view s) {
-  std::string out;
-  utf8ToLatin1(s, out, false);
-  return out;
-}
-
 // wrapText: break at spaces, then after hyphens, then mid-word (Go semantics,
-// including its quirks). Splitting happens on the UTF-8 text, measuring on Latin-1.
-void wrapText(const Font& f, const std::string& text, int maxWidth, std::vector<Line>& lines) {
+// including its quirks: a word "a-" yields an empty token, the mid-word break
+// can emit an empty line). Lines are written to buf (joined tokens).
+void wrapText(ZzaBudget* b, const Font& f, const Latin1Text& t, long long maxWidth, ZzaBytes& buf,
+              ZzaVec<LineRef>& lines) {
   struct Token {
-    std::string s;
+    uint32_t off, len;
     Meas m;
     bool spaceBefore;
   };
-  std::vector<Token> toks;
-  size_t i = 0, n = text.size();
+  ZzaVec<Token> toks{ZzaAlloc<Token>(b)};
+  const size_t n = t.s.size();
+  size_t i = 0;
   int word = 0;
-  while (i < n) {
-    uint32_t r;
-    int k = decodeRune(text.data() + i, n - i, &r);
-    if (isSpaceRune(r)) {
-      i += k;
+  while (i < n) {  // strings.Fields
+    if (t.space[i]) {
+      i++;
       continue;
     }
     size_t st = i;
-    while (i < n) {
-      k = decodeRune(text.data() + i, n - i, &r);
-      if (isSpaceRune(r)) break;
-      i += k;
-    }
-    std::string_view w(text.data() + st, i - st);
-    size_t ps = 0;
+    while (i < n && !t.space[i]) i++;
     bool first = true;
-    for (;;) {  // strings.SplitAfter(word, "-")
-      size_t h = w.find('-', ps);
-      size_t pe = h == std::string_view::npos ? w.size() : h + 1;
-      Token t;
-      t.s = toLatin1(w.substr(ps, pe - ps));
-      t.m = measure(f, t.s);
-      t.spaceBefore = word > 0 && first;
-      toks.push_back(std::move(t));
+    for (size_t ps = st;;) {  // strings.SplitAfter(word, "-")
+      size_t h = ps;
+      while (h < i && t.s[h] != '-') h++;
+      size_t pe = h < i ? h + 1 : i;
+      Token tk;
+      tk.off = (uint32_t)ps;
+      tk.len = (uint32_t)(pe - ps);
+      tk.m = measure(f, t.view(ps, pe - ps));
+      tk.spaceBefore = word > 0 && first;
+      toks.push_back(tk);
       first = false;
-      if (h == std::string_view::npos) break;
+      if (h >= i) break;
       ps = pe;
     }
     word++;
   }
   if (toks.empty()) return;
 
+  buf.reserve(n + 1);
   const Meas space = measure(f, " ");
-  Line cur;
-  cur.m = measure(f, "");
-  for (const Token& t : toks) {
-    bool sep = !cur.s.empty() && t.spaceBefore;
-    Meas cand = concat(f, sep ? concat(f, cur.m, space) : cur.m, t.m);
+  LineRef cur;
+  cur.off = 0;
+  cur.len = 0;
+  cur.m = emptyMeas();
+  auto flush = [&]() {
+    lines.push_back(cur);
+    cur.off = (uint32_t)buf.size();
+    cur.len = 0;
+    cur.m = emptyMeas();
+  };
+  auto append = [&](const uint8_t* p, size_t len) {
+    buf.insert(buf.end(), p, p + len);
+    cur.len += (uint32_t)len;
+  };
+  for (const Token& tk : toks) {
+    bool sep = cur.len > 0 && tk.spaceBefore;
+    Meas cand = concat(f, sep ? concat(f, cur.m, space) : cur.m, tk.m);
     if (natWidth(cand) <= maxWidth) {
-      if (sep) cur.s += ' ';
-      cur.s += t.s;
+      if (sep) append(reinterpret_cast<const uint8_t*>(" "), 1);
+      append(t.s.data() + tk.off, tk.len);
       cur.m = cand;
-    } else if (!cur.s.empty()) {
-      lines.push_back(std::move(cur));
-      cur.s = t.s;
-      cur.m = t.m;
+    } else if (cur.len > 0) {
+      flush();
+      append(t.s.data() + tk.off, tk.len);
+      cur.m = tk.m;
     } else {
       // Single token wider than maxWidth: break between characters.
-      for (char ch : t.s) {
-        Meas cm = measure(f, std::string_view(&ch, 1));
+      for (uint32_t k = 0; k < tk.len; k++) {
+        const uint8_t* ch = t.s.data() + tk.off + k;
+        Meas cm = measure(f, std::string_view(reinterpret_cast<const char*>(ch), 1));
         Meas c2 = concat(f, cur.m, cm);
         if (natWidth(c2) <= maxWidth) {
-          cur.s += ch;
+          append(ch, 1);
           cur.m = c2;
         } else {
-          lines.push_back(std::move(cur));
-          cur.s.assign(1, ch);
+          flush();
+          append(ch, 1);
           cur.m = cm;
         }
       }
     }
   }
-  if (!cur.s.empty()) lines.push_back(std::move(cur));
+  if (cur.len > 0) lines.push_back(cur);
 }
 
 // Natural (unscaled) value for a metric stored as round(natural * sy): the
-// candidate closest to stored / sy among those that map back to it.
-int naturalHeight(int stored, double sy) {
-  int best = (int)std::lround(stored / sy);
+// candidate closest to stored / sy among those that map back to it. sy is
+// in [0.05, 8] (validated by the layer), so the search covers a few values.
+long long naturalHeight(int stored, double sy) {
+  long long best = toLL(std::round(stored / sy), kMaxCoord);
   double bestD = 1e300;
-  long long lo = (long long)std::floor((stored - 0.5) / sy) - 1, hi = (long long)std::ceil((stored + 0.5) / sy) + 1;
+  long long lo = toLL(std::floor((stored - 0.5) / sy), kMaxCoord) - 1;
+  long long hi = toLL(std::ceil((stored + 0.5) / sy), kMaxCoord) + 1;
+  if (hi - lo > 64) return best;  // guard; cannot happen for a valid sy
   for (long long v = lo; v <= hi; v++) {
     if (std::round((double)v * sy) != (double)stored) continue;
     double d = std::fabs((double)v - stored / sy);
     if (d < bestD) {
       bestD = d;
-      best = (int)v;
+      best = v;
     }
   }
   return best;
@@ -177,8 +225,8 @@ int naturalHeight(int stored, double sy) {
 
 // visibleRun: the part of line whose glyphs, drawn from x and scaled
 // horizontally by scale, can overlap [minX, maxX), and the x it starts at.
-std::string visibleRun(const Font& f, const std::string& line, long long* x, double scale, long long minX,
-                       long long maxX) {
+std::string_view visibleRun(const Font& f, std::string_view line, long long* x, double scale, long long minX,
+                            long long maxX) {
   double x0 = (double)*x;
   auto pos = [&](long long adv) { return x0 + (double)adv / 64 * scale; };
   long long adv = 0, startAdv = 0;
@@ -199,8 +247,8 @@ std::string visibleRun(const Font& f, const std::string& line, long long* x, dou
     }
     end = (long long)i + 1;
   }
-  if (start < 0) return std::string();
-  *x = (long long)std::round(pos(startAdv));
+  if (start < 0) return std::string_view();
+  *x = toLL(std::round(pos(startAdv)), 1LL << 40);
   return line.substr((size_t)start, (size_t)(end - start));
 }
 
@@ -210,7 +258,7 @@ std::string visibleRun(const Font& f, const std::string& line, long long* x, dou
 // resamples it to ceil(size * scale); glyph positions follow that mapping so
 // the pre-scaled masks land where Go's resampled glyphs do. Glyphs off the
 // canvas are skipped.
-void drawLine(Canvas& c, const Font& f, std::string s, long long x, long long baseY, Rgba col, double scaleX,
+void drawLine(Canvas& c, const Font& f, std::string_view s, long long x, long long baseY, Rgba col, double scaleX,
               double scaleY) {
   bool sxA = scaleX > 0 && scaleX != 1, syA = scaleY > 0 && scaleY != 1;
   bool scaled = sxA || syA;
@@ -226,12 +274,13 @@ void drawLine(Canvas& c, const Font& f, std::string s, long long x, long long ba
     }
     if (W <= 0) return;
     double offW = (double)(W + 2 * A), offH = (double)(A + D + 2 * A);
+    if (offW <= 0) return;  // odd metrics
     double dw = std::ceil(offW * sx), dh = std::ceil(offH * sy);
     double dx = (double)x - std::round((double)A * sx);
     double dy = (double)baseY - std::round((double)(2 * A) * sy);
     rx = dw / offW;
     ox = dx + (double)A * rx;
-    baseY = (long long)std::floor(dy + (double)(2 * A) * (dh / offH) + 0.5);
+    if (offH > 0) baseY = toLL(std::floor(dy + (double)(2 * A) * (dh / offH) + 0.5), 1LL << 40);
   }
   const float frx = (float)rx, fox = (float)ox;
   long long pen = 0;
@@ -242,7 +291,7 @@ void drawLine(Canvas& c, const Font& f, std::string s, long long x, long long ba
     if (prev >= 0) pen += f.kernFor((unsigned)prev, m);
     prev = m;
     if (!g) continue;
-    long long gx = scaled ? (long long)std::floor(fox + (float)pen / 64.0f * frx + 0.5f) : x + round26(pen);
+    long long gx = scaled ? toLL(std::floor(fox + (float)pen / 64.0f * frx + 0.5f), 1LL << 40) : x + round26(pen);
     pen += g->adv;
     if (g->w == 0 || g->h == 0) continue;
     long long X0 = gx + g->bx, Y0 = baseY + g->by;
@@ -261,10 +310,10 @@ void drawLine(Canvas& c, const Font& f, std::string s, long long x, long long ba
   }
 }
 
-long long clampCoord(double v) {
-  if (!(v > -(double)kMaxCoord)) return -kMaxCoord;
-  if (!(v < (double)kMaxCoord)) return kMaxCoord;
-  return (long long)v;
+// Trimmed Latin-1 range [*a, *b) by the space flags (strings.TrimSpace).
+void trimRange(const Latin1Text& t, size_t* a, size_t* b) {
+  while (*a < *b && t.space[*a]) (*a)++;
+  while (*b > *a && t.space[*b - 1]) (*b)--;
 }
 
 }  // namespace
@@ -284,68 +333,82 @@ std::string capText(std::string s) {
   return s;
 }
 
-int drawTextLayer(Canvas& c, const Font& f, const TextParams& p, const std::string& text, Rgba col) {
+bool validScale(double s) { return s == 0 || (s >= kMinScale && s <= kMaxScale); }
+
+int drawTextLayer(ZzaBudget* b, Canvas& c, const Font& f, const TextParams& p, const std::string& text, Rgba col) {
   long long ascent = f.ascent;
   long long lineHeight = f.height;
-  bool lhActive = p.lineHeight > 0 && p.lineHeight != 1;
+  bool lhActive = p.lineHeight > 0 && p.lineHeight != 1;  // false for NaN
   bool syActive = p.scaleY > 0 && p.scaleY != 1;
   // Go: line_height applies to the natural height, then scale_y; the file
   // holds the scaled height (doc.go).
   if (lhActive && syActive) {
-    double nat = std::round(naturalHeight(f.height, p.scaleY) * p.lineHeight);
-    lineHeight = clampCoord(std::round(nat * p.scaleY));
+    double nat = std::round((double)naturalHeight(f.height, p.scaleY) * p.lineHeight);
+    lineHeight = toLL(std::round(nat * p.scaleY), kMaxCoord);
   } else if (lhActive) {
-    lineHeight = clampCoord(std::round((double)lineHeight * p.lineHeight));
+    lineHeight = toLL(std::round((double)lineHeight * p.lineHeight), kMaxCoord);
   }
   double scale = p.scaleX > 0 && p.scaleX != 1 ? p.scaleX : 0;
   bool baseline = p.valign == kValignBaseline;
 
+  Latin1Text t(b);
+  toLatin1(text, t);
+
   if (p.fitItems) {
-    std::vector<std::string_view> parts;
-    std::string_view t(text);
-    if (p.fitSplitBy.empty()) {
-      parts.push_back(t);
-    } else {
-      size_t st = 0;
-      for (;;) {
-        size_t h = t.find(p.fitSplitBy, st);
-        if (h == std::string_view::npos) break;
-        parts.push_back(t.substr(st, h - st));
-        st = h + p.fitSplitBy.size();
-      }
-      parts.push_back(t.substr(st));
-    }
+    // strings.Split on the UTF-8 text; rune counts map parts to Latin-1 offsets.
     long long baseY = baseline ? p.y : p.y + ascent;
     long long xpos = 0;
-    for (std::string_view part : parts) {
-      part = trimSpace(part);
-      if (part.empty()) continue;
-      std::string s = toLatin1(part);
-      int w = scaledWidth(natWidth(measure(f, s)), scale);
-      if (p.maxWidth <= 0 || xpos + w < p.maxWidth) drawLine(c, f, s, p.x + xpos, baseY, col, p.scaleX, p.scaleY);
-      xpos += (long long)w + p.fitGap;
+    const std::string& sep = p.fitSplitBy;
+    size_t pos = 0, runeAt = 0;  // UTF-8 byte offset and its rune index
+    for (bool last = false; !last;) {
+      size_t h = sep.empty() ? std::string::npos : text.find(sep, pos);
+      last = h == std::string::npos;
+      size_t endByte = last ? text.size() : h;
+      size_t a = runeAt, k = pos;
+      while (k < endByte) {
+        uint32_t r;
+        k += decodeRune(text.data() + k, text.size() - k, &r);
+        runeAt++;
+      }
+      size_t e = runeAt;
+      if (!last) {  // skip the separator's runes
+        for (k = h; k < h + sep.size();) {
+          uint32_t r;
+          k += decodeRune(text.data() + k, text.size() - k, &r);
+          runeAt++;
+        }
+        pos = h + sep.size();
+      }
+      trimRange(t, &a, &e);
+      if (a == e) continue;
+      std::string_view item = t.view(a, e - a);
+      long long w = scaledWidth(natWidth(measure(f, item)), scale);
+      if (p.maxWidth <= 0 || xpos + w < p.maxWidth) drawLine(c, f, item, p.x + xpos, baseY, col, p.scaleX, p.scaleY);
+      xpos += w + p.fitGap;
     }
     return 0;
   }
 
-  int wrapWidth = p.maxWidth;
+  long long wrapWidth = p.maxWidth;
   if (p.width > 0 && wrapWidth == 0) wrapWidth = p.width;
-  std::vector<Line> lines;
+  ZzaBytes buf{ZzaAlloc<uint8_t>(b)};
+  ZzaVec<LineRef> lines{ZzaAlloc<LineRef>(b)};
+  const uint8_t* src;  // lines index into src
   if (wrapWidth > 0) {
-    if (scale > 0) wrapWidth = (int)((double)wrapWidth / scale);
-    wrapText(f, text, wrapWidth, lines);
+    if (scale > 0) wrapWidth = toLL((double)wrapWidth / scale, 1LL << 40);  // int(float64/scale)
+    wrapText(b, f, t, wrapWidth, buf, lines);
+    src = buf.data();
   } else {
-    Line l;
-    l.s = toLatin1(text);
-    l.m = measure(f, l.s);
-    lines.push_back(std::move(l));
+    LineRef l;
+    l.off = 0;
+    l.len = (uint32_t)t.s.size();
+    l.m = measure(f, t.view(0, t.s.size()));
+    lines.push_back(l);
+    src = t.s.data();
   }
-  int widest = 0;
-  for (const Line& l : lines) {
-    int w = scaledWidth(natWidth(l.m), scale);
-    if (w > widest) widest = w;
-  }
-  if (lines.empty()) return widest;
+  long long widest = 0;
+  for (const LineRef& l : lines) widest = std::max(widest, scaledWidth(natWidth(l.m), scale));
+  if (lines.empty()) return (int)widest;
 
   long long startY = p.y;
   if (baseline) {
@@ -367,9 +430,10 @@ int drawTextLayer(Canvas& c, const Font& f, const TextParams& p, const std::stri
       if (p.align == kAlignCenter) x = p.width > 0 ? p.x + (p.width - lw) / 2 : p.x - lw / 2;
       else x = p.width > 0 ? p.x + p.width - lw : p.x - lw;
     }
-    drawLine(c, f, lines[i].s, x, y, col, p.scaleX, p.scaleY);
+    std::string_view s(reinterpret_cast<const char*>(src) + lines[i].off, lines[i].len);
+    drawLine(c, f, s, x, y, col, p.scaleX, p.scaleY);
   }
-  return widest;
+  return (int)widest;
 }
 
 }  // namespace zza

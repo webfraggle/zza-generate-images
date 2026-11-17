@@ -13,6 +13,13 @@ namespace zza {
 // maxTextRunes of internal/renderer.
 constexpr size_t kMaxTextRunes = 4096;
 
+// Allowed range of a text layer's scale_x/scale_y (0 = unset), Go's load-time
+// check (minScaleX/maxScaleX in template.go).
+constexpr double kMinScale = 0.05;
+constexpr double kMaxScale = 8.0;
+// True for 0 or a value in [kMinScale, kMaxScale] (false for NaN/Inf).
+bool validScale(double s);
+
 // capText: truncates UTF-8 text to kMaxTextRunes runes (invalid bytes count as one).
 std::string capText(std::string s);
 
@@ -32,8 +39,10 @@ struct TextParams {
   int fitGap;
 };
 
-// Draws a text layer. text is the interpolated, capped UTF-8 value. Returns
-// the widest line's on-canvas width (for <id>.width; 0 with fit_items).
-int drawTextLayer(Canvas& c, const Font& f, const TextParams& p, const std::string& text, Rgba col);
+// Draws a text layer. text is the interpolated, capped UTF-8 value; scaleX
+// and scaleY must satisfy validScale. Layout memory (Latin-1 copy, tokens,
+// lines) comes from the budget. Returns the widest line's on-canvas width
+// (for <id>.width, at most 2^24; 0 with fit_items).
+int drawTextLayer(ZzaBudget* b, Canvas& c, const Font& f, const TextParams& p, const std::string& text, Rgba col);
 
 }  // namespace zza

@@ -24,6 +24,7 @@ constexpr int kMaxCanvasDimension = 16384;
 constexpr int kDefaultMaxLoopItems = 20;
 constexpr int kMaxLoopItemsHardCap = 200;
 constexpr int kMaxTextVar = 1 << 24;
+constexpr int kMaxAdvance = 240;
 // Plain integers from t.json are clamped so coordinate sums cannot overflow.
 constexpr long long kMaxPlainInt = 1LL << 30;
 // Dynamically scaled images up to this many pixels are cached whole; larger
@@ -119,47 +120,63 @@ Rgba parseColor(const std::string& in) {
 }  // namespace
 
 struct Renderer::Impl {
+  // One cached scaled image; src == nullptr marks a free slot. The slots are
+  // fixed (no allocation per entry); pixels are budget memory.
   struct CacheEnt {
     const Img* src;
     int w, h;
     uint32_t used;
     Img img;
-    CacheEnt(ZzaBudget* b, const Img* s, int ww, int hh) : src(s), w(ww), h(hh), used(0), img(b) {}
+    explicit CacheEnt(ZzaBudget* b) : src(nullptr), w(0), h(0), used(0), img(b) {}
   };
 
   ZzaBudget* budget;
   const Package* pkg;
-  std::vector<std::unique_ptr<CacheEnt>> cache;  // at most kCacheEntries
+  CacheEnt cache[kCacheEntries];
   uint32_t tick;
 
   // Per render.
   Canvas canvas;
   int layerCount;
 
-  Impl(ZzaBudget* b, const Package* p) : budget(b), pkg(p), tick(0), canvas(), layerCount(0) {}
+  Impl(ZzaBudget* b, const Package* p)
+      : budget(b), pkg(p), cache{CacheEnt(b), CacheEnt(b), CacheEnt(b), CacheEnt(b)}, tick(0), canvas(),
+        layerCount(0) {}
+
+  void clearCache() {
+    for (CacheEnt& e : cache) {
+      e.src = nullptr;
+      ZzaBytes(ZzaAlloc<uint8_t>(budget)).swap(e.img.px);
+    }
+  }
 
   const Img& cachedScale(const Img* src, int w, int h) {
     tick++;
-    for (auto& e : cache) {
-      if (e->src == src && e->w == w && e->h == h) {
-        e->used = tick;
-        return e->img;
+    for (CacheEnt& e : cache) {
+      if (e.src == src && e.w == w && e.h == h) {
+        e.used = tick;
+        return e.img;
       }
     }
-    std::unique_ptr<CacheEnt> e(new CacheEnt(budget, src, w, h));
-    e->img.px.resize((size_t)w * h * 4);
-    scaleCatmullRom(budget, *src, w, h, 0, 0, w, h, e->img.px.data());
-    e->img.w = (uint16_t)w;
-    e->img.h = (uint16_t)h;
-    e->used = tick;
-    if (cache.size() >= kCacheEntries) {
-      size_t lru = 0;
-      for (size_t i = 1; i < cache.size(); i++)
-        if (cache[i]->used < cache[lru]->used) lru = i;
-      cache.erase(cache.begin() + (long)lru);
+    CacheEnt* slot = &cache[0];  // a free slot, else the least recently used
+    for (CacheEnt& e : cache) {
+      if (!e.src) {
+        slot = &e;
+        break;
+      }
+      if (e.used < slot->used) slot = &e;
     }
-    cache.push_back(std::move(e));
-    return cache.back()->img;
+    slot->src = nullptr;  // stays free if scaling fails
+    ZzaBytes(ZzaAlloc<uint8_t>(budget)).swap(slot->img.px);
+    slot->img.px.resize((size_t)w * h * 4);
+    scaleCatmullRom(budget, *src, w, h, 0, 0, w, h, slot->img.px.data());
+    slot->img.w = (uint16_t)w;
+    slot->img.h = (uint16_t)h;
+    slot->src = src;
+    slot->w = w;
+    slot->h = h;
+    slot->used = tick;
+    return slot->img;
   }
 
   void renderLayers(JsonArrayConst layers, Eval& ev, bool inLoop, int depth);
@@ -241,6 +258,7 @@ void Renderer::Impl::renderImage(JsonObjectConst L, const Eval& ev) {
         throw RenderError("renderImage: scaled dimensions " + std::to_string(rw) + "x" + std::to_string(rh) +
                           " exceed maximum 16384");
       if (rw <= 0) {
+        // <= 65535 * 16384, fits int.
         rw = (int)std::round((double)img->w * (double)rh / (double)img->h);
         if (rw < 1) rw = 1;
       }
@@ -349,18 +367,23 @@ void Renderer::Impl::renderText(JsonObjectConst L, Eval& ev) {
   p.lineHeight = num(L, "line_height");
   p.scaleX = num(L, "scale_x");
   p.scaleY = num(L, "scale_y");
+  // Go rejects these when loading the template.
+  if (!validScale(p.scaleX)) throw RenderError("renderText: scale_x must be between 0.05 and 8");
+  if (!validScale(p.scaleY)) throw RenderError("renderText: scale_y must be between 0.05 and 8");
+  int advance = plainInt(L["advance"]);
+  if (advance < 0 || advance > kMaxAdvance) throw RenderError("renderText: advance must be between 0 and 240");
   JsonVariantConst fi = L["fit_items"];
   p.fitItems = fi.is<JsonObjectConst>();
   p.fitSplitBy = p.fitItems ? str(fi.as<JsonObjectConst>(), "split_by") : "";
   p.fitGap = p.fitItems ? plainInt(fi["gap"]) : 0;
 
-  int widest = drawTextLayer(canvas, *f, p, text, col);
+  int widest = drawTextLayer(budget, canvas, *f, p, text, col);
 
   std::string id = str(L, "id");
   if (!id.empty() && !p.fitItems) {  // setTextVars
     int width = widest < kMaxTextVar ? widest : kMaxTextVar;
     int x = p.x < -kMaxTextVar ? -kMaxTextVar : p.x > kMaxTextVar ? kMaxTextVar : p.x;
-    int end = width > 0 ? x + width + plainInt(L["advance"]) : x;
+    int end = width > 0 ? x + width + advance : x;
     ev.setIntVar(id + ".width", width);
     ev.setIntVar(id + ".end", end);
   }
@@ -441,7 +464,10 @@ int Renderer::render(const char* data, size_t len, const zza_time& now, uint8_t*
   int frames = plainInt(an["frames"]);
   if (frames > 0) {
     double fd = num(an, "frame_delay");
-    ev.setAnim(0, frames, (int)std::round((fd == 0 ? 1.0 : fd) * 100));
+    if (fd == 0) fd = 1;
+    if (!(fd > 0)) fd = 0;  // hostile values (Go rejects them at load): keep the cast defined
+    else if (fd > 1e6) fd = 1e6;
+    ev.setAnim(0, frames, (int)std::round(fd * 100));
   }
 
   d_->canvas.w = 240;
@@ -455,7 +481,7 @@ int Renderer::render(const char* data, size_t len, const zza_time& now, uint8_t*
     err = e.what();
     return ZZA_ERR_TEMPLATE;
   } catch (const std::bad_alloc&) {
-    d_->cache.clear();  // out of budget: give back the scaled images too
+    d_->clearCache();  // out of budget: give back the scaled images too
     throw;
   }
   return ZZA_OK;

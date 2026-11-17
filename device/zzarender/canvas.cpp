@@ -117,8 +117,9 @@ RotGeom rotGeom(int w, int h, double deg) {
   double T = deg * kPi / 180.0;
   double ct = std::cos(T), st = std::sin(T);
   RotGeom g;
-  g.nw = (int)std::ceil((double)w * std::fabs(ct) + (double)h * std::fabs(st));
-  g.nh = (int)std::ceil((double)w * std::fabs(st) + (double)h * std::fabs(ct));
+  // w, h <= 65535 * 16384 (renderImage), so the box fits; clamped as a guard.
+  g.nw = (int)std::min(std::ceil((double)w * std::fabs(ct) + (double)h * std::fabs(st)), (double)(1 << 30));
+  g.nh = (int)std::min(std::ceil((double)w * std::fabs(st) + (double)h * std::fabs(ct)), (double)(1 << 30));
   // Keep the size difference even (rotateImageCW), so the axis stays on the grid.
   if ((g.nw - w) % 2 != 0) g.nw++;
   if ((g.nh - h) % 2 != 0) g.nh++;

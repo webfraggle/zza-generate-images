@@ -51,10 +51,16 @@ struct LoadError {
   throw LoadError{file + ": " + what};
 }
 
+// JSON nesting allowed in package files. A valid template reaches about 70
+// levels in t.json: every block node adds an object and its "layers" array
+// (2 levels) up to maxBlockDepth 16, a splitflap's children start at depth 0
+// again (another 16 blocks), plus root, loop and splitflap levels.
+constexpr uint8_t kMaxJsonNesting = 80;
+
 std::unique_ptr<BudgetJsonDoc> parseJson(ZzaBudget* b, const uint8_t* d, size_t n, const char* file) {
   std::unique_ptr<BudgetJsonDoc> doc(new BudgetJsonDoc(jsonCapacity(d, n), JsonAlloc(b)));
   DeserializationError e = deserializeJson(*doc, reinterpret_cast<const char*>(d), n,
-                                           DeserializationOption::NestingLimit(32));
+                                           DeserializationOption::NestingLimit(kMaxJsonNesting));
   if (e == DeserializationError::NoMemory) throw std::bad_alloc();
   if (e) fail(file, std::string("invalid JSON: ") + e.c_str());
   if (!doc->is<JsonObject>()) fail(file, "JSON root is not an object");
