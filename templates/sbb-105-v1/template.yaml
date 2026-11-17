@@ -214,7 +214,7 @@ layers:
             height: 14
             color: "#132a9b"
           - type: text
-            value: "+{{zug1.abw | round}}’"
+            value: "+{{zug1.abw | round}}'"
             x: 69
             y: 31
             valign: baseline
@@ -224,7 +224,7 @@ layers:
       - else: true
         layers:
           - type: text
-            value: "+{{zug1.abw | round}}’"
+            value: "+{{zug1.abw | round}}'"
             x: 6
             y: 52
             valign: baseline

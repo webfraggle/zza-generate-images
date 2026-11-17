@@ -63,10 +63,9 @@ func gradient(w, h int) *image.NRGBA {
 	return img
 }
 
-// knownIncompatible lists shipped templates the exporter rightly rejects.
-// rhb-105-v1 draws a constant "•" (U+2022), sbb-105-v1 has "’" (U+2019) in the
-// literal part of "+{{…}}’"; both are outside Latin-1.
-var knownIncompatible = map[string]string{"rhb-105-v1": "U+2022", "sbb-105-v1": "U+2019"}
+// knownIncompatible lists shipped templates the exporter rightly rejects
+// (template name → expected reason fragment). Currently none.
+var knownIncompatible = map[string]string{}
 
 func TestExportAllShippedTemplates(t *testing.T) {
 	root := "../../templates"
