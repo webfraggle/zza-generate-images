@@ -11,6 +11,7 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/math/f64"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -98,13 +99,7 @@ func BuildFont(fontData []byte, k fontKey, runes []rune) ([]byte, error) {
 			draw.Draw(a, a.Bounds(), mask, mp, draw.Src)
 			bx, by := dr.Min.X, dr.Min.Y
 			if k.SX != 1 || k.SY != 1 {
-				w := int(math.Ceil(float64(dr.Dx()) * k.SX))
-				hh := int(math.Ceil(float64(dr.Dy()) * k.SY))
-				s := image.NewAlpha(image.Rect(0, 0, w, hh))
-				xdraw.CatmullRom.Scale(s, s.Bounds(), a, a.Bounds(), xdraw.Src, nil)
-				a = s
-				bx = int(math.Round(float64(bx) * k.SX))
-				by = int(math.Round(float64(by) * k.SY))
+				a, bx, by = scaleGlyph(a, dr.Min, k.SX, k.SY)
 			}
 			e.bx, e.by = int16(bx), int16(by)
 			e.w, e.h = uint16(a.Bounds().Dx()), uint16(a.Bounds().Dy())
@@ -165,6 +160,41 @@ func BuildFont(fontData []byte, k fontKey, runes []rune) ([]byte, error) {
 		return nil, fmt.Errorf("font too large")
 	}
 	return out, nil
+}
+
+// scaleGlyph resamples a glyph mask rasterised at subpixel 0 (top-left pixel
+// at glyph-space min) by exactly (sx, sy), as the Go renderer resamples a whole
+// line: scaled position = glyph-space position × scale. The result starts at
+// the whole pixel (bx, by) of the scaled space, so it is exact at subpixel 0
+// (before, the mask was stretched to ceil(w*sx) pixels and its bearing
+// rounded: up to a pixel too wide). Fully transparent border rows and columns
+// are dropped.
+func scaleGlyph(a *image.Alpha, min image.Point, sx, sy float64) (*image.Alpha, int, int) {
+	const pad = 2 // room for the kernel's spill beyond the glyph raster
+	src := image.NewAlpha(a.Bounds().Inset(-pad))
+	draw.Draw(src, a.Bounds(), a, image.Point{}, draw.Src)
+	sb := src.Bounds()
+	bx := int(math.Floor(float64(min.X+sb.Min.X) * sx))
+	by := int(math.Floor(float64(min.Y+sb.Min.Y) * sy))
+	w := int(math.Ceil(float64(min.X+sb.Max.X)*sx)) - bx
+	h := int(math.Ceil(float64(min.Y+sb.Max.Y)*sy)) - by
+	dst := image.NewAlpha(image.Rect(0, 0, w, h))
+	s2d := f64.Aff3{sx, 0, sx*float64(min.X) - float64(bx), 0, sy, sy*float64(min.Y) - float64(by)}
+	xdraw.CatmullRom.Transform(dst, s2d, src, sb, xdraw.Src, nil)
+	used := image.Rectangle{}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if dst.Pix[y*dst.Stride+x] != 0 {
+				used = used.Union(image.Rect(x, y, x+1, y+1))
+			}
+		}
+	}
+	if used.Empty() {
+		return image.NewAlpha(image.Rectangle{}), bx, by
+	}
+	out := image.NewAlpha(image.Rect(0, 0, used.Dx(), used.Dy()))
+	draw.Draw(out, out.Bounds(), dst, used.Min, draw.Src)
+	return out, bx + used.Min.X, by + used.Min.Y
 }
 
 // sortedFontKeys returns the keys of m in a deterministic order.

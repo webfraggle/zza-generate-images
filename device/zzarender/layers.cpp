@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 
+#include "jsoncheck.h"
 #include "numfmt.h"
 #include "render_impl.h"
 #include "text.h"
@@ -185,9 +186,10 @@ int Renderer::Impl::parseData(const char* data, size_t len, std::unique_ptr<Budg
   doc.reset();
   root = JsonVariantConst();
   if (data && len > 0) {
+    if (!checkDataJson(data, len, err)) return ZZA_ERR_DATA;  // Go's verdict, see jsoncheck.h
     const uint8_t* d = reinterpret_cast<const uint8_t*>(data);
     doc.reset(new BudgetJsonDoc(jsonCapacity(d, len), JsonAlloc(budget)));
-    DeserializationError e = deserializeJson(*doc, data, len, DeserializationOption::NestingLimit(32));
+    DeserializationError e = deserializeJson(*doc, data, len, DeserializationOption::NestingLimit(kMaxDataDepth + 1));
     if (e == DeserializationError::NoMemory) throw std::bad_alloc();
     if (e) {
       err = std::string("invalid data JSON: ") + e.c_str();

@@ -5,6 +5,7 @@
 #include "capi.cpp"
 #include "eval.cpp"
 #include "intexpr.cpp"
+#include "jsoncheck.cpp"
 #include "layers.cpp"
 #include "numfmt.cpp"
 #include "package.cpp"

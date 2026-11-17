@@ -1,0 +1,266 @@
+meta:
+  name: "Worst Case Layer"
+  description: "Lasttest: genau 256 gerenderte Layer (Grenze des Renderers), gemischte Typen"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: image, file: bg.png, x: 0, y: 0}
+  - {type: text, id: zn, value: "{{zug}} {{ziel}}", font: reg, size: 14, color: "#ffffff", x: 2, y: 2}
+  - {type: image, file: alpha.png, x: 74, y: 106}
+  - {type: rect, if: "contains(ziel, 'd')", color: "#0003ff80", x: "{{zn.end + 3}}", y: 159, width: 12, height: 12}
+  - {type: copy, src_x: 148, src_y: 212, src_width: 30, src_height: 20, x: 8, y: 52}
+  - {type: image, file: bg.png, x: 185, y: 35, width: "{{225}}", height: 205}
+  - {type: rect, color: "#2a4eae6a", x: 222, y: 88, width: 16, height: 12}
+  - {type: text, value: "{{via | before('|')}} 7", font: reg, size: 12, color: "#ffff07", x: 29, y: 141, max_width: 120}
+  - {type: image, file: alpha.png, x: 66, y: 194}
+  - {type: rect, if: "contains(ziel, 'j')", color: "#0009ff80", x: "{{zn.end + 9}}", y: 17, width: 12, height: 12}
+  - {type: copy, src_x: 140, src_y: 70, src_width: 30, src_height: 20, x: 0, y: 140}
+  - {type: image, file: bg.png, x: 177, y: 123, width: "{{231}}", height: 211}
+  - {type: rect, color: "#549c5cac", x: 214, y: 176, width: 22, height: 18}
+  - {type: text, value: "{{via | before('|')}} 13", font: reg, size: 12, color: "#ffff0d", x: 21, y: 229, max_width: 120}
+  - {type: image, file: alpha.png, x: 58, y: 52}
+  - {type: rect, if: "contains(ziel, 'p')", color: "#000fff80", x: "{{zn.end + 15}}", y: 105, width: 12, height: 12}
+  - {type: copy, src_x: 132, src_y: 158, src_width: 30, src_height: 20, x: 222, y: 228}
+  - {type: image, file: bg.png, x: 169, y: 211, width: "{{237}}", height: 217}
+  - {type: rect, color: "#7eea0aee", x: 206, y: 34, width: 28, height: 24}
+  - {type: text, value: "{{via | before('|')}} 19", font: reg, size: 12, color: "#ffff13", x: 13, y: 87, max_width: 120}
+  - {type: image, file: alpha.png, x: 50, y: 140}
+  - {type: rect, if: "contains(ziel, 'v')", color: "#0015ff80", x: "{{zn.end + 21}}", y: 193, width: 12, height: 12}
+  - {type: copy, src_x: 124, src_y: 16, src_width: 30, src_height: 20, x: 214, y: 86}
+  - {type: image, file: bg.png, x: 161, y: 69, width: "{{203}}", height: 223}
+  - {type: rect, color: "#a838b868", x: 198, y: 122, width: 34, height: 30}
+  - {type: text, value: "{{via | before('|')}} 25", font: reg, size: 12, color: "#ffff19", x: 5, y: 175, max_width: 120}
+  - {type: image, file: alpha.png, x: 42, y: 228}
+  - {type: rect, if: "contains(ziel, 'b')", color: "#001bff80", x: "{{zn.end + 27}}", y: 51, width: 12, height: 12}
+  - {type: copy, src_x: 116, src_y: 104, src_width: 30, src_height: 20, x: 206, y: 174}
+  - {type: image, file: bg.png, x: 153, y: 157, width: "{{209}}", height: 229}
+  - {type: rect, color: "#d28666aa", x: 190, y: 210, width: 40, height: 6}
+  - {type: text, value: "{{via | before('|')}} 31", font: reg, size: 12, color: "#ffff1f", x: 227, y: 33, max_width: 120}
+  - {type: image, file: alpha.png, x: 34, y: 86}
+  - {type: rect, if: "contains(ziel, 'h')", color: "#0021ff80", x: "{{zn.end + 33}}", y: 139, width: 12, height: 12}
+  - {type: copy, src_x: 108, src_y: 192, src_width: 30, src_height: 20, x: 198, y: 32}
+  - {type: image, file: bg.png, x: 145, y: 15, width: "{{215}}", height: 235}
+  - {type: rect, color: "#fcd414ec", x: 182, y: 68, width: 46, height: 12}
+  - {type: text, value: "{{via | before('|')}} 37", font: reg, size: 12, color: "#ffff25", x: 219, y: 121, max_width: 120}
+  - {type: image, file: alpha.png, x: 26, y: 174}
+  - {type: rect, if: "contains(ziel, 'n')", color: "#0027ff80", x: "{{zn.end + 39}}", y: 227, width: 12, height: 12}
+  - {type: copy, src_x: 100, src_y: 50, src_width: 30, src_height: 20, x: 190, y: 120}
+  - {type: image, file: bg.png, x: 137, y: 103, width: "{{221}}", height: 181}
+  - {type: rect, color: "#2622c266", x: 174, y: 156, width: 52, height: 18}
+  - {type: text, value: "{{via | before('|')}} 43", font: reg, size: 12, color: "#ffff2b", x: 211, y: 209, max_width: 120}
+  - {type: image, file: alpha.png, x: 18, y: 32}
+  - {type: rect, if: "contains(ziel, 't')", color: "#002dff80", x: "{{zn.end + 5}}", y: 85, width: 12, height: 12}
+  - {type: copy, src_x: 92, src_y: 138, src_width: 30, src_height: 20, x: 182, y: 208}
+  - {type: image, file: bg.png, x: 129, y: 191, width: "{{227}}", height: 187}
+  - {type: rect, color: "#507070a8", x: 166, y: 14, width: 58, height: 24}
+  - {type: text, value: "{{via | before('|')}} 49", font: reg, size: 12, color: "#ffff31", x: 203, y: 67, max_width: 120}
+  - {type: image, file: alpha.png, x: 10, y: 120}
+  - {type: rect, if: "contains(ziel, 'z')", color: "#0033ff80", x: "{{zn.end + 11}}", y: 173, width: 12, height: 12}
+  - {type: copy, src_x: 84, src_y: 226, src_width: 30, src_height: 20, x: 174, y: 66}
+  - {type: image, file: bg.png, x: 121, y: 49, width: "{{233}}", height: 193}
+  - {type: rect, color: "#7abe1eea", x: 158, y: 102, width: 14, height: 30}
+  - {type: text, value: "{{via | before('|')}} 55", font: reg, size: 12, color: "#ffff37", x: 195, y: 155, max_width: 120}
+  - {type: image, file: alpha.png, x: 2, y: 208}
+  - {type: rect, if: "contains(ziel, 'f')", color: "#0039ff80", x: "{{zn.end + 17}}", y: 31, width: 12, height: 12}
+  - {type: copy, src_x: 76, src_y: 84, src_width: 30, src_height: 20, x: 166, y: 154}
+  - {type: image, file: bg.png, x: 113, y: 137, width: "{{239}}", height: 199}
+  - {type: rect, color: "#a40ccc64", x: 150, y: 190, width: 20, height: 6}
+  - {type: text, value: "{{via | before('|')}} 61", font: reg, size: 12, color: "#ffff3d", x: 187, y: 13, max_width: 120}
+  - {type: image, file: alpha.png, x: 224, y: 66}
+  - {type: rect, if: "contains(ziel, 'l')", color: "#003fff80", x: "{{zn.end + 23}}", y: 119, width: 12, height: 12}
+  - {type: copy, src_x: 68, src_y: 172, src_width: 30, src_height: 20, x: 158, y: 12}
+  - {type: image, file: bg.png, x: 105, y: 225, width: "{{225}}", height: 205}
+  - {type: rect, color: "#ce5a7aa6", x: 142, y: 48, width: 26, height: 12}
+  - {type: text, value: "{{via | before('|')}} 67", font: reg, size: 12, color: "#ffff43", x: 179, y: 101, max_width: 120}
+  - {type: image, file: alpha.png, x: 216, y: 154}
+  - {type: rect, if: "contains(ziel, 'r')", color: "#0045ff80", x: "{{zn.end + 29}}", y: 207, width: 12, height: 12}
+  - {type: copy, src_x: 60, src_y: 30, src_width: 30, src_height: 20, x: 150, y: 100}
+  - {type: image, file: bg.png, x: 97, y: 83, width: "{{231}}", height: 211}
+  - {type: rect, color: "#f8a828e8", x: 134, y: 136, width: 32, height: 18}
+  - {type: text, value: "{{via | before('|')}} 73", font: reg, size: 12, color: "#ffff49", x: 171, y: 189, max_width: 120}
+  - {type: image, file: alpha.png, x: 208, y: 12}
+  - {type: rect, if: "contains(ziel, 'x')", color: "#004bff80", x: "{{zn.end + 35}}", y: 65, width: 12, height: 12}
+  - {type: copy, src_x: 52, src_y: 118, src_width: 30, src_height: 20, x: 142, y: 188}
+  - {type: image, file: bg.png, x: 89, y: 171, width: "{{237}}", height: 217}
+  - {type: rect, color: "#22f6d662", x: 126, y: 224, width: 38, height: 24}
+  - {type: text, value: "{{via | before('|')}} 79", font: reg, size: 12, color: "#ffff4f", x: 163, y: 47, max_width: 120}
+  - {type: image, file: alpha.png, x: 200, y: 100}
+  - {type: rect, if: "contains(ziel, 'd')", color: "#0051ff80", x: "{{zn.end + 1}}", y: 153, width: 12, height: 12}
+  - {type: copy, src_x: 44, src_y: 206, src_width: 30, src_height: 20, x: 134, y: 46}
+  - {type: image, file: bg.png, x: 81, y: 29, width: "{{203}}", height: 223}
+  - {type: rect, color: "#4c4484a4", x: 118, y: 82, width: 44, height: 30}
+  - {type: text, value: "{{via | before('|')}} 85", font: reg, size: 12, color: "#ffff55", x: 155, y: 135, max_width: 120}
+  - {type: image, file: alpha.png, x: 192, y: 188}
+  - {type: rect, if: "contains(ziel, 'j')", color: "#0057ff80", x: "{{zn.end + 7}}", y: 11, width: 12, height: 12}
+  - {type: copy, src_x: 36, src_y: 64, src_width: 30, src_height: 20, x: 126, y: 134}
+  - {type: image, file: bg.png, x: 73, y: 117, width: "{{209}}", height: 229}
+  - {type: rect, color: "#769232e6", x: 110, y: 170, width: 50, height: 6}
+  - {type: text, value: "{{via | before('|')}} 91", font: reg, size: 12, color: "#ffff5b", x: 147, y: 223, max_width: 120}
+  - {type: image, file: alpha.png, x: 184, y: 46}
+  - {type: rect, if: "contains(ziel, 'p')", color: "#005dff80", x: "{{zn.end + 13}}", y: 99, width: 12, height: 12}
+  - {type: copy, src_x: 28, src_y: 152, src_width: 30, src_height: 20, x: 118, y: 222}
+  - {type: image, file: bg.png, x: 65, y: 205, width: "{{215}}", height: 235}
+  - {type: rect, color: "#a0e0e060", x: 102, y: 28, width: 56, height: 12}
+  - {type: text, value: "{{via | before('|')}} 97", font: reg, size: 12, color: "#ffff61", x: 139, y: 81, max_width: 120}
+  - {type: image, file: alpha.png, x: 176, y: 134}
+  - {type: rect, if: "contains(ziel, 'v')", color: "#0063ff80", x: "{{zn.end + 19}}", y: 187, width: 12, height: 12}
+  - {type: copy, src_x: 20, src_y: 10, src_width: 30, src_height: 20, x: 110, y: 80}
+  - {type: image, file: bg.png, x: 57, y: 63, width: "{{221}}", height: 181}
+  - {type: rect, color: "#ca2e8ea2", x: 94, y: 116, width: 12, height: 18}
+  - {type: text, value: "{{via | before('|')}} 103", font: reg, size: 12, color: "#ffff67", x: 131, y: 169, max_width: 120}
+  - {type: image, file: alpha.png, x: 168, y: 222}
+  - {type: rect, if: "contains(ziel, 'b')", color: "#0069ff80", x: "{{zn.end + 25}}", y: 45, width: 12, height: 12}
+  - {type: copy, src_x: 12, src_y: 98, src_width: 30, src_height: 20, x: 102, y: 168}
+  - {type: image, file: bg.png, x: 49, y: 151, width: "{{227}}", height: 187}
+  - {type: rect, color: "#f47c3ce4", x: 86, y: 204, width: 18, height: 24}
+  - {type: text, value: "{{via | before('|')}} 109", font: reg, size: 12, color: "#ffff6d", x: 123, y: 27, max_width: 120}
+  - {type: image, file: alpha.png, x: 160, y: 80}
+  - {type: rect, if: "contains(ziel, 'h')", color: "#006fff80", x: "{{zn.end + 31}}", y: 133, width: 12, height: 12}
+  - {type: copy, src_x: 4, src_y: 186, src_width: 30, src_height: 20, x: 94, y: 26}
+  - {type: image, file: bg.png, x: 41, y: 9, width: "{{233}}", height: 193}
+  - {type: rect, color: "#1ecaea5e", x: 78, y: 62, width: 24, height: 30}
+  - {type: text, value: "{{via | before('|')}} 115", font: reg, size: 12, color: "#ffff73", x: 115, y: 115, max_width: 120}
+  - {type: image, file: alpha.png, x: 152, y: 168}
+  - {type: rect, if: "contains(ziel, 'n')", color: "#0075ff80", x: "{{zn.end + 37}}", y: 221, width: 12, height: 12}
+  - {type: copy, src_x: 226, src_y: 44, src_width: 30, src_height: 20, x: 86, y: 114}
+  - {type: image, file: bg.png, x: 33, y: 97, width: "{{239}}", height: 199}
+  - {type: rect, color: "#481898a0", x: 70, y: 150, width: 30, height: 6}
+  - {type: text, value: "{{via | before('|')}} 121", font: reg, size: 12, color: "#ffff79", x: 107, y: 203, max_width: 120}
+  - {type: image, file: alpha.png, x: 144, y: 26}
+  - {type: rect, if: "contains(ziel, 't')", color: "#007bff80", x: "{{zn.end + 3}}", y: 79, width: 12, height: 12}
+  - {type: copy, src_x: 218, src_y: 132, src_width: 30, src_height: 20, x: 78, y: 202}
+  - {type: image, file: bg.png, x: 25, y: 185, width: "{{225}}", height: 205}
+  - {type: rect, color: "#726646e2", x: 62, y: 8, width: 36, height: 12}
+  - {type: text, value: "{{via | before('|')}} 127", font: reg, size: 12, color: "#ffff7f", x: 99, y: 61, max_width: 120}
+  - {type: image, file: alpha.png, x: 136, y: 114}
+  - {type: rect, if: "contains(ziel, 'z')", color: "#0081ff80", x: "{{zn.end + 9}}", y: 167, width: 12, height: 12}
+  - {type: copy, src_x: 210, src_y: 220, src_width: 30, src_height: 20, x: 70, y: 60}
+  - {type: image, file: bg.png, x: 17, y: 43, width: "{{231}}", height: 211}
+  - {type: rect, color: "#9cb4f45c", x: 54, y: 96, width: 42, height: 18}
+  - {type: text, value: "{{via | before('|')}} 133", font: reg, size: 12, color: "#ffff85", x: 91, y: 149, max_width: 120}
+  - {type: image, file: alpha.png, x: 128, y: 202}
+  - {type: rect, if: "contains(ziel, 'f')", color: "#0087ff80", x: "{{zn.end + 15}}", y: 25, width: 12, height: 12}
+  - {type: copy, src_x: 202, src_y: 78, src_width: 30, src_height: 20, x: 62, y: 148}
+  - {type: image, file: bg.png, x: 9, y: 131, width: "{{237}}", height: 217}
+  - {type: rect, color: "#c602a29e", x: 46, y: 184, width: 48, height: 24}
+  - {type: text, value: "{{via | before('|')}} 139", font: reg, size: 12, color: "#ffff8b", x: 83, y: 7, max_width: 120}
+  - {type: image, file: alpha.png, x: 120, y: 60}
+  - {type: rect, if: "contains(ziel, 'l')", color: "#008dff80", x: "{{zn.end + 21}}", y: 113, width: 12, height: 12}
+  - {type: copy, src_x: 194, src_y: 166, src_width: 30, src_height: 20, x: 54, y: 6}
+  - {type: image, file: bg.png, x: 1, y: 219, width: "{{203}}", height: 223}
+  - {type: rect, color: "#f05050e0", x: 38, y: 42, width: 54, height: 30}
+  - {type: text, value: "{{via | before('|')}} 145", font: reg, size: 12, color: "#ffff91", x: 75, y: 95, max_width: 120}
+  - {type: image, file: alpha.png, x: 112, y: 148}
+  - {type: rect, if: "contains(ziel, 'r')", color: "#0093ff80", x: "{{zn.end + 27}}", y: 201, width: 12, height: 12}
+  - {type: copy, src_x: 186, src_y: 24, src_width: 30, src_height: 20, x: 46, y: 94}
+  - {type: image, file: bg.png, x: 223, y: 77, width: "{{209}}", height: 229}
+  - {type: rect, color: "#1a9efe5a", x: 30, y: 130, width: 10, height: 6}
+  - {type: text, value: "{{via | before('|')}} 151", font: reg, size: 12, color: "#ffff97", x: 67, y: 183, max_width: 120}
+  - {type: image, file: alpha.png, x: 104, y: 6}
+  - {type: rect, if: "contains(ziel, 'x')", color: "#0099ff80", x: "{{zn.end + 33}}", y: 59, width: 12, height: 12}
+  - {type: copy, src_x: 178, src_y: 112, src_width: 30, src_height: 20, x: 38, y: 182}
+  - {type: image, file: bg.png, x: 215, y: 165, width: "{{215}}", height: 235}
+  - {type: rect, color: "#44ecac9c", x: 22, y: 218, width: 16, height: 12}
+  - {type: text, value: "{{via | before('|')}} 157", font: reg, size: 12, color: "#ffff9d", x: 59, y: 41, max_width: 120}
+  - {type: image, file: alpha.png, x: 96, y: 94}
+  - {type: rect, if: "contains(ziel, 'd')", color: "#009fff80", x: "{{zn.end + 39}}", y: 147, width: 12, height: 12}
+  - {type: copy, src_x: 170, src_y: 200, src_width: 30, src_height: 20, x: 30, y: 40}
+  - {type: image, file: bg.png, x: 207, y: 23, width: "{{221}}", height: 181}
+  - {type: rect, color: "#6e3a5ade", x: 14, y: 76, width: 22, height: 18}
+  - {type: text, value: "{{via | before('|')}} 163", font: reg, size: 12, color: "#ffffa3", x: 51, y: 129, max_width: 120}
+  - {type: image, file: alpha.png, x: 88, y: 182}
+  - {type: rect, if: "contains(ziel, 'j')", color: "#00a5ff80", x: "{{zn.end + 5}}", y: 5, width: 12, height: 12}
+  - {type: copy, src_x: 162, src_y: 58, src_width: 30, src_height: 20, x: 22, y: 128}
+  - {type: image, file: bg.png, x: 199, y: 111, width: "{{227}}", height: 187}
+  - {type: rect, color: "#98880858", x: 6, y: 164, width: 28, height: 24}
+  - {type: text, value: "{{via | before('|')}} 169", font: reg, size: 12, color: "#ffffa9", x: 43, y: 217, max_width: 120}
+  - {type: image, file: alpha.png, x: 80, y: 40}
+  - {type: rect, if: "contains(ziel, 'p')", color: "#00abff80", x: "{{zn.end + 11}}", y: 93, width: 12, height: 12}
+  - {type: copy, src_x: 154, src_y: 146, src_width: 30, src_height: 20, x: 14, y: 216}
+  - {type: image, file: bg.png, x: 191, y: 199, width: "{{233}}", height: 193}
+  - {type: rect, color: "#c2d6b69a", x: 228, y: 22, width: 34, height: 30}
+  - {type: text, value: "{{via | before('|')}} 175", font: reg, size: 12, color: "#ffffaf", x: 35, y: 75, max_width: 120}
+  - {type: image, file: alpha.png, x: 72, y: 128}
+  - {type: rect, if: "contains(ziel, 'v')", color: "#00b1ff80", x: "{{zn.end + 17}}", y: 181, width: 12, height: 12}
+  - {type: copy, src_x: 146, src_y: 4, src_width: 30, src_height: 20, x: 6, y: 74}
+  - {type: image, file: bg.png, x: 183, y: 57, width: "{{239}}", height: 199}
+  - {type: rect, color: "#ec2464dc", x: 220, y: 110, width: 40, height: 6}
+  - {type: text, value: "{{via | before('|')}} 181", font: reg, size: 12, color: "#ffffb5", x: 27, y: 163, max_width: 120}
+  - {type: image, file: alpha.png, x: 64, y: 216}
+  - {type: rect, if: "contains(ziel, 'b')", color: "#00b7ff80", x: "{{zn.end + 23}}", y: 39, width: 12, height: 12}
+  - {type: copy, src_x: 138, src_y: 92, src_width: 30, src_height: 20, x: 228, y: 162}
+  - {type: image, file: bg.png, x: 175, y: 145, width: "{{225}}", height: 205}
+  - {type: rect, color: "#16721256", x: 212, y: 198, width: 46, height: 12}
+  - {type: text, value: "{{via | before('|')}} 187", font: reg, size: 12, color: "#ffffbb", x: 19, y: 21, max_width: 120}
+  - {type: image, file: alpha.png, x: 56, y: 74}
+  - {type: rect, if: "contains(ziel, 'h')", color: "#00bdff80", x: "{{zn.end + 29}}", y: 127, width: 12, height: 12}
+  - {type: copy, src_x: 130, src_y: 180, src_width: 30, src_height: 20, x: 220, y: 20}
+  - {type: image, file: bg.png, x: 167, y: 3, width: "{{231}}", height: 211}
+  - {type: rect, color: "#40c0c098", x: 204, y: 56, width: 52, height: 18}
+  - {type: text, value: "{{via | before('|')}} 193", font: reg, size: 12, color: "#ffffc1", x: 11, y: 109, max_width: 120}
+  - {type: image, file: alpha.png, x: 48, y: 162}
+  - {type: rect, if: "contains(ziel, 'n')", color: "#00c3ff80", x: "{{zn.end + 35}}", y: 215, width: 12, height: 12}
+  - {type: copy, src_x: 122, src_y: 38, src_width: 30, src_height: 20, x: 212, y: 108}
+  - {type: image, file: bg.png, x: 159, y: 91, width: "{{237}}", height: 217}
+  - {type: rect, color: "#6a0e6eda", x: 196, y: 144, width: 58, height: 24}
+  - {type: text, value: "{{via | before('|')}} 199", font: reg, size: 12, color: "#ffffc7", x: 3, y: 197, max_width: 120}
+  - {type: image, file: alpha.png, x: 40, y: 20}
+  - {type: rect, if: "contains(ziel, 't')", color: "#00c9ff80", x: "{{zn.end + 1}}", y: 73, width: 12, height: 12}
+  - {type: copy, src_x: 114, src_y: 126, src_width: 30, src_height: 20, x: 204, y: 196}
+  - {type: image, file: bg.png, x: 151, y: 179, width: "{{203}}", height: 223}
+  - {type: rect, color: "#945c1c54", x: 188, y: 2, width: 14, height: 30}
+  - {type: text, value: "{{via | before('|')}} 205", font: reg, size: 12, color: "#ffffcd", x: 225, y: 55, max_width: 120}
+  - {type: image, file: alpha.png, x: 32, y: 108}
+  - {type: rect, if: "contains(ziel, 'z')", color: "#00cfff80", x: "{{zn.end + 7}}", y: 161, width: 12, height: 12}
+  - {type: copy, src_x: 106, src_y: 214, src_width: 30, src_height: 20, x: 196, y: 54}
+  - {type: image, file: bg.png, x: 143, y: 37, width: "{{209}}", height: 229}
+  - {type: rect, color: "#beaaca96", x: 180, y: 90, width: 20, height: 6}
+  - {type: text, value: "{{via | before('|')}} 211", font: reg, size: 12, color: "#ffffd3", x: 217, y: 143, max_width: 120}
+  - {type: image, file: alpha.png, x: 24, y: 196}
+  - {type: rect, if: "contains(ziel, 'f')", color: "#00d5ff80", x: "{{zn.end + 13}}", y: 19, width: 12, height: 12}
+  - {type: copy, src_x: 98, src_y: 72, src_width: 30, src_height: 20, x: 188, y: 142}
+  - {type: image, file: bg.png, x: 135, y: 125, width: "{{215}}", height: 235}
+  - {type: rect, color: "#e8f878d8", x: 172, y: 178, width: 26, height: 12}
+  - {type: text, value: "{{via | before('|')}} 217", font: reg, size: 12, color: "#ffffd9", x: 209, y: 1, max_width: 120}
+  - {type: image, file: alpha.png, x: 16, y: 54}
+  - {type: rect, if: "contains(ziel, 'l')", color: "#00dbff80", x: "{{zn.end + 19}}", y: 107, width: 12, height: 12}
+  - {type: copy, src_x: 90, src_y: 160, src_width: 30, src_height: 20, x: 180, y: 0}
+  - {type: image, file: bg.png, x: 127, y: 213, width: "{{221}}", height: 181}
+  - {type: rect, color: "#12462652", x: 164, y: 36, width: 32, height: 18}
+  - {type: text, value: "{{via | before('|')}} 223", font: reg, size: 12, color: "#ffffdf", x: 201, y: 89, max_width: 120}
+  - {type: image, file: alpha.png, x: 8, y: 142}
+  - {type: rect, if: "contains(ziel, 'r')", color: "#00e1ff80", x: "{{zn.end + 25}}", y: 195, width: 12, height: 12}
+  - {type: copy, src_x: 82, src_y: 18, src_width: 30, src_height: 20, x: 172, y: 88}
+  - {type: image, file: bg.png, x: 119, y: 71, width: "{{227}}", height: 187}
+  - {type: rect, color: "#3c94d494", x: 156, y: 124, width: 38, height: 24}
+  - {type: text, value: "{{via | before('|')}} 229", font: reg, size: 12, color: "#ffffe5", x: 193, y: 177, max_width: 120}
+  - {type: image, file: alpha.png, x: 0, y: 0}
+  - {type: rect, if: "contains(ziel, 'x')", color: "#00e7ff80", x: "{{zn.end + 31}}", y: 53, width: 12, height: 12}
+  - {type: copy, src_x: 74, src_y: 106, src_width: 30, src_height: 20, x: 164, y: 176}
+  - {type: image, file: bg.png, x: 111, y: 159, width: "{{233}}", height: 193}
+  - {type: rect, color: "#66e282d6", x: 148, y: 212, width: 44, height: 30}
+  - {type: text, value: "{{via | before('|')}} 235", font: reg, size: 12, color: "#ffffeb", x: 185, y: 35, max_width: 120}
+  - {type: image, file: alpha.png, x: 222, y: 88}
+  - {type: rect, if: "contains(ziel, 'd')", color: "#00edff80", x: "{{zn.end + 37}}", y: 141, width: 12, height: 12}
+  - {type: copy, src_x: 66, src_y: 194, src_width: 30, src_height: 20, x: 156, y: 34}
+  - {type: image, file: bg.png, x: 103, y: 17, width: "{{239}}", height: 199}
+  - {type: rect, color: "#90303050", x: 140, y: 70, width: 50, height: 6}
+  - {type: text, value: "{{via | before('|')}} 241", font: reg, size: 12, color: "#fffff1", x: 177, y: 123, max_width: 120}
+  - {type: image, file: alpha.png, x: 214, y: 176}
+  - {type: rect, if: "contains(ziel, 'j')", color: "#00f3ff80", x: "{{zn.end + 3}}", y: 229, width: 12, height: 12}
+  - {type: copy, src_x: 58, src_y: 52, src_width: 30, src_height: 20, x: 148, y: 122}
+  - {type: image, file: bg.png, x: 95, y: 105, width: "{{225}}", height: 205}
+  - {type: rect, color: "#ba7ede92", x: 132, y: 158, width: 56, height: 12}
+  - {type: text, value: "{{via | before('|')}} 247", font: reg, size: 12, color: "#fffff7", x: 169, y: 211, max_width: 120}
+  - {type: image, file: alpha.png, x: 206, y: 34}
+  - {type: rect, if: "contains(ziel, 'p')", color: "#00f9ff80", x: "{{zn.end + 9}}", y: 87, width: 12, height: 12}
+  - {type: copy, src_x: 50, src_y: 140, src_width: 30, src_height: 20, x: 140, y: 210}
+  - {type: image, file: bg.png, x: 87, y: 193, width: "{{231}}", height: 211}
+  - {type: rect, color: "#e4cc8cd4", x: 124, y: 16, width: 12, height: 18}
+  - {type: text, value: "{{via | before('|')}} 253", font: reg, size: 12, color: "#fffffd", x: 161, y: 69, max_width: 120}
+  - {type: image, file: alpha.png, x: 198, y: 122}
+  - {type: rect, if: "contains(ziel, 'v')", color: "#00ffff80", x: "{{zn.end + 15}}", y: 175, width: 12, height: 12}

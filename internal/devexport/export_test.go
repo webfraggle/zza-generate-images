@@ -300,8 +300,18 @@ func TestFontMasksMatchRaster(t *testing.T) {
 	}
 	h2, g2, _ := parseFnt(t, b2)
 	_, g1, _ := parseFnt(t, mustBuild(t, font, k, "A"))
-	if g2[0].W != (g1[0].W+1)/2 || g2[0].H != 2*g1[0].H || h2[0] != 2*hdr[0] {
-		t.Errorf("scaled glyph %+v / %v vs %+v / %v", g2[0], h2, g1[0], hdr)
+	// Resampled by exactly (0.5, 2): size within the kernel spill of w*sx,
+	// h*sy, bearings floored, coverage scales with the area (0.5 × 2 = 1).
+	cov := func(m []byte) (s int) {
+		for _, v := range m {
+			s += int(v)
+		}
+		return s
+	}
+	c1, c2 := cov(g1[0].Mask), cov(g2[0].Mask)
+	if d := g2[0].W - g1[0].W/2; d < 0 || d > 2 || g2[0].H < 2*g1[0].H || g2[0].H > 2*g1[0].H+3 || h2[0] != 2*hdr[0] ||
+		g2[0].BX > g1[0].BX/2 || g2[0].BY > 2*g1[0].BY || c2 < c1*95/100 || c2 > c1*105/100 {
+		t.Errorf("scaled glyph %+v / %v (coverage %d) vs %+v / %v (coverage %d)", g2[0], h2, c2, g1[0], hdr, c1)
 	}
 	sum := 0
 	for _, v := range gs[1].Mask {

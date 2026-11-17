@@ -58,8 +58,12 @@
 // # fN.fnt
 //
 // Rasterised at subpixel 0 with opentype.NewFace(size, DPI 72). With scale_x or
-// scale_y != 1 each mask is scaled (CatmullRom, w = ceil(w*sx), h = ceil(h*sy))
-// and bx/by are scaled and rounded; ascent and height are scaled by scale_y.
+// scale_y != 1 each mask is resampled by exactly (sx, sy) (CatmullRom affine
+// transform, glyph-space position × scale) onto the whole-pixel grid of the
+// scaled space, so bx/by are whole scaled pixels and the mask is exact at
+// subpixel 0 (the core places it at the whole pixel nearest to the pen);
+// empty border rows/columns are trimmed. ascent and height are scaled by
+// scale_y.
 //
 //	header (16 bytes): "ZF1", u8 flags, i16 ascent, i16 descent, i16 height,
 //	                   u16 nGlyphs, u32 nKern
