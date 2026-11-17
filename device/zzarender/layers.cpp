@@ -1,26 +1,29 @@
-#include "layers.h"
-
 #include <algorithm>
 #include <climits>
 #include <cmath>
 #include <cstring>
-#include <stdexcept>
 #include <vector>
 
-#include "canvas.h"
-#include "eval.h"
 #include "numfmt.h"
+#include "render_impl.h"
 #include "text.h"
 #include "utf8.h"
 
 namespace zza {
 
+using rd::coord;
+using rd::kMaxBlockDepth;
+using rd::kMaxCanvasDimension;
+using rd::num;
+using rd::plainInt;
+using rd::RenderError;
+using rd::resolveCond;
+using rd::str;
+
 namespace {
 
 // Limits of internal/renderer.
 constexpr int kMaxLayers = 256;
-constexpr int kMaxBlockDepth = 16;
-constexpr int kMaxCanvasDimension = 16384;
 constexpr int kDefaultMaxLoopItems = 20;
 constexpr int kMaxLoopItemsHardCap = 200;
 constexpr int kMaxTextVar = 1 << 24;
@@ -30,12 +33,17 @@ constexpr long long kMaxPlainInt = 1LL << 30;
 // Dynamically scaled images up to this many pixels are cached whole; larger
 // ones are scaled only where they are visible, per render.
 constexpr long long kCacheMaxPx = 240LL * 240;
-constexpr size_t kCacheEntries = 4;
 
-// What Go reports as a render error.
-struct RenderError : std::runtime_error {
-  explicit RenderError(const std::string& m) : std::runtime_error(m) {}
-};
+int hexNib(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+}  // namespace
+
+namespace rd {
 
 const char* str(JsonObjectConst o, const char* k) {
   JsonVariantConst v = o[k];
@@ -88,12 +96,9 @@ std::string resolveCond(JsonVariantConst v, const Eval& ev) {
   return els;
 }
 
-int hexNib(char c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-  return -1;
-}
+}  // namespace rd
+
+namespace {
 
 // parseColor: #RRGGBB or #RRGGBBAA after TrimSpace.
 Rgba parseColor(const std::string& in) {
@@ -119,80 +124,109 @@ Rgba parseColor(const std::string& in) {
 
 }  // namespace
 
-struct Renderer::Impl {
-  // One cached scaled image; src == nullptr marks a free slot. The slots are
-  // fixed (no allocation per entry); pixels are budget memory.
-  struct CacheEnt {
-    const Img* src;
-    int w, h;
-    uint32_t used;
-    Img img;
-    explicit CacheEnt(ZzaBudget* b) : src(nullptr), w(0), h(0), used(0), img(b) {}
-  };
+Renderer::Impl::Impl(ZzaBudget* b, const Package* p)
+    : budget(b), pkg(p), cache{CacheEnt(b), CacheEnt(b), CacheEnt(b), CacheEnt(b)}, tick(0), canvas(),
+      layerCount(0), pass(kPassStill), frame(0), flapLayerSeq(0), nFlapRects(0), flapRects(), modCursor(0),
+      snapAt(-1) {}
 
-  ZzaBudget* budget;
-  const Package* pkg;
-  CacheEnt cache[kCacheEntries];
-  uint32_t tick;
+void Renderer::Impl::clearCache() {
+  for (CacheEnt& e : cache) {
+    e.src = nullptr;
+    ZzaBytes(ZzaAlloc<uint8_t>(budget)).swap(e.img.px);
+  }
+}
 
-  // Per render.
-  Canvas canvas;
-  int layerCount;
-
-  Impl(ZzaBudget* b, const Package* p)
-      : budget(b), pkg(p), cache{CacheEnt(b), CacheEnt(b), CacheEnt(b), CacheEnt(b)}, tick(0), canvas(),
-        layerCount(0) {}
-
-  void clearCache() {
-    for (CacheEnt& e : cache) {
-      e.src = nullptr;
-      ZzaBytes(ZzaAlloc<uint8_t>(budget)).swap(e.img.px);
+const Img& Renderer::Impl::cachedScale(const Img* src, int w, int h) {
+  tick++;
+  for (CacheEnt& e : cache) {
+    if (e.src == src && e.w == w && e.h == h) {
+      e.used = tick;
+      return e.img;
     }
   }
-
-  const Img& cachedScale(const Img* src, int w, int h) {
-    tick++;
-    for (CacheEnt& e : cache) {
-      if (e.src == src && e.w == w && e.h == h) {
-        e.used = tick;
-        return e.img;
-      }
+  CacheEnt* slot = &cache[0];  // a free slot, else the least recently used
+  for (CacheEnt& e : cache) {
+    if (!e.src) {
+      slot = &e;
+      break;
     }
-    CacheEnt* slot = &cache[0];  // a free slot, else the least recently used
-    for (CacheEnt& e : cache) {
-      if (!e.src) {
-        slot = &e;
-        break;
-      }
-      if (e.used < slot->used) slot = &e;
-    }
-    slot->src = nullptr;  // stays free if scaling fails
-    ZzaBytes(ZzaAlloc<uint8_t>(budget)).swap(slot->img.px);
-    slot->img.px.resize((size_t)w * h * 4);
-    scaleCatmullRom(budget, *src, w, h, 0, 0, w, h, slot->img.px.data());
-    slot->img.w = (uint16_t)w;
-    slot->img.h = (uint16_t)h;
-    slot->src = src;
-    slot->w = w;
-    slot->h = h;
-    slot->used = tick;
-    return slot->img;
+    if (e.used < slot->used) slot = &e;
   }
+  slot->src = nullptr;  // stays free if scaling fails
+  ZzaBytes(ZzaAlloc<uint8_t>(budget)).swap(slot->img.px);
+  slot->img.px.resize((size_t)w * h * 4);
+  scaleCatmullRom(budget, *src, w, h, 0, 0, w, h, slot->img.px.data());
+  slot->img.w = (uint16_t)w;
+  slot->img.h = (uint16_t)h;
+  slot->src = src;
+  slot->w = w;
+  slot->h = h;
+  slot->used = tick;
+  return slot->img;
+}
 
-  void renderLayers(JsonArrayConst layers, Eval& ev, bool inLoop, int depth);
-  void renderImage(JsonObjectConst L, const Eval& ev);
-  void renderRect(JsonObjectConst L, const Eval& ev);
-  void renderText(JsonObjectConst L, Eval& ev);
-  void renderCopy(JsonObjectConst L, const Eval& ev);
-  void renderLoop(JsonObjectConst L, const Eval& ev, int depth);
-};
+void Renderer::Impl::beginPass(uint8_t* px, Pass p) {
+  canvas.w = rd::kCanvasW;
+  canvas.h = rd::kCanvasH;
+  canvas.px = px;
+  layerCount = 0;
+  pass = p;
+  flapLayerSeq = 0;
+  nFlapRects = 0;
+  modCursor = 0;
+}
 
-void Renderer::Impl::renderLayers(JsonArrayConst layers, Eval& ev, bool inLoop, int depth) {
+int Renderer::Impl::parseData(const char* data, size_t len, std::unique_ptr<BudgetJsonDoc>& doc,
+                              JsonVariantConst& root, std::string& err) {
+  if (len > kMaxDataBytes) {
+    err = "data JSON larger than " + std::to_string(kMaxDataBytes) + " bytes";
+    return ZZA_ERR_DATA;
+  }
+  doc.reset();
+  root = JsonVariantConst();
+  if (data && len > 0) {
+    const uint8_t* d = reinterpret_cast<const uint8_t*>(data);
+    doc.reset(new BudgetJsonDoc(jsonCapacity(d, len), JsonAlloc(budget)));
+    DeserializationError e = deserializeJson(*doc, data, len, DeserializationOption::NestingLimit(32));
+    if (e == DeserializationError::NoMemory) throw std::bad_alloc();
+    if (e) {
+      err = std::string("invalid data JSON: ") + e.c_str();
+      return ZZA_ERR_DATA;
+    }
+    if (!doc->is<JsonObject>() && !doc->isNull()) {
+      err = "data JSON is not an object";
+      return ZZA_ERR_DATA;
+    }
+    root = doc->as<JsonVariantConst>();
+  }
+  return ZZA_OK;
+}
+
+Eval Renderer::Impl::rootEval(JsonVariantConst root, const zza_time& now) const {
+  Eval ev(root, now);
+  ev.setRegexSource(pkg->regexSource());
+  JsonObjectConst an = pkg->tmpl()["meta"]["animation"];
+  int frames = plainInt(an["frames"]);
+  if (frames > 0) {
+    double fd = num(an, "frame_delay");
+    if (fd == 0) fd = 1;
+    if (!(fd > 0)) fd = 0;  // hostile values (Go rejects them at load): keep the cast defined
+    else if (fd > 1e6) fd = 1e6;
+    ev.setAnim(0, frames, (int)std::round(fd * 100));
+  }
+  return ev;
+}
+
+void Renderer::Impl::renderLayers(JsonArrayConst layers, Eval& ev, bool inLoop, int depth, bool top, int start) {
   if (depth > kMaxBlockDepth) throw RenderError("block nesting depth exceeds maximum 16");
   bool chainSatisfied = false, inChain = false;
   int i = -1;
   for (JsonVariantConst lv : layers) {
     i++;
+    if (top) {
+      if (i < start) continue;  // restored from the prefix
+      if (i == snapAt) snapshotPrefix(ev);
+    }
     if (++layerCount > kMaxLayers) throw RenderError("total layer count exceeds maximum 256");
     JsonObjectConst L = lv.as<JsonObjectConst>();
     const char* elif = str(L, "elif");
@@ -232,7 +266,7 @@ void Renderer::Impl::renderLayers(JsonArrayConst layers, Eval& ev, bool inLoop, 
         renderLoop(L, ev, depth);
       } else if (type == "splitflap") {
         if (inLoop) throw RenderError("splitflap inside loop is not supported");
-        throw RenderError("splitflap is not supported by this core yet");
+        renderSplitflap(L, ev);
       } else {
         throw RenderError("unknown type \"" + type + "\"");
       }
@@ -435,48 +469,15 @@ Renderer::Renderer(ZzaBudget* budget, const Package* pkg) : d_(new Impl(budget, 
 Renderer::~Renderer() {}
 
 int Renderer::render(const char* data, size_t len, const zza_time& now, uint8_t* rgb888, std::string& err) {
-  if (len > kMaxDataBytes) {
-    err = "data JSON larger than " + std::to_string(kMaxDataBytes) + " bytes";
-    return ZZA_ERR_DATA;
-  }
   std::unique_ptr<BudgetJsonDoc> doc;
   JsonVariantConst root;
-  if (data && len > 0) {
-    const uint8_t* d = reinterpret_cast<const uint8_t*>(data);
-    doc.reset(new BudgetJsonDoc(jsonCapacity(d, len), JsonAlloc(d_->budget)));
-    DeserializationError e = deserializeJson(*doc, data, len, DeserializationOption::NestingLimit(32));
-    if (e == DeserializationError::NoMemory) throw std::bad_alloc();
-    if (e) {
-      err = std::string("invalid data JSON: ") + e.c_str();
-      return ZZA_ERR_DATA;
-    }
-    if (!doc->is<JsonObject>() && !doc->isNull()) {
-      err = "data JSON is not an object";
-      return ZZA_ERR_DATA;
-    }
-    root = doc->as<JsonVariantConst>();
-  }
-
-  JsonObjectConst t = d_->pkg->tmpl();
-  Eval ev(root, now);
-  ev.setRegexSource(d_->pkg->regexSource());
-  JsonObjectConst an = t["meta"]["animation"];
-  int frames = plainInt(an["frames"]);
-  if (frames > 0) {
-    double fd = num(an, "frame_delay");
-    if (fd == 0) fd = 1;
-    if (!(fd > 0)) fd = 0;  // hostile values (Go rejects them at load): keep the cast defined
-    else if (fd > 1e6) fd = 1e6;
-    ev.setAnim(0, frames, (int)std::round(fd * 100));
-  }
-
-  d_->canvas.w = 240;
-  d_->canvas.h = 240;
-  d_->canvas.px = rgb888;
-  memset(rgb888, 0, 240 * 240 * 3);
-  d_->layerCount = 0;
+  int rc = d_->parseData(data, len, doc, root, err);
+  if (rc != ZZA_OK) return rc;
+  Eval ev = d_->rootEval(root, now);
+  memset(rgb888, 0, rd::kCanvasBytes);
+  d_->beginPass(rgb888, Impl::kPassStill);
   try {
-    d_->renderLayers(t["layers"].as<JsonArrayConst>(), ev, false, 0);
+    d_->renderLayers(d_->pkg->tmpl()["layers"].as<JsonArrayConst>(), ev, false, 0, true);
   } catch (const RenderError& e) {
     err = e.what();
     return ZZA_ERR_TEMPLATE;

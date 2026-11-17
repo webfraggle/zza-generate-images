@@ -85,6 +85,8 @@ class Package {
   const RegexSource* regexSource() const;
   // The template (t.json root); null variant before a successful load.
   JsonVariantConst tmpl() const;
+  // The template name of the manifest ("name"; "" if absent), seeds animations.
+  const std::string& name() const;
 
  private:
   struct Impl;

@@ -1,0 +1,63 @@
+meta:
+  name: "Abdeckung Split-Flap elif"
+  description: "Der erste splitflap setzt eine elif-Kette fort (kein Vorspann)"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#203040", x: 0, y: 0, width: 240, height: 240}
+  - {type: image, file: opaque.png, x: 150, y: 150}
+  - if: "equals(sel, 'text')"
+    type: text
+    value: "nur Text"
+    font: reg
+    size: 14
+    color: "#ffffff"
+    x: 10
+    y: 20
+  - elif: "equals(sel, 'flap')"
+    type: splitflap
+    x: 10
+    y: 10
+    width: 100
+    height: 30
+    value: "{{wert}}"
+    reel: ["Alpha", "Beta", "Gamma"]
+    var: w
+    layers:
+      - {type: rect, color: "#505050", x: 0, y: 0, width: 100, height: 30}
+      - {type: text, value: "{{w}}", font: reg, size: 16, color: "#ffffff", x: 4, y: 22, valign: baseline}
+  - else:
+    layers:
+      - {type: rect, color: "#600000", x: 0, y: 50, width: 240, height: 4}
+      - type: splitflap
+        x: 10
+        y: 60
+        height: 30
+        value: "{{wert}}"
+        reel: "ABC"
+        split: chars
+        cells: 4
+        pitch: 25
+        width: 22
+        var: c
+        flip_frames: 3
+        layers:
+          - {type: text, value: "{{c}}", font: reg, size: 16, color: "#ffffff", x: 11, y: 22, align: center, valign: baseline}
+  - type: splitflap
+    x: 120
+    y: 100
+    width: 60
+    height: 30
+    value: "{{gleis}}"
+    reel: "123456789"
+    var: g
+    flip_frames: 2
+    layers:
+      - {type: rect, color: "#305030", x: 0, y: 0, width: 60, height: 30}
+      - {type: text, value: "{{g}}", font: reg, size: 16, color: "#ffffff", x: 30, y: 22, align: center, valign: baseline}
+  - {type: rect, color: "#00000080", x: 0, y: 115, width: 240, height: 1}
+  - {type: copy, src_x: 120, src_y: 100, src_width: 60, src_height: 30, x: 120, y: 200}

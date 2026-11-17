@@ -1,6 +1,7 @@
-// Layer walk of a still image: if/elif/else chains, block nodes, loops,
-// limits and the image/rect/text/copy layers. Port of renderLayers and the
-// layer renderers of internal/renderer.
+// Renderer of a loaded package: still images (layer walk with if/elif/else
+// chains, block nodes, loops, limits and all layer types; port of
+// renderLayers and the layer renderers of internal/renderer) and animations
+// (split-flap and frame mode, port of RenderAnimation).
 #pragma once
 #include <cstddef>
 #include <cstdint>
@@ -30,6 +31,25 @@ class Renderer {
   // Throws std::bad_alloc when the budget is exhausted (the scaled-image
   // cache is dropped then, so only the package stays allocated).
   int render(const char* data, size_t len, const zza_time& now, uint8_t* rgb888, std::string& err);
+
+  // Starts an animation (replacing a running one): parses data like render,
+  // plans the frames and renders the split-flap leaves. *frames: number of
+  // frames (split-flap incl. the final still; frame mode meta.animation.frames;
+  // otherwise 1), *loop: GIF loop flag as Go. Split-flap seed: SHA-256(manifest
+  // name ‖ 0x00 ‖ data) like AnimationSeed.
+  // Returns ZZA_OK, ZZA_ERR_DATA or ZZA_ERR_TEMPLATE with err; throws
+  // std::bad_alloc (the session and caches are dropped then).
+  int animBegin(const char* data, size_t len, const zza_time& now, int* frames, int* loop,
+                std::string& err);
+
+  // Renders frame i into rgb888, which must hold frame i-1 (frame 0: anything),
+  // see zza_anim_frame. ZZA_ERR_STATE without a session or for i out of range.
+  // Throws std::bad_alloc (the session and caches are dropped then).
+  int animFrame(int i, uint8_t* rgb888, int* delayCs, zza_rect* dirty, int maxRects, int* nRects,
+                std::string& err);
+
+  // Ends the animation and frees its memory.
+  void animEnd();
 
  private:
   struct Impl;

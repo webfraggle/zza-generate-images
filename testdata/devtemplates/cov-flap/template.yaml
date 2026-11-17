@@ -1,0 +1,134 @@
+meta:
+  name: "Abdeckung Split-Flap"
+  description: "Funktionsabdeckung des Gerätekerns: splitflap und Animation"
+  canvas: {width: 240, height: 240}
+  animation: {fps: 10, duration: 3}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Vorspann: ändert sich nie während der Animation.
+  - {type: rect, color: "#202830", x: 0, y: 0, width: 240, height: 240}
+  - {type: image, file: opaque.png, x: 190, y: 150}
+  - {type: text, id: lbl, value: "Gl.", font: reg, size: 10, color: "#c0c0c0", x: 4, y: 46}
+  - {type: text, value: "{{now.hour}}:{{now.minute}}", font: reg, size: 10, color: "#c0c0c0", x: 200, y: 228}
+
+  # Alle Klappen in einem Block, damit mode=none keine zeigt.
+  - if: "not(equals(mode, 'none'))"
+    layers:
+      # ein Zeichen pro Modul, Reel als String, ein Frame pro Umklappen
+      - type: splitflap
+        x: 8
+        y: 8
+        width: 18
+        height: 26
+        cells: 7
+        pitch: 20
+        split: chars
+        value: "{{ziel_kurz | upper}}"
+        reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZ-."
+        var: ch
+        flip_frames: 1
+        min_flips: 3
+        max_flips: 12
+        layers:
+          - if: "equals(ch, ' ')"
+            layers:
+              - {type: rect, color: "#101010", x: 0, y: 0, width: 18, height: 26}
+          - else:
+            layers:
+              - {type: rect, color: "#303030", x: 0, y: 0, width: 18, height: 26}
+          - {type: text, value: "{{ch}}", font: reg, size: 16, color: "#ffffff", x: 9, y: 20, align: center, valign: baseline}
+
+      # ganzer Wert, Wert im Reel, fünf Frames pro Umklappen
+      - type: splitflap
+        x: 150
+        y: 8
+        width: 82
+        height: 26
+        value: "{{zug}}"
+        reel: ["IC", "ICE", "RE", "S"]
+        var: z
+        flip_frames: 5
+        layers:
+          - {type: rect, color: "#802020", x: 0, y: 0, width: 82, height: 26}
+          - {type: text, value: "{{z}}", font: reg, size: 16, color: "#ffffff", x: 4, y: 20, valign: baseline}
+
+      # ohne Reel (leere Klappen), Koordinate aus einer Text-id des Vorspanns
+      - type: splitflap
+        x: "{{lbl.end}}"
+        y: 44
+        width: 40
+        height: 24
+        value: "{{text}}"
+        var: t
+        min_flips: 2
+        layers:
+          - {type: text, value: "{{t}}", font: reg, size: 10, color: "#ffff00", x: 2, y: 16, valign: baseline}
+
+      # leerer Reel, vier Frames pro Umklappen
+      - type: splitflap
+        x: 72
+        y: 44
+        width: 60
+        height: 24
+        split_y: 9
+        value: "{{zug}} {{gleis}}"
+        reel: []
+        var: v
+        flip_frames: 4
+        layers:
+          - {type: rect, color: "#204020", x: 0, y: 0, width: 60, height: 24}
+          - {type: text, value: "{{v}}", font: reg, size: 12, color: "#ffffff", x: 30, y: 17, align: center, valign: baseline}
+
+      # splitflap in einem if-Zweig, mit Kind-Bildern
+      - if: "equals(mode, 'full')"
+        layers:
+          - type: splitflap
+            x: 140
+            y: 44
+            width: 20
+            height: 24
+            cells: 2
+            pitch: 22
+            split: chars
+            value: "{{gleis}}"
+            reel: "0123456789"
+            var: g
+            flip_frames: 3
+            min_flips: 2
+            max_flips: 3
+            layers:
+              - {type: image, file: alpha.png, x: -6, y: -4}
+              - {type: text, value: "{{g}}", font: reg, size: 16, color: "#000000", x: 10, y: 19, align: center, valign: baseline}
+      - else:
+        layers:
+          - {type: rect, color: "#4040a0", x: 140, y: 44, width: 42, height: 24}
+
+      # ganzer Wert, nicht im Reel, sechs Frames pro Umklappen
+      - type: splitflap
+        x: 8
+        y: 76
+        width: 140
+        height: 30
+        value: "{{ziel}}"
+        reel: ["Bern", "Basel", "Chur", "Genf"]
+        var: d
+        flip_frames: 6
+        layers:
+          - if: "startsWith(d, 'B')"
+            layers:
+              - {type: image, file: opaque.png, x: 90, y: 0}
+          - {type: text, value: "{{d}}", font: reg, size: 18, color: "#ffffff", x: 4, y: 23, valign: baseline}
+  - else:
+    layers:
+      - {type: text, value: "keine Klappen", font: reg, size: 12, color: "#ffffff", x: 8, y: 20}
+
+  # Overlays und copy nach den Modulen folgen der Animation.
+  - {type: rect, color: "#00000080", x: 0, y: 21, width: 240, height: 1}
+  - {type: image, file: alpha.png, x: 120, y: 80}
+  - {type: copy, src_x: 8, src_y: 8, src_width: 146, src_height: 26, x: 8, y: 150}
+  - {type: copy, src_x: 8, src_y: 76, src_width: 140, src_height: 30, x: 8, y: 190}
+  - {type: text, value: "{{text}}", font: reg, size: 10, color: "#ffffff", x: 8, y: 228}

@@ -269,6 +269,7 @@ struct Package::Impl {
   std::vector<std::unique_ptr<FontEnt>> fonts;
   std::unique_ptr<BudgetJsonDoc> tj;
   RegexTable re;
+  std::string name;
 
   explicit Impl(ZzaBudget* b) : budget(b), re(b) {}
 };
@@ -305,6 +306,7 @@ int Package::load(const zza_file* files, int n, std::string& err) {
       fail("manifest.json", "canvas must be [240,240]");
     JsonArrayConst list = m["files"];
     if (list.isNull()) fail("manifest.json", "files missing");
+    d_->name = m["name"] | "";
 
     std::vector<std::string> seen;
     for (JsonObjectConst e : list) {
@@ -366,6 +368,8 @@ const Font* Package::font(const char* id) const {
 const RegexSource* Package::regexSource() const { return &d_->re; }
 
 const RegexProg* Package::regex(const std::string& pattern) const { return d_->re.find(pattern); }
+
+const std::string& Package::name() const { return d_->name; }
 
 JsonVariantConst Package::tmpl() const {
   if (!d_->tj) return JsonVariantConst();

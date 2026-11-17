@@ -34,13 +34,6 @@ static int guarded(zza_renderer* r, F f) {
   }
 }
 
-static int not_implemented(zza_renderer* r) {
-  return guarded(r, [&]() {
-    if (r) r->error = "not implemented";
-    return (int)ZZA_ERR_STATE;
-  });
-}
-
 extern "C" {
 
 zza_renderer* zza_new(size_t mem_budget) {
@@ -90,12 +83,41 @@ int zza_render(zza_renderer* r, const char* data, size_t len, const zza_time* no
   });
 }
 
-int zza_anim_begin(zza_renderer* r, const char*, size_t, const zza_time*, int*, int*) {
-  return not_implemented(r);
+int zza_anim_begin(zza_renderer* r, const char* data, size_t len, const zza_time* now, int* frames, int* loop) {
+  if (!r) return ZZA_ERR_STATE;
+  return guarded(r, [&]() {
+    r->error.clear();
+    if (!r->pkg || !r->rend) {
+      r->error = "no package loaded";
+      return (int)ZZA_ERR_STATE;
+    }
+    if (!now || !frames || !loop || (!data && len > 0)) {
+      r->error = "invalid arguments";
+      return (int)ZZA_ERR_STATE;
+    }
+    return r->rend->animBegin(data, len, *now, frames, loop, r->error);
+  });
 }
 
-int zza_anim_frame(zza_renderer* r, int, unsigned char*, int*, zza_rect*, int, int*) {
-  return not_implemented(r);
+int zza_anim_frame(zza_renderer* r, int i, unsigned char* rgb888, int* delay_cs, zza_rect* dirty, int max_rects,
+                   int* n_rects) {
+  if (!r) return ZZA_ERR_STATE;
+  return guarded(r, [&]() {
+    r->error.clear();
+    if (!r->pkg || !r->rend) {
+      r->error = "no package loaded";
+      return (int)ZZA_ERR_STATE;
+    }
+    if (!rgb888) {
+      r->error = "invalid arguments";
+      return (int)ZZA_ERR_STATE;
+    }
+    return r->rend->animFrame(i, rgb888, delay_cs, dirty, max_rects, n_rects, r->error);
+  });
+}
+
+void zza_anim_end(zza_renderer* r) {
+  if (r && r->rend) r->rend->animEnd();
 }
 
 const char* zza_error(const zza_renderer* r) { return r ? r->error.c_str() : ""; }
@@ -109,6 +131,10 @@ int zza_test_alloc(zza_renderer* r, size_t n) {
     b.resize(n);
     return (int)ZZA_OK;
   });
+}
+
+void zza_test_set_limit(zza_renderer* r, size_t limit) {
+  if (r) r->budget.limit = limit;
 }
 
 int zza_test_hash(zza_renderer* r, const char* id, unsigned int* out) {

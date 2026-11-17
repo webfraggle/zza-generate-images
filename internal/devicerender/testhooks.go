@@ -124,3 +124,38 @@ func testHash(r *Renderer, id string) (uint32, int) {
 	rc := int(C.zza_test_hash(r.c, cid, &out))
 	return uint32(out), rc
 }
+
+// errStateCode and noMemCode are ZZA_ERR_STATE and ZZA_ERR_NOMEM.
+const (
+	errStateCode = int(C.ZZA_ERR_STATE)
+	noMemCode    = int(C.ZZA_ERR_NOMEM)
+)
+
+// testAnimFrame calls zza_anim_frame for frame i (into a scratch buffer) and
+// returns the ZZA_* code.
+func testAnimFrame(r *Renderer, i int) int {
+	buf := C.malloc(240 * 240 * 3)
+	defer C.free(buf)
+	var delay, n C.int
+	return int(C.zza_anim_frame(r.c, C.int(i), (*C.uchar)(buf), &delay, nil, 0, &n))
+}
+
+// testSetLimit changes the budget limit of r.
+func testSetLimit(r *Renderer, limit int) { C.zza_test_set_limit(r.c, C.size_t(limit)) }
+
+// testAnimBegin starts an animation with data at now; returns the ZZA_* code and the frame count.
+func testAnimBegin(r *Renderer, data []byte, now zzaTime) (int, int) {
+	var cd *C.char
+	if len(data) > 0 {
+		cd = (*C.char)(C.CBytes(data))
+		defer C.free(unsafe.Pointer(cd))
+	}
+	t := C.zza_time{
+		year: C.int(now.Year), month: C.int(now.Month), day: C.int(now.Day),
+		hour: C.int(now.Hour), minute: C.int(now.Minute), second: C.int(now.Second),
+		weekday: C.int(now.Weekday),
+	}
+	var frames, loop C.int
+	code := int(C.zza_anim_begin(r.c, cd, C.size_t(len(data)), &t, &frames, &loop))
+	return code, int(frames)
+}

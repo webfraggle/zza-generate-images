@@ -1,5 +1,6 @@
 // cgo compiles only files in the package directory; this unity file pulls in
 // the C++ core from device/zzarender (master copy).
+#include "anim.cpp"
 #include "canvas.cpp"
 #include "capi.cpp"
 #include "eval.cpp"
@@ -9,5 +10,6 @@
 #include "package.cpp"
 #include "regex.cpp"
 #include "sha256.cpp"
+#include "splitflap.cpp"
 #include "text.cpp"
 #include "utf8.cpp"

@@ -126,9 +126,6 @@ func TestRenderShippedNear(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if tmpl.HasSplitflap() {
-				t.Skip("splitflap is rendered by the core from Task 7 on")
-			}
 			p, err := devexport.Export(templatesRoot, name)
 			var inc *devexport.Incompatible
 			if errors.As(err, &inc) {
@@ -213,12 +210,8 @@ func TestRenderCoverageNear(t *testing.T) {
 	for _, d := range dirs {
 		name := filepath.Base(d)
 		t.Run(name, func(t *testing.T) {
-			tmpl, err := renderer.LoadTemplate(covRoot, name)
-			if err != nil {
+			if _, err := renderer.LoadTemplate(covRoot, name); err != nil {
 				t.Fatal(err)
-			}
-			if tmpl.HasSplitflap() {
-				t.Skip("splitflap: Task 7")
 			}
 			r := loadDevice(t, covRoot, name)
 			for ds, data := range covDatasets(t, readDefault(t, covRoot, name)) {

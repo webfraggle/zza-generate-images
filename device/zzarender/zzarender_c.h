@@ -18,16 +18,31 @@ void          zza_delete(zza_renderer*);
 const char*   zza_version(void); /* "zzarender/1" */
 int           zza_load(zza_renderer*, const zza_file* files, int n);
 int           zza_render(zza_renderer*, const char* data, size_t len, const zza_time* now, unsigned char* rgb888);
+/* Starts an animation of the loaded package with data (as zza_render; a running animation ends).
+   Split-flap: seed SHA-256(manifest name || 0x00 || data[0..len)), schedule like RenderAnimation,
+   *frames = frames incl. the final still (= zza_render). Frame mode (meta.animation.frames):
+   *frames = animation.frames. Otherwise *frames = 1. *loop: 1 = repeat (GIF loop), 0 = play once.
+   now is frozen for all frames. Leaves, prefix and frame buffer are budget memory; ZZA_ERR_NOMEM
+   (here or in zza_anim_frame) ends the animation and frees all of it. */
 int           zza_anim_begin(zza_renderer*, const char* data, size_t len, const zza_time* now,
                              int* frames, int* loop);
+/* Renders frame i (0 <= i < frames, any order) into rgb888, which must hold frame i-1 (for i = 0:
+   anything). *delay_cs: duration of the frame (split-flap round(100/fps), last frame 100; frame mode
+   frame_delay). dirty receives up to max_rects rectangles that changed against frame i-1 (frame 0:
+   the whole canvas; more changes than max_rects: one enclosing rectangle), *n_rects their number
+   (0 = unchanged, or nothing reported for max_rects < 1 / dirty NULL). delay_cs, dirty and n_rects
+   may be NULL. ZZA_ERR_STATE without an animation or for i out of range. */
 int           zza_anim_frame(zza_renderer*, int i, unsigned char* rgb888, int* delay_cs,
                              zza_rect* dirty, int max_rects, int* n_rects);
+/* Ends the animation and frees its memory (leaves, prefix, frame buffer, data). No-op without one. */
+void          zza_anim_end(zza_renderer*);
 const char*   zza_error(const zza_renderer*);
 size_t        zza_mem_used(const zza_renderer*);
 size_t        zza_mem_peak(const zza_renderer*);
 
 /* ---- test only (always compiled in; used by the Go test hooks) ---- */
 int zza_test_alloc(zza_renderer*, size_t n);                              /* allocate+free n bytes via budget */
+void zza_test_set_limit(zza_renderer*, size_t limit);                     /* change the budget limit */
 int zza_test_sha256(const unsigned char* data, size_t len, unsigned char out[32]);
 /* Evaluates expr (interpolation, or condition if isCond: "true"/"false") against dataJson into out
    (NUL-terminated, truncated to outLen). regexJson (may be NULL) is a `_re` table
