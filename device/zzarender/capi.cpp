@@ -58,6 +58,7 @@ const char* zza_version(void) { return "zzarender/1"; }
 int zza_load(zza_renderer* r, const zza_file* files, int n) {
   if (!r) return ZZA_ERR_STATE;
   return guarded(r, [&]() {
+    r->rend.reset();
     r->pkg.reset();  // a failed or repeated load never keeps the old package
     r->error.clear();
     std::unique_ptr<zza::Package> p(new zza::Package(&r->budget));
@@ -68,12 +69,25 @@ int zza_load(zza_renderer* r, const zza_file* files, int n) {
       return rc;
     }
     r->pkg = std::move(p);
+    r->rend.reset(new zza::Renderer(&r->budget, r->pkg.get()));
     return (int)ZZA_OK;
   });
 }
 
-int zza_render(zza_renderer* r, const char*, size_t, const zza_time*, unsigned char*) {
-  return not_implemented(r);
+int zza_render(zza_renderer* r, const char* data, size_t len, const zza_time* now, unsigned char* rgb888) {
+  if (!r) return ZZA_ERR_STATE;
+  return guarded(r, [&]() {
+    r->error.clear();
+    if (!r->pkg || !r->rend) {
+      r->error = "no package loaded";
+      return (int)ZZA_ERR_STATE;
+    }
+    if (!now || !rgb888 || (!data && len > 0)) {
+      r->error = "invalid arguments";
+      return (int)ZZA_ERR_STATE;
+    }
+    return r->rend->render(data, len, *now, rgb888, r->error);
+  });
 }
 
 int zza_anim_begin(zza_renderer* r, const char*, size_t, const zza_time*, int*, int*) {

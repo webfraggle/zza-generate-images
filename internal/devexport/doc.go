@@ -87,16 +87,26 @@
 //     height * scale_y); descent is the natural, UNscaled descent (scale_y is
 //     not applied). line_height is not in the file: at run time
 //     lineHeight = round(height * line_height) when line_height > 0 && != 1,
-//     else height. First-line top = y; baseline = y + ascent (valign: baseline:
+//     else height. With scale_y as well, Go multiplies the natural height
+//     first: lineHeight = round(round(H * line_height) * scale_y), H recovered
+//     from height (the value with round(H * scale_y) == height closest to
+//     height / scale_y; exact for scale_y >= 1). First-line top = y; baseline = y + ascent (valign: baseline:
 //     baseline = y).
 //   - Pen: kept in natural 26.6 as an integer sum over the drawn glyphs
 //     pen = Σ (adv(g) + kern(prev, g)); kern(prev, g) is added before g when a
 //     previous glyph exists, and is 0 if the pair is not in the table.
 //     Total line width in natural pixels is measured from the same sum.
-//   - Glyph placement (every glyph, also with scale_x == 1):
-//     gx = x + round(pen_before_g * scale_x / 64), pen_before_g including the
-//     kern of g; round = floor(v + 0.5) in float. The mask's top-left is at
+//   - Glyph placement without scale_x/scale_y: gx = x + round(pen_before_g / 64),
+//     pen_before_g including the kern of g. The mask's top-left is at
 //     (gx + bx, baselineY + by). scale_x/scale_y of 0 mean 1.
+//   - With scale_x or scale_y != 1 the core follows Go's drawTextLine, which
+//     draws the line offscreen with a margin pad = A (natural ascent; with
+//     scale_y recovered from the stored ascent) and resamples it to
+//     dw = ceil((W + 2A) * sx), dh = ceil((3A + descent) * sy) at
+//     dx = x - round(A * sx), dy = baselineY - round(2A * sy):
+//     gx = round(dx + (A + pen_before_g / 64) * dw / (W + 2A)) and the
+//     baseline is round(dy + 2A * dh / (3A + descent)); round = floor(v + 0.5).
+//     Lines far wider than the canvas are first cut like visibleRun.
 //     Natural line width W = round(pen_total / 64) (like font.MeasureString(...).Round());
 //     the on-canvas width used for alignment and <id>.width is ceil(W * scale_x)
 //     (W when scale_x == 1).

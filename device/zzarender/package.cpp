@@ -6,41 +6,23 @@
 #include "sha256.h"
 
 namespace zza {
-namespace {
 
-// A format violation; msg already names the file.
-struct LoadError {
-  std::string msg;
-};
-
-[[noreturn]] void fail(const std::string& file, const std::string& what) {
-  throw LoadError{file + ": " + what};
+void* JsonAlloc::allocate(size_t n) {
+  if (n > SIZE_MAX - 16) throw std::bad_alloc();
+  uint8_t* p = static_cast<uint8_t*>(b->alloc(n + 16));
+  memcpy(p, &n, sizeof n);
+  return p + 16;
 }
 
-// ArduinoJson allocator drawing from the budget. The block size is kept in a
-// 16-byte header because the library's deallocate() does not pass it.
-struct JsonAlloc {
-  ZzaBudget* b;
-  JsonAlloc() : b(nullptr) {}
-  explicit JsonAlloc(ZzaBudget* bb) : b(bb) {}
-  void* allocate(size_t n) {
-    if (n > SIZE_MAX - 16) throw std::bad_alloc();
-    uint8_t* p = static_cast<uint8_t*>(b->alloc(n + 16));
-    memcpy(p, &n, sizeof n);
-    return p + 16;
-  }
-  void deallocate(void* ptr) {
-    uint8_t* p = static_cast<uint8_t*>(ptr) - 16;
-    size_t n;
-    memcpy(&n, p, sizeof n);
-    b->free(p, n + 16);
-  }
-  void* reallocate(void*, size_t) { throw std::bad_alloc(); }  // never used (no shrinkToFit)
-};
-using JsonDoc = BasicJsonDocument<JsonAlloc>;
+void JsonAlloc::deallocate(void* ptr) {
+  uint8_t* p = static_cast<uint8_t*>(ptr) - 16;
+  size_t n;
+  memcpy(&n, p, sizeof n);
+  b->free(p, n + 16);
+}
 
-// Upper bound for the pool of a document: every value takes one slot and is
-// preceded by '[', '{' or ','; strings (including keys) are copied into the pool.
+// Every value takes one slot and is preceded by '[', '{' or ','; strings
+// (including keys) are copied into the pool.
 size_t jsonCapacity(const uint8_t* d, size_t n) {
   size_t slots = 1, quotes = 0;
   bool inStr = false, esc = false;
@@ -58,8 +40,19 @@ size_t jsonCapacity(const uint8_t* d, size_t n) {
   return slots * sizeof(detail::VariantSlot) + n + quotes / 2 + 64;
 }
 
-std::unique_ptr<JsonDoc> parseJson(ZzaBudget* b, const uint8_t* d, size_t n, const char* file) {
-  std::unique_ptr<JsonDoc> doc(new JsonDoc(jsonCapacity(d, n), JsonAlloc(b)));
+namespace {
+
+// A format violation; msg already names the file.
+struct LoadError {
+  std::string msg;
+};
+
+[[noreturn]] void fail(const std::string& file, const std::string& what) {
+  throw LoadError{file + ": " + what};
+}
+
+std::unique_ptr<BudgetJsonDoc> parseJson(ZzaBudget* b, const uint8_t* d, size_t n, const char* file) {
+  std::unique_ptr<BudgetJsonDoc> doc(new BudgetJsonDoc(jsonCapacity(d, n), JsonAlloc(b)));
   DeserializationError e = deserializeJson(*doc, reinterpret_cast<const char*>(d), n,
                                            DeserializationOption::NestingLimit(32));
   if (e == DeserializationError::NoMemory) throw std::bad_alloc();
@@ -268,7 +261,7 @@ struct Package::Impl {
   ZzaBudget* budget;
   std::vector<std::unique_ptr<ImgEnt>> imgs;
   std::vector<std::unique_ptr<FontEnt>> fonts;
-  std::unique_ptr<JsonDoc> tj;
+  std::unique_ptr<BudgetJsonDoc> tj;
   RegexTable re;
 
   explicit Impl(ZzaBudget* b) : budget(b), re(b) {}
@@ -296,7 +289,7 @@ int Package::load(const zza_file* files, int n, std::string& err) {
 
     const zza_file* mf = find("manifest.json");
     if (!mf) fail("manifest.json", "missing");
-    std::unique_ptr<JsonDoc> man = parseJson(b, mf->data, mf->len, "manifest.json");
+    std::unique_ptr<BudgetJsonDoc> man = parseJson(b, mf->data, mf->len, "manifest.json");
     JsonObjectConst m = man->as<JsonObjectConst>();
     JsonVariantConst fmt = m["format"];
     if (!fmt.is<long>() || fmt.as<long>() != 1) fail("manifest.json", "unsupported format (want 1)");
@@ -363,6 +356,8 @@ const Font* Package::font(const char* id) const {
     if (e->id == id) return &e->font;
   return nullptr;
 }
+
+const RegexSource* Package::regexSource() const { return &d_->re; }
 
 const RegexProg* Package::regex(const std::string& pattern) const { return d_->re.find(pattern); }
 

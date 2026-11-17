@@ -13,6 +13,9 @@ passieren hier und werden in die Firmware übernommen.
 - `zzarender.h`, `capi.cpp` — interner Zustand, API-Hülle (`bad_alloc` → `ZZA_ERR_NOMEM`)
 - `mem.h` — Budget-Allocator (`ZzaBudget`, `ZzaAlloc`); Hooks `zza_raw_malloc`/`zza_raw_free` für PSRAM
 - `sha256.{h,cpp}` — SHA-256
+- `canvas.{h,cpp}` — RGB888-Leinwand: Blend, Bild-Blit, Catmull-Rom-Skalierung, Bilinear-Rotation, copy, rect
+- `text.{h,cpp}` — Messen, Umbruch, fit_items, Ausrichtung, Glyphen zeichnen
+- `layers.{h,cpp}` — Layer-Liste, if/elif/else, loop, Limits, Standbild (`zza::Renderer`)
 - `third_party/ArduinoJson.h` — ArduinoJson 6.21.6 als Single-Header (Lizenz: `LICENSE-ArduinoJson.txt`)
 
 Die `zza_test_*`-Funktionen sind immer einkompiliert und nur für Tests gedacht.

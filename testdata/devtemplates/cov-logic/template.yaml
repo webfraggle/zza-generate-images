@@ -1,0 +1,75 @@
+meta:
+  name: "Abdeckung Logik"
+  description: "Funktionsabdeckung des Gerätekerns: Bedingungen, Blöcke, loop, copy, rect"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#101820", x: 0, y: 0, width: 240, height: 120}
+
+  # Layer-if/elif/else
+  - {type: rect, if: "equals(status, 'ok')", color: "#00c000", x: 4, y: 4, width: 20, height: 20}
+  - {type: rect, elif: "equals(status, 'spaet')", color: "#c0c000", x: 4, y: 4, width: 20, height: 20}
+  - {type: rect, else: true, color: "#c00000", x: 4, y: 4, width: 20, height: 20}
+  - {type: rect, if: "isEmpty(status)", color: "#ffffff", x: 28, y: 4, width: 10, height: 10}
+  - {type: rect, else:, color: "#0000ff", x: 28, y: 4, width: 10, height: 10}
+
+  # Block-Nodes verschachtelt (Kette über Blöcke)
+  - if: "greaterThan(abw, 0)"
+    layers:
+      - {type: text, value: "+{{abw}}", font: reg, size: 12, color: "#ff4040", x: 44, y: 4}
+      - if: "greaterThan(abw, 5)"
+        layers:
+          - {type: rect, color: "#ff000080", x: 44, y: 20, width: 40, height: 4}
+          - if: "contains(hinweis, 'Ersatz')"
+            layers:
+              - {type: text, value: "Ersatz!", font: reg, size: 9, color: "#ffffff", x: 90, y: 4}
+  - else:
+    layers:
+      - {type: text, value: "pünktlich", font: reg, size: 12, color: "#40ff40", x: 44, y: 4}
+
+  # StringOrCond für color und value
+  - type: text
+    font: reg
+    size: 12
+    x: 140
+    y: 4
+    value: {if: "equals(status, 'ok')", then: "Gut {{zug}}", elif: "equals(status, 'spaet')", then: "Spät {{zug}}", else: "Ausfall"}
+    color: {if: "greaterThan(abw, 10)", then: "#ff0000", elif: "greaterThan(abw, 0)", then: "#ffff00", else: "#00ff00"}
+  - type: rect
+    x: 200
+    y: 20
+    width: 30
+    height: 8
+    color: {if: "isEmpty(zug)", then: "#ff00ff80", else: "#00ffff80"}
+
+  # loop mit split_by, max_items, i, loop.index, var
+  - type: loop
+    value: "{{halte}}"
+    split_by: ","
+    max_items: 4
+    var: halt
+    layers:
+      - {type: text, value: "{{halt}}", font: reg, size: 10, color: "#ffffff", x: 4, y: "{{i * 14 + 30}}"}
+      - {type: rect, color: "#ffffff40", x: "{{loop.index * 12 + 110}}", y: "{{30 + i * 14}}", width: 10, height: 10}
+      - {type: rect, if: "equals(halt, 'Baden')", color: "#ff8000", x: 100, y: "{{i * 14 + 32}}", width: 6, height: 6}
+  - type: loop
+    value: "{{linien}}"
+    var: item
+    layers:
+      - {type: text, value: "{{item}}", font: reg, size: 9, color: "#a0a0ff", x: "{{i * 30 + 4}}", y: 90}
+
+  # Koordinaten-Ausdrücke, rect mit Alpha, negative Größe
+  - {type: rect, color: "#ff000080", x: "{{(10 + 20) * 2}}", y: "{{100 - 4 / 2}}", width: "{{40 / 3}}", height: 14}
+  - {type: rect, color: "#00ff0060", x: 80, y: 105, width: -20, height: -10}
+  - {type: image, file: opaque.png, x: "{{200 - 10 * 2}}", y: 70}
+
+  # copy: untere Hälfte, überlappend nach unten / oben, teilweise außerhalb
+  - {type: copy, src_x: 0, src_y: 0, src_width: 240, src_height: 120, x: 0, y: 120}
+  - {type: copy, src_x: 0, src_y: 120, src_width: 120, src_height: 60, x: 10, y: 150}
+  - {type: copy, src_x: 120, src_y: 150, src_width: 120, src_height: 60, x: 115, y: 130}
+  - {type: copy, src_x: 200, src_y: 200, src_width: 80, src_height: 80, x: -30, y: 210}
+  - {type: copy, src_x: -20, src_y: -20, src_width: 60, src_height: 50, x: 190, y: 190}

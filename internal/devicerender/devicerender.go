@@ -14,7 +14,9 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"image"
 	"sort"
+	"time"
 	"unsafe"
 
 	"github.com/webfraggle/zza-generate-images/internal/devexport"
@@ -108,6 +110,50 @@ func (r *Renderer) Load(p *devexport.Package) error {
 		files[i] = C.zza_file{name: cn, data: (*C.uchar)(cd), len: C.size_t(len(data))}
 	}
 	return r.errFor(C.zza_load(r.c, arr, C.int(len(names))))
+}
+
+// Canvas size of the device (the core accepts only 240×240 packages).
+const canvasW, canvasH = 240, 240
+
+// Render renders a still image of the loaded package with the train data
+// (JSON object; empty means {}) at now, which must already be in the
+// template's time zone. The core draws RGB888 on black; the result has alpha 255.
+func (r *Renderer) Render(data []byte, now time.Time) (*image.NRGBA, error) {
+	if err := r.usable(); err != nil {
+		return nil, err
+	}
+	rgb := (*C.uchar)(C.malloc(C.size_t(canvasW * canvasH * 3)))
+	if rgb == nil {
+		return nil, fmt.Errorf("%w: output buffer", ErrNoMem)
+	}
+	defer C.free(unsafe.Pointer(rgb))
+	var cd *C.char
+	if len(data) > 0 {
+		cd = (*C.char)(C.CBytes(data))
+		if cd == nil {
+			return nil, fmt.Errorf("%w: data buffer", ErrNoMem)
+		}
+		defer C.free(unsafe.Pointer(cd))
+	}
+	t := cTime(now)
+	if err := r.errFor(C.zza_render(r.c, cd, C.size_t(len(data)), &t, rgb)); err != nil {
+		return nil, err
+	}
+	src := unsafe.Slice((*byte)(unsafe.Pointer(rgb)), canvasW*canvasH*3)
+	img := image.NewNRGBA(image.Rect(0, 0, canvasW, canvasH))
+	for i, j := 0, 0; i < len(src); i, j = i+3, j+4 {
+		img.Pix[j], img.Pix[j+1], img.Pix[j+2], img.Pix[j+3] = src[i], src[i+1], src[i+2], 0xff
+	}
+	return img, nil
+}
+
+// cTime converts a wall-clock time (already in the template's zone) to zza_time.
+func cTime(t time.Time) C.zza_time {
+	return C.zza_time{
+		year: C.int(t.Year()), month: C.int(t.Month()), day: C.int(t.Day()),
+		hour: C.int(t.Hour()), minute: C.int(t.Minute()), second: C.int(t.Second()),
+		weekday: C.int(t.Weekday()),
+	}
 }
 
 // Version returns the core version string, e.g. "zzarender/1".

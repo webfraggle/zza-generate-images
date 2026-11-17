@@ -13,6 +13,21 @@
 
 namespace zza {
 
+// ArduinoJson allocator drawing from the budget. The block size is kept in a
+// 16-byte header because the library's deallocate() does not pass it.
+struct JsonAlloc {
+  ZzaBudget* b;
+  JsonAlloc() : b(nullptr) {}
+  explicit JsonAlloc(ZzaBudget* bb) : b(bb) {}
+  void* allocate(size_t n);
+  void deallocate(void* ptr);
+  void* reallocate(void*, size_t) { throw std::bad_alloc(); }  // never used (no shrinkToFit)
+};
+using BudgetJsonDoc = BasicJsonDocument<JsonAlloc>;
+
+// Upper bound for the pool of a document parsed from d[0..n).
+size_t jsonCapacity(const uint8_t* d, size_t n);
+
 // Decoded image: w*h RGBA8888 pixels, non-premultiplied, row-major.
 struct Img {
   uint16_t w;
@@ -66,6 +81,8 @@ class Package {
   const Font* font(const char* id) const;
   // Compiled program of a constant match pattern (key of t.json "_re"); nullptr if absent.
   const RegexProg* regex(const std::string& pattern) const;
+  // All programs of "_re", for the evaluator's match filter.
+  const RegexSource* regexSource() const;
   // The template (t.json root); null variant before a successful load.
   JsonVariantConst tmpl() const;
 
