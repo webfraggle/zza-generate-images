@@ -4,9 +4,13 @@
 #include <cstdlib>
 #include <string>
 
+#include "decnum.h"
+
 namespace zza {
 
 namespace {
+
+constexpr int kRangeDigits = 330;
 
 bool jsWs(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
 bool jsDigit(char c) { return c >= '0' && c <= '9'; }
@@ -44,29 +48,20 @@ struct Scan {
     }
     return fail("unterminated string");
   }
+  // A number; Go decodes it into a float64 and rejects values beyond its
+  // range (underflow gives 0). Decided from the decimal exponent; only a
+  // first digit at 10^308 needs strtod, on a bounded canonical copy: the
+  // overflow threshold (between DBL_MAX and 2^1024) is an integer of 309
+  // digits, so 330 significant digits plus a sticky digit decide exactly.
   bool num() {
-    const char* s = p;
-    if (*p == '-') p++;
-    if (p >= end || !jsDigit(*p)) return fail("invalid number");
-    if (*p == '0') {
-      p++;
-    } else {
-      while (p < end && jsDigit(*p)) p++;
+    char buf[kRangeDigits + kDecExtra];  // 362 bytes
+    DecNorm norm(buf, kRangeDigits);
+    while (p < end && (jsDigit(*p) || *p == '-' || *p == '+' || *p == '.' || *p == 'e' || *p == 'E')) {
+      if (!norm.feed(*p++)) return fail("invalid number");
     }
-    if (p < end && *p == '.') {
-      p++;
-      if (p >= end || !jsDigit(*p)) return fail("invalid number");
-      while (p < end && jsDigit(*p)) p++;
-    }
-    if (p < end && (*p == 'e' || *p == 'E')) {
-      p++;
-      if (p < end && (*p == '+' || *p == '-')) p++;
-      if (p >= end || !jsDigit(*p)) return fail("invalid number");
-      while (p < end && jsDigit(*p)) p++;
-    }
-    // Go decodes numbers into float64 and rejects those beyond its range.
-    std::string tok(s, (size_t)(p - s));
-    if (std::isinf(std::strtod(tok.c_str(), nullptr))) return fail("number out of range");
+    if (!norm.complete()) return fail("invalid number");
+    if (norm.zero() || norm.leadExp() < 308) return true;
+    if (norm.leadExp() > 308 || std::isinf(std::strtod(norm.finish(), nullptr))) return fail("number out of range");
     return true;
   }
   bool lit(const char* w) {

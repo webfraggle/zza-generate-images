@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"image"
+	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,6 +88,9 @@ func FuzzEvalData(f *testing.F) {
 		`{"zug1":{"nr":"S1","zeit":"9:5","abw":-7.5,"hinweis":"*{x}|||"}}`, `{"a":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}`, `{"a":01}`, `{"a":NaN}`, `{"a":-}`} {
 		f.Add([]byte(s))
 	}
+	for _, n := range longNumbers() {
+		f.Add([]byte(`{"zug1":{"abw":` + n + `,"zeit":"10:15"},"gleis":` + n + `}`))
+	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		var m map[string]any
 		goErr := json.Unmarshal(data, &m)
@@ -142,4 +147,105 @@ func hasFeature(p *devexport.Package, feature string) bool {
 		}
 	}
 	return false
+}
+
+// exactDecimal returns the exact decimal expansion of m × 2^-e (e > 0).
+func exactDecimal(m int64, e uint) string {
+	// m × 2^-e = m × 5^e / 10^e
+	n := new(big.Int).Mul(big.NewInt(m), new(big.Int).Exp(big.NewInt(5), big.NewInt(int64(e)), nil))
+	d := n.String()
+	if len(d) <= int(e) {
+		d = strings.Repeat("0", int(e)-len(d)+1) + d
+	}
+	return d[:len(d)-int(e)] + "." + d[len(d)-int(e):]
+}
+
+// longNumbers returns valid JSON numbers longer than ArduinoJson's 63-character
+// buffer: long mantissas, many leading zeros, long exponents, halfway cases
+// whose rounding depends on a digit beyond 800 significant digits, and values
+// at the float64 overflow threshold.
+func longNumbers() []string {
+	threshold := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 1024), new(big.Int).Lsh(big.NewInt(1), 970)) // between DBL_MAX and 2^1024
+	one := big.NewInt(1)
+	tie := exactDecimal(5, 1075) // 2.5 × 2^-1074: halfway between two subnormals
+	return []string{
+		"0.0000000000000000000000000000000000000000000000000000000000000000001",
+		"-0." + strings.Repeat("0", 400) + "1234567890123456789",
+		"123456789012345678901234567890123456789012345678901234567890123456789.5",
+		"1e00000000000000000000000000000000000000000000000000000000000000000000000308",
+		"1E-0000000000000000000000000000000000000000000000000000000000000000000000005",
+		"1e+000000000000000000000000000000000000000000000000000000000000000000000309",
+		"9007199254740993." + strings.Repeat("0", 100) + "1", // just above a tie: rounds up
+		"9007199254740993." + strings.Repeat("0", 100),       // the tie: rounds to even
+		tie,
+		tie + strings.Repeat("0", 1200) + "1", // sticky digit far beyond 800 significant digits
+		"-" + tie + strings.Repeat("0", 600) + "7",
+		strings.Repeat("9", 70) + "e-60",
+		new(big.Int).Sub(threshold, one).String(),                                  // largest finite value
+		threshold.String(),                                                         // tie: rounds to 2^1024, out of range
+		new(big.Int).Sub(threshold, one).String() + "." + strings.Repeat("9", 500), // still below
+		"0." + strings.Repeat("0", 330) + "1e639",
+		strings.Repeat("1", 400) + "e-400",
+	}
+}
+
+// TestDataLongNumbers: numbers longer than 63 characters are accepted or
+// rejected like Go's json.Unmarshal and have exactly Go's float64 value.
+func TestDataLongNumbers(t *testing.T) {
+	r := loadDevice(t, covRoot, "cov-text")
+	now := time.Date(2026, 1, 1, 10, 8, 37, 0, time.UTC)
+	for i, n := range longNumbers() {
+		data := `{"a":` + n + `}`
+		var m map[string]any
+		goErr := json.Unmarshal([]byte(data), &m)
+		_, err := r.Render([]byte(data), now)
+		if (goErr != nil) != errors.Is(err, ErrData) || (goErr == nil && err != nil) {
+			t.Errorf("case %d (%.40s…): Go %v, C++ %v", i, n, goErr, err)
+			continue
+		}
+		if goErr != nil {
+			continue
+		}
+		for _, expr := range []string{"{{a}}", "{{a | mul(1)}}"} {
+			want := renderer.EvalForTest(m, now, 0, 1, 0, expr, false)
+			got, rc := testEval(data, "", toZza(now), 0, 1, 0, expr, false)
+			if rc != 0 || got != want {
+				t.Errorf("case %d (%.40s…) %s: go %q, c++ %q (code %d)", i, n, expr, want, got, rc)
+			}
+		}
+	}
+}
+
+// TestDataHugeNumber: a 200 KB number is decided like Go in bounded time
+// (linear scan, bounded strtod).
+func TestDataHugeNumber(t *testing.T) {
+	r := loadDevice(t, covRoot, "cov-text")
+	now := time.Date(2026, 1, 1, 10, 8, 37, 0, time.UTC)
+	digits := strings.Repeat("7", 200<<10)
+	for name, n := range map[string]string{
+		"tiny":       "0." + strings.Repeat("0", 200<<10) + "1",
+		"huge":       digits,
+		"huge-scale": "0." + digits + "e2000",
+		"near-max":   "1." + digits + "e308",
+		"fraction":   "1." + digits,
+	} {
+		data := []byte(`{"a":` + n + `}`)
+		var m map[string]any
+		goErr := json.Unmarshal(data, &m)
+		start := time.Now()
+		_, err := r.Render(data, now)
+		d := time.Since(start)
+		t.Logf("%s: %d bytes, Go %v, C++ %v in %v", name, len(data), goErr != nil, err, d.Round(time.Microsecond))
+		if (goErr != nil) != errors.Is(err, ErrData) || (goErr == nil && err != nil) {
+			t.Errorf("%s: Go %v, C++ %v", name, goErr, err)
+		}
+		if goErr == nil {
+			want := renderer.EvalForTest(m, now, 0, 1, 0, "{{a}}", false)
+			got, rc := testEval(string(data), "", toZza(now), 0, 1, 0, "{{a}}", false)
+			if rc != 0 || got != want {
+				t.Errorf("%s: go %q, c++ %q (code %d)", name, want, got, rc)
+			}
+		}
+	}
+
 }

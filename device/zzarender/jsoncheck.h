@@ -13,8 +13,8 @@ constexpr int kMaxDataDepth = 32;
 
 // Returns true if data[0..len) is one RFC 8259 JSON value (surrounded by
 // whitespace only) whose numbers fit a float64 and whose nesting is at most
-// kMaxDataDepth; otherwise false with err set. Linear time, no allocation
-// except for long number tokens, no recursion.
+// kMaxDataDepth; otherwise false with err set. Linear time in len, no
+// allocation (numbers use a fixed 362-byte stack buffer), no recursion.
 bool checkDataJson(const char* data, size_t len, std::string& err);
 
 }  // namespace zza
