@@ -15,7 +15,9 @@ fonts:
 
 # Aufbau wie legacy/rhb-105-v1/index.php: Gezeichnet wird die obere Bildhälfte,
 # ein copy-Layer am Ende setzt sie nach y 120.
-#  1. Punktmatrix-Feld aus zehn "•" (Abstand 11 px), gelb.
+#  1. Punktmatrix-Feld aus zehn Punkten (Abstand 11 px), gelb. dot.png ist die
+#     Glyphe "•" aus LLPIXEL3 (58,67 pt, scale_x 0.5) als Bild — "•" liegt
+#     außerhalb von Latin-1 und wäre auf dem ZZA nicht darstellbar.
 #  2. Zugnummer schwarz darüber; ihre Breite (nr.width) bestimmt, wo das
 #     schwarze Rechteck das Punktfeld abschneidet (nr.width + 3) und wo die
 #     Vias beginnen (nr.width + 21). Leere nr hat Breite 0.
@@ -43,14 +45,10 @@ layers:
     split_by: ","
     var: d
     layers:
-      - type: text
-        value: "•"
+      - type: image
+        file: dot.png
         x: "{{i * 11 + 1}}"
-        y: -38
-        font: bold
-        size: 58.67
-        color: "#ffde00"
-        scale_x: 0.5
+        y: -21
 
   - type: text
     id: nr
