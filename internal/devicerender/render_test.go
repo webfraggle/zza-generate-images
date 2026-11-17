@@ -96,25 +96,8 @@ func readDefault(t *testing.T, dir, name string) []byte {
 	return b
 }
 
-// knownTextDeviation lists templates (and coverage datasets) that are not
-// "near" only because of text drawn at whole pixels: the glyph sets are
-// rasterised at subpixel 0 (devexport doc.go) while Go places every glyph at
-// its exact subpixel pen position, so glyph edges differ by up to half a pixel.
-// Dense text (oebb draws every text three times on top of each other, the
-// long coverage dataset fills the canvas with small text) pushes the share of
-// differing pixels over the limit although layout and positions agree. The
-// comparison is still made and its result logged; the threshold is unchanged.
-// Reported to the controller (Task 6 report), pending a decision.
-var knownTextDeviation = map[string]bool{
-	"oebb-105-v1":         true,
-	"wienerlinien-105-v1": true, // local template, not in the repository
-	"cov-text/default":    true,
-	"cov-text/long":       true,
-}
-
-// compareNear renders data with Go and C++ and asserts the images are near
-// (known text deviations: logged and skipped).
-func compareNear(t *testing.T, r *Renderer, dir, name, key string, data []byte) {
+// compareNear renders data with Go and C++ and asserts the images are near.
+func compareNear(t *testing.T, r *Renderer, dir, name string, data []byte) {
 	t.Helper()
 	g, err := goRender(t, dir, name, data)
 	if err != nil {
@@ -124,14 +107,7 @@ func compareNear(t *testing.T, r *Renderer, dir, name, key string, data []byte) 
 	if err != nil {
 		t.Fatalf("C++ render: %v", err)
 	}
-	msg := nearCheck(t, g, c)
-	switch {
-	case msg == "":
-	case knownTextDeviation[key]:
-		t.Skipf("known text deviation (subpixel 0 glyphs): %s", msg)
-	default:
-		t.Error(msg)
-	}
+	assertNear(t, g, c)
 }
 
 func TestRenderShippedNear(t *testing.T) {
@@ -174,7 +150,7 @@ func TestRenderShippedNear(t *testing.T) {
 			if r.MemUsed() != used {
 				t.Errorf("MemUsed after second render %d, want %d", r.MemUsed(), used)
 			}
-			compareNear(t, r, templatesRoot, name, name, data)
+			compareNear(t, r, templatesRoot, name, data)
 		})
 	}
 	if n == 0 {
@@ -246,7 +222,7 @@ func TestRenderCoverageNear(t *testing.T) {
 			}
 			r := loadDevice(t, covRoot, name)
 			for ds, data := range covDatasets(t, readDefault(t, covRoot, name)) {
-				t.Run(ds, func(t *testing.T) { compareNear(t, r, covRoot, name, name+"/"+ds, data) })
+				t.Run(ds, func(t *testing.T) { compareNear(t, r, covRoot, name, data) })
 			}
 		})
 	}

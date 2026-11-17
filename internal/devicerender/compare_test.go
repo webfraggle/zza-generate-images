@@ -11,15 +11,20 @@ import (
 	"testing"
 )
 
-// "Near" measure (spec global constraints): both images composed over black;
-// after 4×4 block averaging the largest per-channel difference is at most
-// nearMaxBlockDelta, and at most nearMaxShare of the pixels differ by more
-// than nearPixelDelta in some channel.
+// "Near" measure (ruling R11), shift tolerant so that glyph edges drawn at
+// whole pixels (device) instead of subpixel positions (Go) pass, while layout
+// errors fail. Both images are composed over black.
+//
+//	(A) For each C++ pixel, d = the smallest max-channel |Δ| to any Go pixel
+//	    in its 3×3 neighbourhood (clamped at the borders); at most
+//	    nearMaxShare of the pixels may have d > nearPixelDelta.
+//	(B) After 8×8 block averaging, the largest per-channel |Δ| is at most
+//	    nearMaxBlockDelta.
 const (
-	nearBlock         = 4
-	nearMaxBlockDelta = 48
-	nearPixelDelta    = 8
-	nearMaxShare      = 0.12
+	nearBlock         = 8
+	nearMaxBlockDelta = 40
+	nearPixelDelta    = 40
+	nearMaxShare      = 0.01
 )
 
 // overBlack composes img over black and returns its RGB values (3 bytes per pixel).
@@ -36,15 +41,26 @@ func overBlack(img *image.NRGBA) []int {
 	return out
 }
 
-// nearStats returns the largest block-averaged channel difference and the
-// share of pixels with a channel difference above nearPixelDelta.
-func nearStats(a, b []int, w, h int) (maxBlock int, share float64) {
+// nearStats returns the largest block-averaged channel difference (B) and
+// the share of pixels whose 3×3-neighbourhood difference exceeds nearPixelDelta (A).
+func nearStats(goPix, cPix []int, w, h int) (maxBlock int, share float64) {
 	over := 0
-	for i := 0; i < w*h; i++ {
-		for c := 0; c < 3; c++ {
-			if d := abs(a[3*i+c] - b[3*i+c]); d > nearPixelDelta {
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			ci := 3 * (y*w + x)
+			best := 1 << 30
+			for ny := max(0, y-1); ny <= min(h-1, y+1); ny++ {
+				for nx := max(0, x-1); nx <= min(w-1, x+1); nx++ {
+					gi := 3 * (ny*w + nx)
+					d := 0
+					for c := 0; c < 3; c++ {
+						d = max(d, abs(goPix[gi+c]-cPix[ci+c]))
+					}
+					best = min(best, d)
+				}
+			}
+			if best > nearPixelDelta {
 				over++
-				break
 			}
 		}
 	}
@@ -54,8 +70,8 @@ func nearStats(a, b []int, w, h int) (maxBlock int, share float64) {
 				sa, sb, n := 0, 0, 0
 				for y := by; y < by+nearBlock && y < h; y++ {
 					for x := bx; x < bx+nearBlock && x < w; x++ {
-						sa += a[3*(y*w+x)+c]
-						sb += b[3*(y*w+x)+c]
+						sa += goPix[3*(y*w+x)+c]
+						sb += cPix[3*(y*w+x)+c]
 						n++
 					}
 				}
@@ -100,7 +116,7 @@ func nearCheck(t *testing.T, goImg, cImg *image.NRGBA) string {
 		return ""
 	}
 	path := writeComparison(t, a, b, w, h)
-	return fmt.Sprintf("not near: max block Δ %d (limit %d), %.1f%% pixels Δ>%d (limit %.0f%%); comparison: %s",
+	return fmt.Sprintf("not near: max 8×8 block Δ %d (limit %d), %.2f%% pixels with 3×3 Δ>%d (limit %.0f%%); comparison: %s",
 		maxBlock, nearMaxBlockDelta, share*100, nearPixelDelta, nearMaxShare*100, path)
 }
 
@@ -141,23 +157,86 @@ func writeComparison(t *testing.T, a, b []int, w, h int) string {
 	return path
 }
 
-// TestNearStats checks the measure itself: identical images pass, a small
-// shift in one block passes, a large difference fails.
+// TestNearStats checks the measure on synthetic data: identical passes, a
+// one-pixel shift of a sharp edge passes (A), a large uniform difference fails.
 func TestNearStats(t *testing.T) {
-	const w, h = 8, 8
+	const w, h = 16, 16
 	a := make([]int, w*h*3)
 	b := make([]int, w*h*3)
 	if m, s := nearStats(a, b, w, h); m != 0 || s != 0 {
 		t.Fatalf("identical: %d %v", m, s)
 	}
-	b[0] = 100 // one pixel, one channel: block average 100/16 = 6
-	if m, s := nearStats(a, b, w, h); m != 6 || s != 1.0/64 {
-		t.Fatalf("one pixel: %d %v", m, s)
+	for y := 0; y < h; y++ { // vertical white edge at x 8 (Go) vs x 9 (C++)
+		for x := 0; x < w; x++ {
+			for c := 0; c < 3; c++ {
+				if x >= 8 {
+					a[3*(y*w+x)+c] = 255
+				}
+				if x >= 9 {
+					b[3*(y*w+x)+c] = 255
+				}
+			}
+		}
+	}
+	if _, s := nearStats(a, b, w, h); s != 0 {
+		t.Fatalf("1 px shift: share %v, want 0", s)
 	}
 	for i := range b {
-		b[i] = 60
+		b[i] = a[i] + 60
 	}
 	if m, s := nearStats(a, b, w, h); m != 60 || s != 1 {
-		t.Fatalf("all: %d %v", m, s)
+		t.Fatalf("uniform +60: %d %v", m, s)
+	}
+}
+
+// TestAssertNearDetectsLayoutErrors proves that the shift-tolerant measure
+// still fails for real layout errors: Go renders of slightly modified
+// templates are compared against the original.
+func TestAssertNearDetectsLayoutErrors(t *testing.T) {
+	dir := t.TempDir()
+	layers := func(textX, imgX int, withRect bool, rectColor string) string {
+		s := fmt.Sprintf(`  - {type: rect, color: "#203040", x: 0, y: 0, width: 240, height: 240}
+  - {type: text, value: "Zürich HB 15:53", font: reg, size: 18, color: "#ffffff", x: %d, y: 20}
+  - {type: image, file: img.png, x: %d, y: 80}
+`, textX, imgX)
+		if withRect {
+			s += fmt.Sprintf(`  - {type: rect, color: "%s", x: 20, y: 140, width: 120, height: 40}
+`, rectColor)
+		}
+		return s
+	}
+	render := func(name, l string) *image.NRGBA {
+		writeTemplate(t, dir, name, l)
+		img, err := goRender(t, dir, name, []byte("{}"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return img
+	}
+	base := render("base", layers(10, 100, true, "#ffcc00"))
+
+	stats := func(other *image.NRGBA) (int, float64) {
+		return nearStats(overBlack(base), overBlack(other), 240, 240)
+	}
+	if m, s := stats(render("same", layers(10, 100, true, "#ffcc00"))); m > nearMaxBlockDelta || s > nearMaxShare {
+		t.Fatalf("identical template not near: %d %v", m, s)
+	}
+	// A single small text line shifted by 3 px is NOT detected (it covers too
+	// few pixels for (A) and stays at the (B) limit); it is logged only.
+	m, s := stats(render("text3", layers(13, 100, true, "#ffcc00")))
+	t.Logf("text line shifted 3 px: block Δ %d, share %.2f%% (not asserted)", m, s*100)
+	cases := map[string]string{
+		"image shifted 3 px": layers(10, 103, true, "#ffcc00"),
+		"missing layer":      layers(10, 100, false, ""),
+		"wrong fill colour":  layers(10, 100, true, "#ff8800"),
+	}
+	i := 0
+	for name, l := range cases {
+		i++
+		m, s := stats(render(fmt.Sprintf("v%d", i), l))
+		t.Logf("%s: block Δ %d, share %.2f%%", name, m, s*100)
+		if m <= nearMaxBlockDelta && s <= nearMaxShare {
+			t.Errorf("%s passes the measure (block Δ %d, share %.2f%%)", name, m, s*100)
+		}
 	}
 }
