@@ -362,3 +362,18 @@ func TestGallery_AnimatedCardHasGifAndRestartButton(t *testing.T) {
 		t.Errorf("restart buttons = %d, animated images = %d", got, want)
 	}
 }
+
+func TestRegisterEditorExtraRoute(t *testing.T) {
+	srv := newTestServer(t)
+	srv.RegisterEditor(editor.NewFSHandlers(t.TempDir(), nil), EditorRoute{
+		Pattern: "POST /edit/{template}/extra",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("extra " + r.PathValue("template")))
+		}),
+	})
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/edit/abc/extra", nil))
+	if rec.Code != 200 || rec.Body.String() != "extra abc" {
+		t.Errorf("status %d body %q", rec.Code, rec.Body)
+	}
+}

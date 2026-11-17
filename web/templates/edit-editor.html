@@ -63,15 +63,21 @@
     </div>
     <div class="right-section preview-section">
       <span class="pane-label">Vorschau</span>
-      {{if .Animated}}
       <div class="preview-controls">
+        {{if .Animated}}
         <select id="preview-mode" aria-label="Vorschau-Modus">
           <option value="still" selected>Standbild</option>
           <option value="anim">Animation</option>
         </select>
+        {{end}}
+        <select id="preview-engine" aria-label="Vorschau-Engine" title="Server: Go-Renderer; ZZA: Renderer-Kern des Controllers">
+          <option value="server" selected>Server</option>
+          <option value="zza">ZZA</option>
+        </select>
+        {{if .Animated}}
         <button id="replay-btn" class="btn btn-sm btn-level2" type="button" hidden>Erneut abspielen</button>
+        {{end}}
       </div>
-      {{end}}
       <div id="preview-wrap" class="preview-wrap">
         <div id="spinner" class="spinner" hidden></div>
         <img id="preview-img" alt="" hidden>
@@ -287,6 +293,23 @@ if (modeSelect) {
   replayBtn.addEventListener('click', () => renderPreview());
 }
 
+// Preview engine ("server" | "zza"), remembered per template. localStorage may
+// be unavailable or throw (private mode, blocked data): then the default holds.
+let previewEngine = 'server';
+const engineKey    = 'zza-preview-engine:' + TEMPLATE;
+const engineSelect = document.getElementById('preview-engine');
+try {
+  if (localStorage.getItem(engineKey) === 'zza') previewEngine = 'zza';
+} catch (e) { /* default stays */ }
+if (engineSelect) {
+  engineSelect.value = previewEngine;
+  engineSelect.addEventListener('change', () => {
+    previewEngine = engineSelect.value === 'zza' ? 'zza' : 'server';
+    try { localStorage.setItem(engineKey, previewEngine); } catch (e) { /* ignore */ }
+    renderPreview();
+  });
+}
+
 function schedulePreview() {
   clearTimeout(previewTimer);
   previewTimer = setTimeout(renderPreview, 600);
@@ -303,7 +326,7 @@ async function renderPreview() {
   renderErr.hidden    = true;
 
   try {
-    const res = await fetch(`/${TEMPLATE}/render` + (previewMode === 'anim' ? '?format=gif' : ''), {
+    const res = await fetch((previewEngine === 'zza' ? `/edit/${TEMPLATE}/zza-render` : `/${TEMPLATE}/render`) + (previewMode === 'anim' ? '?format=gif' : ''), {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body,

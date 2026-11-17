@@ -15,7 +15,7 @@ Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/devicer
 
 **Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health`.
 
-**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`.
+**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`).
 
 **HTTPS-Redirect:** Alle Server-Routen außer `POST /{template}/render` werden bei `X-Forwarded-Proto: http` per 301 auf `https://` redirected. Render bleibt http für Microcontroller ohne TLS.
 
@@ -35,8 +35,8 @@ internal/
   cli/                   # DESKTOP-ONLY — Render-CLI
   editor/                # DESKTOP-ONLY — File-System-Editor (FSHandlers, files.go, starter)
   desktop/               # DESKTOP-ONLY — Wails-Bootstrap, Browser-Fallback, Templates-Pfad-Resolution
+  devpreview/            # DESKTOP-ONLY — HTTP-Handler der ZZA-Vorschau (devexport + devicerender)
   devicerender/          # DESKTOP-ONLY — cgo-Brücke zum C++-Kern device/zzarender (Mac: CGO_CXXFLAGS, siehe device/README.md)
-  devpreview/            # DESKTOP-ONLY — Vorschau über den On-Device-Renderer (geplant)
 device/
   zzarender/             # C++-Kern des On-Device-Renderers (Master-Kopie; Firmware-Kopie nie direkt bearbeiten)
   README.md

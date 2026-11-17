@@ -848,3 +848,14 @@ layers:
         size: 9
         color: "#000000"
 ```
+
+## ZZA-Vorschau (Desktop-Editor)
+
+Neben der Vorschau im Editor steht ein Umschalter **Server / ZZA**.
+
+- **Server** (Standard): rendert mit dem Go-Renderer, wie ihn auch die Galerie und die Render-API nutzen.
+- **ZZA**: rendert mit dem Renderer-Kern, der später auf dem Controller läuft. So siehst du schon im Editor, wie die Anzeige auf dem Gerät aussehen wird (inklusive Faltblatt- und Frame-Animation im Modus „Animation“).
+
+Die Auswahl wird je Template im Browser gemerkt. Ist das Template nicht für das Gerät geeignet (z. B. Canvas nicht 240 × 240, Zeichen außerhalb von Latin-1 in Konstanten, ungültige oder nicht konstante Regex-Muster), erscheint statt des Bildes die Meldung „nicht ZZA-kompatibel:“ mit allen Gründen, je einer pro Zeile. Die ZZA-Vorschau rendert bei jeder Änderung neu aus den Dateien auf der Platte; kleine Abweichungen zum Server-Bild (Kantenglättung, Bildskalierung) sind normal.
+
+Die ZZA-Vorschau gibt es nur in der Desktop-App, nicht im Server-Build.

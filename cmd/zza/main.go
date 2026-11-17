@@ -10,6 +10,7 @@ import (
 	"github.com/webfraggle/zza-generate-images/internal/cli"
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/internal/desktop"
+	"github.com/webfraggle/zza-generate-images/internal/devpreview"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/internal/server"
 	"github.com/webfraggle/zza-generate-images/internal/version"
@@ -108,7 +109,8 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 		return nil, err
 	}
 	srv.SetEditorEnabled(true)
-	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache))
+	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache),
+		server.EditorRoute{Pattern: devpreview.Pattern, Handler: devpreview.New(tdir)})
 	return srv, nil
 }
 

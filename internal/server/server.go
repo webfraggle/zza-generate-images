@@ -183,13 +183,24 @@ func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
 // Call once during startup before ServeHTTP — not concurrency-safe.
 func (s *Server) SetEditorEnabled(v bool) { s.editorEnabled = v }
 
+// EditorRoute is an additional route of the editor mux (full ServeMux pattern,
+// e.g. "POST /edit/{template}/zza-render"). It lets the desktop build add
+// routes without the server package importing their packages.
+type EditorRoute struct {
+	Pattern string
+	Handler http.Handler
+}
+
 // RegisterEditor attaches an FSHandlers set to this server and wires the
 // editor landing page on top (owned by the server package so it can reuse
 // the shared html/template set). Desktop-build calls this once at startup;
 // server-build does not. Not concurrency-safe — call before ServeHTTP.
-func (s *Server) RegisterEditor(h *editor.FSHandlers) {
+func (s *Server) RegisterEditor(h *editor.FSHandlers, extra ...EditorRoute) {
 	mux := http.NewServeMux()
 	h.Register(mux)
+	for _, rt := range extra {
+		mux.Handle(rt.Pattern, rt.Handler)
+	}
 	mux.HandleFunc("GET /edit/{template}", s.handleEditorPage)
 	s.editorHandler = mux
 }
