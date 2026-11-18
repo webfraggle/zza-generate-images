@@ -85,6 +85,7 @@ void fillRect(Canvas& c, long long x0, long long y0, long long x1, long long y1,
   y0 = clampLL(y0, 0, c.h);
   y1 = clampLL(y1, 0, c.h);
   if (x0 >= x1 || y0 >= y1 || col.a == 0) return;
+  charge(c.work, (uint64_t)((x1 - x0) * (y1 - y0)));
   for (long long y = y0; y < y1; y++) {
     uint8_t* d = c.at((int)x0, (int)y);
     for (long long x = x0; x < x1; x++, d += 3) blendPx(d, col.r, col.g, col.b, col.a);
@@ -96,6 +97,7 @@ void blitImage(Canvas& c, const ImgView& v, long long x, long long y) {
   long long xa = clampLL(-X0, 0, v.rw), xb = clampLL(c.w - X0, 0, v.rw);
   long long ya = clampLL(-Y0, 0, v.rh), yb = clampLL(c.h - Y0, 0, v.rh);
   if (xa >= xb || ya >= yb) return;
+  charge(c.work, (uint64_t)((xb - xa) * (yb - ya)));
   for (long long yy = ya; yy < yb; yy++) {
     const uint8_t* s = v.px + 4 * ((size_t)yy * v.stride + (size_t)xa);
     uint8_t* d = c.at((int)(X0 + xa), (int)(Y0 + yy));
@@ -160,6 +162,7 @@ void drawRotated(Canvas& c, const ImgView& v, const RotGeom& g, long long ox, lo
   long long dxa = clampLL(-ox, 0, g.nw), dxb = clampLL(c.w - ox, 0, g.nw);
   long long dya = clampLL(-oy, 0, g.nh), dyb = clampLL(c.h - oy, 0, g.nh);
   if (dxa >= dxb || dya >= dyb || v.rw <= 0 || v.rh <= 0) return;
+  charge(c.work, (uint64_t)((dxb - dxa) * (dyb - dya)));
   const float ct = g.ct, st = g.st;
   const float scx = v.w / 2.0f, scy = v.h / 2.0f, dcx = g.nw / 2.0f, dcy = g.nh / 2.0f;
   const float fw = (float)v.w, fh = (float)v.h;
@@ -214,14 +217,16 @@ void drawRotated(Canvas& c, const ImgView& v, const RotGeom& g, long long ox, lo
   }
 }
 
-void scaleCatmullRom(ZzaBudget* b, const Img& src, int dw, int dh, int rx, int ry, int rw, int rh,
+void scaleCatmullRom(ZzaBudget* b, Work* work, const Img& src, int dw, int dh, int rx, int ry, int rw, int rh,
                      uint8_t* out) {
   if (rw <= 0 || rh <= 0 || src.w == 0 || src.h == 0) return;
+  charge(work, (uint64_t)rw + (uint64_t)rh);
   ZzaVec<Contrib> hc{ZzaAlloc<Contrib>(b)}, vc{ZzaAlloc<Contrib>(b)};
   ZzaVec<uint32_t> hs{ZzaAlloc<uint32_t>(b)}, vs{ZzaAlloc<uint32_t>(b)};
   ZzaVec<float> hinv{ZzaAlloc<float>(b)}, vinv{ZzaAlloc<float>(b)};
   distrib(dw, src.w, rx, rw, hc, hs, hinv);
   distrib(dh, src.h, ry, rh, vc, vs, vinv);
+  charge(work, (uint64_t)hc.size() + vc.size());
 
   // The source rows of one destination row form a window that only moves
   // down; K rows of horizontally scaled values are kept in a ring.
@@ -238,6 +243,7 @@ void scaleCatmullRom(ZzaBudget* b, const Img& src, int dw, int dh, int rx, int r
     float* t = ring.data() + (size_t)(r % K) * rowLen;
     if (slotRow[r % K] == r) return t;
     slotRow[r % K] = r;
+    charge(work, (uint64_t)hc.size() + (uint64_t)rw);  // every tap of the row
     const uint8_t* row = src.px.data() + (size_t)r * src.w * 4;
     for (int k = 0; k < rw; k++) {
       float pr = 0, pg = 0, pb = 0, pa = 0;
@@ -261,6 +267,7 @@ void scaleCatmullRom(ZzaBudget* b, const Img& src, int dw, int dh, int rx, int r
 
   for (int y = 0; y < rh; y++) {
     uint8_t* o = out + (size_t)y * rowLen;
+    charge(work, (uint64_t)(vs[y + 1] - vs[y] + 1) * (uint64_t)rw);
     memset(o, 0, rowLen);
     for (uint32_t ci = vs[y]; ci < vs[y + 1]; ci++) hrow(vc[ci].coord);  // fill the window first
     for (int k = 0; k < rw; k++) {
@@ -304,6 +311,7 @@ void copyRegion(Canvas& c, long long sx, long long sy, long long sw, long long s
   if (r0x >= r1x || r0y >= r1y) return;
   size_t n = (size_t)(r1x - r0x) * 3;
   long long rows = r1y - r0y;
+  charge(c.work, (uint64_t)((r1x - r0x) * rows));
   bool up = dyo > 0;  // destination below the source: rows bottom-up (drawCopySrc)
   for (long long k = 0; k < rows; k++) {
     long long ry = up ? r1y - 1 - k : r0y + k;

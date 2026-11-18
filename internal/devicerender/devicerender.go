@@ -4,8 +4,8 @@
 package devicerender
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../device/zzarender
-#cgo CXXFLAGS: -std=c++17 -I${SRCDIR}/../../device/zzarender
+#cgo CFLAGS: -I${SRCDIR}/../../device/zzarender -DZZA_TEST_HOOKS
+#cgo CXXFLAGS: -std=c++17 -I${SRCDIR}/../../device/zzarender -DZZA_TEST_HOOKS
 #include <stdlib.h>
 #include "zzarender_c.h"
 */

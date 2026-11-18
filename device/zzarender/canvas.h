@@ -7,13 +7,16 @@
 
 #include "mem.h"
 #include "package.h"
+#include "work.h"
 
 namespace zza {
 
 // Opaque RGB888 canvas, row-major, stride w*3. The pixels are not owned.
+// Drawing charges the pixels it touches to work (nullptr: not metered).
 struct Canvas {
   int w, h;
   uint8_t* px;
+  Work* work;
   uint8_t* at(int x, int y) const { return px + 3 * ((size_t)y * w + x); }
 };
 
@@ -82,8 +85,8 @@ void drawRotated(Canvas& c, const ImgView& v, const RotGeom& g, long long ox, lo
 // Catmull-Rom scaling of src to dw×dh like xdraw.CatmullRom.Scale into a fresh
 // NRGBA image; computes only the region [rx,rx+rw)×[ry,ry+rh) of the result
 // into out (rw*rh*4 bytes, RGBA8888 non-premultiplied). Scratch memory comes
-// from the budget.
-void scaleCatmullRom(ZzaBudget* b, const Img& src, int dw, int dh, int rx, int ry, int rw, int rh,
+// from the budget; the kernel taps are charged to work (may be nullptr).
+void scaleCatmullRom(ZzaBudget* b, Work* work, const Img& src, int dw, int dh, int rx, int ry, int rw, int rh,
                      uint8_t* out);
 
 // copy layer: draw.Draw(dst, Rect(x,y,x+sw,y+sh), dst.SubImage(src rect), src, Src).

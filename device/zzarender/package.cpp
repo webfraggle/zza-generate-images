@@ -104,12 +104,20 @@ bool rleDecode(const uint8_t* in, size_t inLen, size_t bpp, size_t npix, uint8_t
 // the best case is a run, (1 + bpp) bytes for 129 pixels.
 uint64_t rleMaxPixels(uint64_t len, uint64_t bpp) { return (len / (1 + bpp)) * 129; }
 
+// Plausibility limits of the exporter (internal/devexport): pixels of an image
+// (maxImagePixels) and the side of a glyph mask (maxGlyphSide; a glyph more
+// than four canvases wide or high cannot come from a sensible template).
+constexpr uint64_t kMaxImagePixels = 6291456;
+constexpr uint32_t kMaxGlyphSide = 1024;
+
 void loadImage(ZzaBudget* b, const std::string& name, const uint8_t* d, size_t n, Img& img) {
   if (n < 5) fail(name, "truncated image header");
   uint32_t w = le16(d), h = le16(d + 2);
   uint8_t enc = d[4];
   if (w == 0 || h == 0) fail(name, "empty image");
   uint64_t npix = (uint64_t)w * h;
+  if (npix > kMaxImagePixels) fail(name, "image too large");
+  if (npix > SIZE_MAX / 4) fail(name, "image too large");  // guards the size_t casts below
   const uint8_t* body = d + 5;
   size_t bl = n - 5;
   if (enc == 0) {
@@ -158,6 +166,7 @@ void loadFont(const std::string& name, const uint8_t* d, size_t n, Font& f) {
     if ((int)e[0] <= prev) fail(name, "glyph code points not strictly ascending");
     prev = e[0];
     if (e[0] == '?') hasQ = true;
+    if (le16(e + 9) > kMaxGlyphSide || le16(e + 11) > kMaxGlyphSide) fail(name, "glyph mask too large");
     uint64_t px = (uint64_t)le16(e + 9) * le16(e + 11);
     uint64_t off = le32(e + 13);
     if (px == 0) {
@@ -227,6 +236,16 @@ bool hexEq(const char* hex, const uint8_t digest[32]) {
     if (a != kHex[digest[i] >> 4] || c != kHex[digest[i] & 15]) return false;
   }
   return true;
+}
+
+// True if the file's SHA-256 is the manifest's hex digest. Not inlined: the
+// hash state stays out of Package::load's frame (<= 512 bytes).
+__attribute__((noinline)) bool shaMatches(const zza_file* f, const char* hex) {
+  ZzaSha256 sha;
+  sha.update(f->data, f->len);
+  uint8_t dig[32];
+  sha.final(dig);
+  return hexEq(hex, dig);
 }
 
 // "i<digits>.img" or "f<digits>.fnt": returns 'i' / 'f' (and the id) or 0.
@@ -325,11 +344,7 @@ int Package::load(const zza_file* files, int n, std::string& err) {
       const zza_file* f = find(name);
       if (!f) fail(name, "listed in manifest but missing");
       if ((unsigned long)f->len != sv.as<unsigned long>()) fail(name, "size differs from manifest");
-      ZzaSha256 sha;
-      sha.update(f->data, f->len);
-      uint8_t dig[32];
-      sha.final(dig);
-      if (!hexEq(hash, dig)) fail(name, "SHA-256 differs from manifest");
+      if (!shaMatches(f, hash)) fail(name, "SHA-256 differs from manifest");
 
       std::string nm = name, id;
       char kind = classify(nm, id);
@@ -352,6 +367,13 @@ int Package::load(const zza_file* files, int n, std::string& err) {
     return ZZA_OK;
   } catch (const LoadError& e) {
     err = e.msg;
+    return ZZA_ERR_FORMAT;
+  } catch (const std::bad_alloc&) {
+    throw;  // ZZA_ERR_NOMEM at the API
+  } catch (const std::exception& e) {
+    // Anything else while reading the package (e.g. std::length_error) is a
+    // malformed package, not a template error.
+    err = std::string("package: ") + e.what();
     return ZZA_ERR_FORMAT;
   }
 }

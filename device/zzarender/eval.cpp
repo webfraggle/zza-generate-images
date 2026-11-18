@@ -17,6 +17,7 @@ namespace {
 constexpr int kMaxPipelineDepth = 4;
 constexpr int kMaxCondDepth = 10;
 constexpr double kMaxFormatOffsetSec = 3.2e9;
+const char* const kTooLong = "interpolated text exceeds 1048576 bytes";
 
 const char* const kWeekdayLong[7] = {"Sonntag", "Montag", "Dienstag", "Mittwoch",
                                      "Donnerstag", "Freitag", "Samstag"};
@@ -89,16 +90,14 @@ std::string formatTime(const zza_time& t, int64_t offsetSec, std::string_view pa
   int wd = weekdayOfDays(d2);
   int h12 = hour % 12;
   if (h12 == 0) h12 = 12;
+  char num[7][24];  // padded values (one table keeps the frame small)
+  const long long vals[7] = {y, hour, h12, mo, minute, second, d};
+  for (int k = 0; k < 7; k++) snprintf(num[k], sizeof num[k], "%0*lld", k == 0 ? 4 : 2, vals[k]);
+  const char* const toks[9][2] = {{"EEEE", kWeekdayLong[wd]}, {"yyyy", num[0]}, {"HH", num[1]},
+                                  {"hh", num[2]},             {"MM", num[3]},   {"mm", num[4]},
+                                  {"ss", num[5]},             {"dd", num[6]},   {"EE", kWeekdayShort[wd]}};
   std::string r(pattern);
-  r = replaceAll(r, "EEEE", kWeekdayLong[wd]);
-  r = replaceAll(r, "yyyy", pad(y, 4));
-  r = replaceAll(r, "HH", pad(hour, 2));
-  r = replaceAll(r, "hh", pad(h12, 2));
-  r = replaceAll(r, "MM", pad(mo, 2));
-  r = replaceAll(r, "mm", pad(minute, 2));
-  r = replaceAll(r, "ss", pad(second, 2));
-  r = replaceAll(r, "dd", pad(d, 2));
-  r = replaceAll(r, "EE", kWeekdayShort[wd]);
+  for (const auto& t : toks) r = replaceAll(r, t[0], t[1]);
   return r;
 }
 
@@ -287,7 +286,7 @@ void fmtValue(JsonVariantConst v, std::string& out, int depth) {
 }  // namespace
 
 Eval::Eval(JsonVariantConst data, const zza_time& now)
-    : data_(data), now_(now), animFrame_(0), animFrames_(1), animDelayCs_(0), regex_(nullptr) {
+    : data_(data), now_(now), animFrame_(0), animFrames_(1), animDelayCs_(0), regex_(nullptr), work_(nullptr) {
   zza::setIntVar(intVars_, "anim.frame", 0);
   zza::setIntVar(intVars_, "anim.frames", 1);
 }
@@ -318,6 +317,7 @@ int Eval::evalInt(const std::string& expr, bool* ok) const { return evalIntExpr(
 
 std::string Eval::interpolate(const std::string& s) const {
   if (s.find("{{") == std::string::npos) return s;
+  charge(work_, s.size() + 1);  // the scan tables below
   // Port of the Go regexp `\{\{((?:'[^']*'|"[^"]*"|[^}])+)\}\}` with its
   // leftmost-first semantics. g[p] = index of the closing "}}" when continuing
   // the repeated group at p, or -1. Alternatives in order: 'quoted', "quoted",
@@ -340,6 +340,10 @@ std::string Eval::interpolate(const std::string& s) const {
   }
 
   std::string out;
+  auto add = [&](const char* p, size_t len) {  // keeps out.size() <= kMaxInterpolateBytes
+    if (len > kMaxInterpolateBytes - out.size()) throw RenderError(kTooLong);
+    out.append(p, len);
+  };
   size_t last = 0, i = 0;
   for (;;) {
     size_t j = s.find("{{", i);
@@ -351,12 +355,13 @@ std::string Eval::interpolate(const std::string& s) const {
       continue;
     }
     std::string_view inner = trimSpace(std::string_view(s).substr(p, static_cast<size_t>(close) - p));
-    out.append(s, last, j - last);
-    out += pipeline(inner, 0);
+    add(s.data() + last, j - last);
+    std::string v = pipeline(inner, 0);
+    add(v.data(), v.size());
     last = static_cast<size_t>(close) + 2;
     i = last;
   }
-  out.append(s, last, std::string::npos);
+  add(s.data() + last, n - last);
   return out;
 }
 
@@ -365,7 +370,11 @@ std::string Eval::pipeline(std::string_view expr, int depth) const {
   std::vector<std::string_view> stages;
   splitTopLevel(expr, '|', stages);
   std::string value = resolveVar(trimSpace(stages[0]));
-  for (size_t i = 1; i < stages.size(); i++) value = applyFilter(std::move(value), trimSpace(stages[i]), depth);
+  charge(work_, value.size() + 1);
+  for (size_t i = 1; i < stages.size(); i++) {
+    value = applyFilter(std::move(value), trimSpace(stages[i]), depth);
+    charge(work_, value.size() + 1);
+  }
   return value;
 }
 
@@ -552,7 +561,7 @@ std::string Eval::applyFilter(std::string value, std::string_view filter, int de
         return std::string();
       const RegexProg* prog = regex_ ? regex_->find(pattern) : nullptr;
       if (!prog) return std::string();
-      return matchGroup(*prog, value, ni);
+      return matchGroup(*prog, value, ni, work_);
     }
   } else if (name == "mul") {
     if (na == 1) return mathOp('*');

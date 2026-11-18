@@ -41,9 +41,11 @@ enum : uint32_t {
 
 constexpr int32_t kEndOfText = -1;
 constexpr uint32_t kMaxRune = 0x10FFFF;
-// Structural limits for a loaded program (far above what a 100-rune pattern
-// compiles to; the budget is the real cap).
-constexpr uint32_t kMaxInsts = 1u << 20;
+// Limits of a loaded program: the exporter's (internal/devexport check.go,
+// maxRegexInst / maxRegexRunes), enforced here too so a hostile package cannot
+// bypass them. A 100-rune pattern compiles to far less.
+constexpr uint32_t kMaxInsts = 2000;
+constexpr uint32_t kMaxRunes = 8000;  // rune values over all instructions
 constexpr uint32_t kMaxCap = 1u << 16;
 
 bool isWordChar(int32_t r) {
@@ -136,7 +138,7 @@ bool RegexProg::loadInsts(JsonArrayConst insts) {
     if (r.isNull()) return false;
     n++;
     nr += r.size();
-    if (n > kMaxInsts || nr > kMaxInsts * 2) return false;
+    if (n > kMaxInsts || nr > kMaxRunes) return false;
   }
   if (n == 0) return false;
   inst_.reserve(n);
@@ -196,7 +198,7 @@ bool RegexProg::matchRune(const Inst& in, int32_t r) const {
 
 class RegexVM {
  public:
-  RegexVM(const RegexProg& prog, int32_t* mem);
+  RegexVM(const RegexProg& prog, int32_t* mem, Work* work);
   // Size of the scratch memory in int32_t units (throws bad_alloc on overflow).
   static size_t memWords(const RegexProg& prog);
   bool match(std::string_view s);
@@ -220,6 +222,7 @@ class RegexVM {
   void step(Queue& runq, Queue& nextq, int32_t pos, int32_t nextPos, int32_t c, uint32_t nextCtx);
 
   const RegexProg& p_;
+  Work* work_;
   uint32_t n_, ncap_;
   Queue q0_, q1_;
   StackEntry* stack_;
@@ -236,8 +239,8 @@ size_t RegexVM::memWords(const RegexProg& prog) {
   return static_cast<size_t>(words);
 }
 
-RegexVM::RegexVM(const RegexProg& prog, int32_t* mem)
-    : p_(prog), n_(static_cast<uint32_t>(prog.inst_.size())), ncap_(prog.ncap_), matched_(false) {
+RegexVM::RegexVM(const RegexProg& prog, int32_t* mem, Work* work)
+    : p_(prog), work_(work), n_(static_cast<uint32_t>(prog.inst_.size())), ncap_(prog.ncap_), matched_(false) {
   static_assert(sizeof(StackEntry) == 3 * sizeof(int32_t), "stack entry layout");
   Queue* qs[2] = {&q0_, &q1_};
   for (Queue* q : qs) {
@@ -353,7 +356,10 @@ bool RegexVM::match(std::string_view s) {
       add(*runq, p_.start_, pos, matchcap_, ctx);
     }
     ctx = emptyOpContext(r, r1);
+    // The threads stepped now plus those queued for the next position.
+    uint32_t threads = runq->size;
     step(*runq, *nextq, pos, pos + width, r, ctx);
+    charge(work_, (uint64_t)threads + nextq->size + 1);
     if (width == 0) break;
     pos += width;
     r = r1;
@@ -366,11 +372,11 @@ bool RegexVM::match(std::string_view s) {
   return matched_;
 }
 
-std::string matchGroup(const RegexProg& prog, std::string_view utf8Input, int group) {
+std::string matchGroup(const RegexProg& prog, std::string_view utf8Input, int group, Work* work) {
   if (group < 0 || utf8Input.size() > kMaxFilterValueLen || prog.empty()) return std::string();
   ZzaVec<int32_t> mem{ZzaAlloc<int32_t>(prog.budget_)};
   mem.resize(RegexVM::memWords(prog));
-  RegexVM vm(prog, mem.data());
+  RegexVM vm(prog, mem.data(), work);
   if (!vm.match(utf8Input)) return std::string();
   size_t g = static_cast<size_t>(group);
   if (2 * g + 1 >= prog.ncap_) return std::string();

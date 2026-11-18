@@ -159,3 +159,21 @@ func testAnimBegin(r *Renderer, data []byte, now zzaTime) (int, int) {
 	code := int(C.zza_anim_begin(r.c, cd, C.size_t(len(data)), &t, &frames, &loop))
 	return code, int(frames)
 }
+
+// defaultWorkLimit is ZZA_DEFAULT_WORK_LIMIT.
+const defaultWorkLimit = uint64(C.ZZA_DEFAULT_WORK_LIMIT)
+
+// testSetWorkLimit sets the work limit per call (0: the default).
+func testSetWorkLimit(r *Renderer, ops uint64) { C.zza_set_work_limit(r.c, C.uint64_t(ops)) }
+
+// testWorkUsed returns the work of the last render / animation call.
+func testWorkUsed(r *Renderer) uint64 { return uint64(C.zza_work_used(r.c)) }
+
+// templateCode is ZZA_ERR_TEMPLATE.
+const templateCode = int(C.ZZA_ERR_TEMPLATE)
+
+// testErr maps a ZZA_* code of r to its Go error.
+func testErr(r *Renderer, code int) error { return r.errFor(C.int(code)) }
+
+// testAnimEnd ends the animation of r.
+func testAnimEnd(r *Renderer) { C.zza_anim_end(r.c) }

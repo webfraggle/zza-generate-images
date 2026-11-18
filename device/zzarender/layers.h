@@ -10,6 +10,7 @@
 
 #include "mem.h"
 #include "package.h"
+#include "work.h"
 #include "zzarender_c.h"
 
 namespace zza {
@@ -50,6 +51,12 @@ class Renderer {
 
   // Ends the animation and frees its memory.
   void animEnd();
+
+  // Work limit of each render / animBegin / animFrame call (0: kDefaultWorkLimit);
+  // exceeding it returns ZZA_ERR_TEMPLATE "Rechenaufwand zu hoch".
+  void setWorkLimit(uint64_t ops);
+  // Work charged by the last render / animBegin / animFrame call.
+  uint64_t workUsed() const;
 
  private:
   struct Impl;

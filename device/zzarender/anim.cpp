@@ -98,6 +98,7 @@ int Renderer::animBegin(const char* data, size_t len, const zza_time& now, int* 
                         std::string& err) {
   Impl& d = *d_;
   d.anim.reset();  // a new animation replaces the running one
+  d.resetWork();
   try {
     std::unique_ptr<AnimSession> s(new AnimSession(d.budget));
     int rc = d.parseData(data, len, s->doc, s->root, err);
@@ -105,7 +106,7 @@ int Renderer::animBegin(const char* data, size_t len, const zza_time& now, int* 
     s->now = now;
 
     JsonObjectConst t = d.pkg->tmpl();
-    AnimMeta meta;
+    AnimMeta meta = {};
     std::string merr = resolveMeta(t["meta"]["animation"], &meta);
     if (!merr.empty()) {
       err = merr;
@@ -168,7 +169,7 @@ int Renderer::animBegin(const char* data, size_t len, const zza_time& now, int* 
       d.snapAt = at > 0 ? at : -1;
       try {
         d.renderLayers(layers, ev, false, 0, true);
-      } catch (const RenderError& e) {
+      } catch (const std::runtime_error& e) {  // RenderError or WorkLimitError
         d.snapAt = -1;
         d.anim.reset();
         err = e.what();
@@ -205,6 +206,7 @@ int Renderer::animFrame(int i, uint8_t* rgb888, int* delayCs, zza_rect* dirty, i
     return ZZA_ERR_STATE;
   }
   AnimSession& a = *d.anim;
+  d.resetWork();
   if (i < 0 || i >= a.frames) {
     err = "frame " + std::to_string(i) + " out of range (" + std::to_string(a.frames) + " frames)";
     return ZZA_ERR_STATE;
@@ -233,7 +235,7 @@ int Renderer::animFrame(int i, uint8_t* rgb888, int* delayCs, zza_rect* dirty, i
         if (a.mode == AnimSession::kFrames) ev.setAnim(i, a.frames, a.delayCs);
         d.renderLayers(layers, ev, false, 0, true);
       }
-    } catch (const RenderError& e) {
+    } catch (const std::runtime_error& e) {  // RenderError or WorkLimitError
       err = "frame " + std::to_string(i) + ": " + e.what();
       return ZZA_ERR_TEMPLATE;
     }

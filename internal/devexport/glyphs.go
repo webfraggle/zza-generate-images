@@ -53,6 +53,11 @@ func (g *glyphSet) runes() []rune {
 	return out
 }
 
+// maxGlyphSide is the largest glyph mask side the device accepts (its loader
+// enforces the same limit): four canvases; larger glyphs cannot be drawn
+// sensibly on a 240 × 240 display.
+const maxGlyphSide = 1024
+
 const (
 	fntHeaderSize = 16
 	fntEntrySize  = 17
@@ -100,6 +105,10 @@ func BuildFont(fontData []byte, k fontKey, runes []rune) ([]byte, error) {
 			bx, by := dr.Min.X, dr.Min.Y
 			if k.SX != 1 || k.SY != 1 {
 				a, bx, by = scaleGlyph(a, dr.Min, k.SX, k.SY)
+			}
+			if a.Bounds().Dx() > maxGlyphSide || a.Bounds().Dy() > maxGlyphSide {
+				return nil, fmt.Errorf("Zeichen %q ist %d × %d Pixel groß, das Gerät erlaubt höchstens %d × %d",
+					r, a.Bounds().Dx(), a.Bounds().Dy(), maxGlyphSide, maxGlyphSide)
 			}
 			e.bx, e.by = int16(bx), int16(by)
 			e.w, e.h = uint16(a.Bounds().Dx()), uint16(a.Bounds().Dy())

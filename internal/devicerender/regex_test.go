@@ -3,6 +3,7 @@ package devicerender
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -155,4 +156,45 @@ func FuzzRegex(f *testing.F) {
 			checkRegex(t, pattern, in, g)
 		}
 	})
+}
+
+// TestRegexProgLimits: the loader enforces the exporter's limits (2 000
+// instructions, 8 000 rune values), so a hostile package cannot bypass them.
+func TestRegexProgLimits(t *testing.T) {
+	// n instructions: fail, then Nop chains to a final Match; one instruction
+	// carries runes rune values (pairs [2k, 2k]).
+	prog := func(n, runes int) string {
+		var b strings.Builder
+		b.WriteString("[1,2,[[5,0,0,[]]")
+		for i := 1; i < n-1; i++ {
+			if i == 1 && runes > 0 {
+				fmt.Fprintf(&b, ",[7,%d,0,[", i+1)
+				for k := 0; k < runes/2; k++ {
+					if k > 0 {
+						b.WriteString(",")
+					}
+					fmt.Fprintf(&b, "%d,%d", 2*k, 2*k)
+				}
+				b.WriteString("]]")
+				continue
+			}
+			fmt.Fprintf(&b, ",[6,%d,0,[]]", i+1)
+		}
+		b.WriteString(",[4,0,0,[]]]]")
+		return b.String()
+	}
+	for _, c := range []struct {
+		n, runes int
+		ok       bool
+	}{
+		{2000, 0, true},
+		{2001, 0, false},
+		{100, 8000, true},
+		{100, 8002, false},
+	} {
+		_, rc := testRegex(prog(c.n, c.runes), "", 0)
+		if (rc == 0) != c.ok {
+			t.Errorf("%d instructions, %d runes: code %d, want accepted = %v", c.n, c.runes, rc, c.ok)
+		}
+	}
 }

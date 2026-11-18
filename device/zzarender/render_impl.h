@@ -10,14 +10,12 @@
 #include "eval.h"
 #include "layers.h"
 #include "package.h"
+#include "work.h"
 
 namespace zza {
 namespace rd {
 
-// What Go reports as a render error.
-struct RenderError : std::runtime_error {
-  explicit RenderError(const std::string& m) : std::runtime_error(m) {}
-};
+using zza::RenderError;
 
 // Field accessors of t.json layers (see layers.cpp).
 const char* str(JsonObjectConst o, const char* k);
@@ -63,6 +61,7 @@ struct Renderer::Impl {
   const Package* pkg;
   CacheEnt cache[kCacheEntries];
   uint32_t tick;
+  Work work;  // of the running API call (zza_render, zza_anim_begin, zza_anim_frame)
 
   // Per pass.
   Canvas canvas;
@@ -79,6 +78,8 @@ struct Renderer::Impl {
 
   Impl(ZzaBudget* b, const Package* p);
 
+  // Starts the work meter of an API call.
+  void resetWork() { work.used = 0; }
   void clearCache();
   const Img& cachedScale(const Img* src, int w, int h);
 
@@ -86,7 +87,7 @@ struct Renderer::Impl {
   int parseData(const char* data, size_t len, std::unique_ptr<BudgetJsonDoc>& doc, JsonVariantConst& root,
                 std::string& err);
   // Root evaluator of a render: data, now, regexes; frame mode: anim frame 0.
-  Eval rootEval(JsonVariantConst root, const zza_time& now) const;
+  Eval rootEval(JsonVariantConst root, const zza_time& now);
   // Resets the per-pass state for a pass drawing on px (240×240 RGB888).
   void beginPass(uint8_t* px, Pass p);
 

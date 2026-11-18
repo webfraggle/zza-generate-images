@@ -670,3 +670,26 @@ func TestDrawnConstantsLatin1(t *testing.T) {
 		}
 	}
 }
+
+// TestGlyphTooLarge: glyph masks larger than 1024 pixels on a side (the
+// device loader's limit) make the template incompatible.
+func TestGlyphTooLarge(t *testing.T) {
+	font, err := os.ReadFile(testFont)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildFont(font, fontKey{File: "f.otf", Size: 700, SX: 1, SY: 1}, []rune("M?")); err != nil {
+		t.Fatalf("size 700: %v", err)
+	}
+	if _, err := BuildFont(font, fontKey{File: "f.otf", Size: 400, SX: 1, SY: 4}, []rune("M?")); err == nil ||
+		!strings.Contains(err.Error(), "1024") {
+		t.Fatalf("size 400, scale_y 4: %v, want a glyph size error", err)
+	}
+	dir, name := writeTemplate(t, canvas240,
+		"  - {type: text, font: b, size: 1500, x: 0, y: 0, color: \"#fff\", value: \"M\"}\n", nil)
+	_, err = Export(dir, name)
+	inc, ok := err.(*Incompatible)
+	if !ok || !strings.Contains(strings.Join(inc.Reasons, "|"), "höchstens 1024") {
+		t.Fatalf("err = %v", err)
+	}
+}

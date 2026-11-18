@@ -260,6 +260,7 @@ std::string_view visibleRun(const Font& f, std::string_view line, long long* x, 
 // canvas are skipped.
 void drawLine(Canvas& c, const Font& f, std::string_view s, long long x, long long baseY, Rgba col, double scaleX,
               double scaleY) {
+  charge(c.work, s.size() + 1);  // layout of every glyph, drawn or not
   bool sxA = scaleX > 0 && scaleX != 1, syA = scaleY > 0 && scaleY != 1;
   bool scaled = sxA || syA;
   double ox = 0, rx = 1;  // glyph x = ox + (pen/64) * rx
@@ -298,6 +299,7 @@ void drawLine(Canvas& c, const Font& f, std::string_view s, long long x, long lo
     if (X0 >= c.w || Y0 >= c.h || X0 + g->w <= 0 || Y0 + g->h <= 0) continue;
     int xa = X0 < 0 ? (int)-X0 : 0, xb = X0 + g->w > c.w ? (int)(c.w - X0) : g->w;
     int ya = Y0 < 0 ? (int)-Y0 : 0, yb = Y0 + g->h > c.h ? (int)(c.h - Y0) : g->h;
+    charge(c.work, (uint64_t)(xb - xa) * (uint64_t)(yb - ya));
     const uint8_t* mask = f.mask(*g);
     for (int yy = ya; yy < yb; yy++) {
       const uint8_t* mp = mask + (size_t)yy * g->w + xa;
@@ -351,6 +353,7 @@ int drawTextLayer(ZzaBudget* b, Canvas& c, const Font& f, const TextParams& p, c
   double scale = p.scaleX > 0 && p.scaleX != 1 ? p.scaleX : 0;
   bool baseline = p.valign == kValignBaseline;
 
+  charge(c.work, text.size() + 1);  // conversion, measuring and wrapping (linear)
   Latin1Text t(b);
   toLatin1(text, t);
 

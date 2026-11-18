@@ -156,7 +156,7 @@ const Img& Renderer::Impl::cachedScale(const Img* src, int w, int h) {
   slot->src = nullptr;  // stays free if scaling fails
   ZzaBytes(ZzaAlloc<uint8_t>(budget)).swap(slot->img.px);
   slot->img.px.resize((size_t)w * h * 4);
-  scaleCatmullRom(budget, *src, w, h, 0, 0, w, h, slot->img.px.data());
+  scaleCatmullRom(budget, &work, *src, w, h, 0, 0, w, h, slot->img.px.data());
   slot->img.w = (uint16_t)w;
   slot->img.h = (uint16_t)h;
   slot->src = src;
@@ -170,6 +170,7 @@ void Renderer::Impl::beginPass(uint8_t* px, Pass p) {
   canvas.w = rd::kCanvasW;
   canvas.h = rd::kCanvasH;
   canvas.px = px;
+  canvas.work = &work;
   layerCount = 0;
   pass = p;
   flapLayerSeq = 0;
@@ -204,9 +205,10 @@ int Renderer::Impl::parseData(const char* data, size_t len, std::unique_ptr<Budg
   return ZZA_OK;
 }
 
-Eval Renderer::Impl::rootEval(JsonVariantConst root, const zza_time& now) const {
+Eval Renderer::Impl::rootEval(JsonVariantConst root, const zza_time& now) {
   Eval ev(root, now);
   ev.setRegexSource(pkg->regexSource());
+  ev.setWork(&work);
   JsonObjectConst an = pkg->tmpl()["meta"]["animation"];
   int frames = plainInt(an["frames"]);
   if (frames > 0) {
@@ -230,6 +232,7 @@ void Renderer::Impl::renderLayers(JsonArrayConst layers, Eval& ev, bool inLoop, 
       if (i == snapAt) snapshotPrefix(ev);
     }
     if (++layerCount > kMaxLayers) throw RenderError("total layer count exceeds maximum 256");
+    work.charge(1);
     JsonObjectConst L = lv.as<JsonObjectConst>();
     const char* elif = str(L, "elif");
     const char* ifE = str(L, "if");
@@ -346,7 +349,7 @@ void Renderer::Impl::renderImage(JsonObjectConst L, const Eval& ev) {
         rh = (int)(y1 - y0);
       }
       region.resize((size_t)rw * rh * 4);
-      scaleCatmullRom(budget, *img, w, h, rx, ry, rw, rh, region.data());
+      scaleCatmullRom(budget, &work, *img, w, h, rx, ry, rw, rh, region.data());
       v.px = region.data();
       v.stride = rw;
       v.ox = rx;
@@ -438,6 +441,7 @@ void Renderer::Impl::renderLoop(JsonObjectConst L, const Eval& ev, int depth) {
   if (children.size() == 0) return;
   std::string value = ev.interpolate(resolveCond(L["value"], ev));
   if (value.empty()) return;
+  work.charge(value.size());  // splitting
   std::string sep = str(L, "split_by");
   if (sep.empty()) sep = "|";
   int maxItems = plainInt(L["max_items"]);
@@ -470,7 +474,11 @@ void Renderer::Impl::renderLoop(JsonObjectConst L, const Eval& ev, int depth) {
 Renderer::Renderer(ZzaBudget* budget, const Package* pkg) : d_(new Impl(budget, pkg)) {}
 Renderer::~Renderer() {}
 
+void Renderer::setWorkLimit(uint64_t ops) { d_->work.limit = ops ? ops : kDefaultWorkLimit; }
+uint64_t Renderer::workUsed() const { return d_->work.used; }
+
 int Renderer::render(const char* data, size_t len, const zza_time& now, uint8_t* rgb888, std::string& err) {
+  d_->resetWork();
   std::unique_ptr<BudgetJsonDoc> doc;
   JsonVariantConst root;
   int rc = d_->parseData(data, len, doc, root, err);
@@ -481,6 +489,9 @@ int Renderer::render(const char* data, size_t len, const zza_time& now, uint8_t*
   try {
     d_->renderLayers(d_->pkg->tmpl()["layers"].as<JsonArrayConst>(), ev, false, 0, true);
   } catch (const RenderError& e) {
+    err = e.what();
+    return ZZA_ERR_TEMPLATE;
+  } catch (const WorkLimitError& e) {
     err = e.what();
     return ZZA_ERR_TEMPLATE;
   } catch (const std::bad_alloc&) {

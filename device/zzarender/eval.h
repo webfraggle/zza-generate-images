@@ -8,9 +8,15 @@
 #include "intexpr.h"
 #include "regex.h"
 #include "third_party/ArduinoJson.h"
+#include "work.h"
 #include "zzarender_c.h"
 
 namespace zza {
+
+// Most bytes one interpolate() call may produce. Go has no such cap; a field
+// referring to the whole train data (at most kMaxDataBytes = 256 KiB) four
+// times still fits, anything above throws RenderError (spec §13).
+constexpr size_t kMaxInterpolateBytes = 1u << 20;
 
 class Eval {
  public:
@@ -33,7 +39,12 @@ class Eval {
   // invalid pattern in Go.
   void setRegexSource(const RegexSource* src) { regex_ = src; }
 
-  // Replaces every {{expr}} in s.
+  // Work meter of the render call (not owned; nullptr: not metered). Every
+  // pipeline stage charges the bytes it produces, match its VM steps.
+  void setWork(Work* w) { work_ = w; }
+
+  // Replaces every {{expr}} in s. Throws RenderError if the result would
+  // exceed kMaxInterpolateBytes, WorkLimitError if the work limit is reached.
   std::string interpolate(const std::string& s) const;
   // Condition (startsWith, endsWith, contains, isEmpty, eq, equals,
   // greaterThan, not, and, or). Empty expression is true.
@@ -62,6 +73,7 @@ class Eval {
   std::vector<StrVar> strVars_;
   IntVars intVars_;
   const RegexSource* regex_;
+  Work* work_;
 };
 
 }  // namespace zza

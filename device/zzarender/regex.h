@@ -10,6 +10,7 @@
 
 #include "mem.h"
 #include "third_party/ArduinoJson.h"
+#include "work.h"
 
 namespace zza {
 
@@ -46,7 +47,7 @@ class RegexProg {
   void clear();
 
   friend class RegexVM;
-  friend std::string matchGroup(const RegexProg&, std::string_view, int);
+  friend std::string matchGroup(const RegexProg&, std::string_view, int, Work*);
 
   ZzaBudget* budget_;
   uint32_t start_;
@@ -58,8 +59,9 @@ class RegexProg {
 // Capture group `group` (0 = whole match) of the first match in utf8Input, or
 // "" on no match, missing group, group < 0 or input longer than
 // kMaxFilterValueLen (Go matchGroup). Invalid UTF-8 bytes are U+FFFD like Go.
-// Scratch memory comes from the program's budget (std::bad_alloc if exhausted).
-std::string matchGroup(const RegexProg& prog, std::string_view utf8Input, int group);
+// Scratch memory comes from the program's budget (std::bad_alloc if exhausted);
+// the VM's thread steps are charged to work (may be nullptr).
+std::string matchGroup(const RegexProg& prog, std::string_view utf8Input, int group, Work* work = nullptr);
 
 // Supplies the program for a pattern string (nullptr: none available, which
 // the evaluator treats like an invalid pattern in Go).

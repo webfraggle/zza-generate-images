@@ -813,8 +813,10 @@ func TestGeneratedNear(t *testing.T) {
 	for seed := 1; seed <= n; seed++ {
 		t.Run(fmt.Sprint(seed), func(t *testing.T) { checkGenerated(t, dir, assets, int64(seed), &out) })
 	}
-	t.Logf("%d templates in %v: %d near (%d animated), %d rejected by Go and the device; %d expressions equal",
-		n, time.Since(start).Round(time.Millisecond), out.near, out.anim, out.goErr, out.exprs)
+	t.Logf("%d templates in %v: %d near (%d animated), %d rejected by Go and the device; %d expressions equal; "+
+		"largest work of one call %d (still %d, anim_begin %d, frame %d)",
+		n, time.Since(start).Round(time.Millisecond), out.near, out.anim, out.goErr, out.exprs,
+		genWork.max(), genWork.still, genWork.begin, genWork.frame)
 	if out.near < n/2 {
 		t.Errorf("only %d of %d generated templates render in Go: generator too often invalid", out.near, n)
 	}
@@ -916,6 +918,12 @@ func checkGenerated(t *testing.T, dir, assets string, seed int64, out *genOutcom
 		return
 	}
 	out.near++
+	if w, err := measureWork(r, []byte(data), now); err == nil {
+		recordGenWork(w)
+		if w.max()*workMargin > defaultWorkLimit {
+			fail("work %d, more than 1/%d of the default limit %d", w.max(), workMargin, defaultWorkLimit)
+		}
+	}
 
 	// Animation (split-flap or frame mode).
 	if tmpl.Meta.Animation.Frames == 0 && !strings.Contains(src, "type: splitflap") {

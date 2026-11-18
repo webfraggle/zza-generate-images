@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"image"
 	"os"
 	"strings"
 	"testing"
@@ -466,4 +467,53 @@ func TestLoadRawImage(t *testing.T) {
 		return
 	}
 	t.Skip("no package with images")
+}
+
+// TestLoadPlausibility: the loader enforces the exporter's limits on images
+// (at most 6 291 456 pixels) and glyph masks (sides up to 1024).
+func TestLoadPlausibility(t *testing.T) {
+	font := func(w, h int) []byte {
+		b := []byte("ZF1\x00")
+		b = binary.LittleEndian.AppendUint16(b, 10)
+		b = binary.LittleEndian.AppendUint16(b, 2)
+		b = binary.LittleEndian.AppendUint16(b, 12)
+		b = binary.LittleEndian.AppendUint16(b, 1)
+		b = binary.LittleEndian.AppendUint32(b, 0)
+		b = append(b, '?')
+		b = binary.LittleEndian.AppendUint32(b, 640)
+		b = binary.LittleEndian.AppendUint16(b, 0)
+		b = binary.LittleEndian.AppendUint16(b, 0xFFF6)
+		b = binary.LittleEndian.AppendUint16(b, uint16(w))
+		b = binary.LittleEndian.AppendUint16(b, uint16(h))
+		b = binary.LittleEndian.AppendUint32(b, 0)
+		return append(b, make([]byte, w*h)...)
+	}
+	imgFile := func(w, h int) []byte {
+		return devexport.EncodeImage(image.NewNRGBA(image.Rect(0, 0, w, h))) // transparent: RLE
+	}
+	tj := []byte(`{"layers":[]}`)
+	for _, c := range []struct {
+		name, file string
+		data       []byte
+		ok         bool
+	}{
+		{"glyph 1024", "f0.fnt", font(1024, 1), true},
+		{"glyph 1025 wide", "f0.fnt", font(1025, 1), false},
+		{"glyph 1025 high", "f0.fnt", font(1, 1025), false},
+		{"image 2048x3072 = 6291456 px", "i0.img", imgFile(2048, 3072), true},
+		{"image 2049x3072", "i0.img", imgFile(2049, 3072), false},
+		{"image 65535x97", "i0.img", imgFile(65535, 97), false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := New(64 << 20)
+			defer r.Close()
+			err := r.Load(rawPackage(t, map[string][]byte{c.file: c.data, "t.json": tj}))
+			if c.ok && err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if !c.ok && (!errors.Is(err, ErrFormat) || !strings.Contains(err.Error(), "too large")) {
+				t.Fatalf("Load: %v, want ErrFormat … too large", err)
+			}
+		})
+	}
 }

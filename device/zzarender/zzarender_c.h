@@ -1,6 +1,7 @@
 // C API of the ZZA on-device renderer core. No exception crosses this boundary.
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,11 +37,20 @@ int           zza_anim_frame(zza_renderer*, int i, unsigned char* rgb888, int* d
                              zza_rect* dirty, int max_rects, int* n_rects);
 /* Ends the animation and frees its memory (leaves, prefix, frame buffer, data). No-op without one. */
 void          zza_anim_end(zza_renderer*);
+#define ZZA_DEFAULT_WORK_LIMIT 100000000ULL /* operations; see spec §13 */
+/* Work limit per zza_render / zza_anim_begin / zza_anim_frame call, in operations (pixels
+   written or blended, scaling taps, glyphs laid out, regex VM thread steps, evaluator
+   bytes); 0 restores the default (spec §13). A call that would exceed it returns
+   ZZA_ERR_TEMPLATE "Rechenaufwand zu hoch"; the renderer stays usable. Survives zza_load. */
+void          zza_set_work_limit(zza_renderer*, uint64_t ops);
+/* Operations charged by the last zza_render / zza_anim_begin / zza_anim_frame call. */
+uint64_t      zza_work_used(const zza_renderer*);
 const char*   zza_error(const zza_renderer*);
 size_t        zza_mem_used(const zza_renderer*);
 size_t        zza_mem_peak(const zza_renderer*);
 
-/* ---- test only (always compiled in; used by the Go test hooks) ---- */
+#ifdef ZZA_TEST_HOOKS
+/* ---- test only (compiled with ZZA_TEST_HOOKS; used by the Go test hooks, never by the firmware) ---- */
 int zza_test_alloc(zza_renderer*, size_t n);                              /* allocate+free n bytes via budget */
 void zza_test_set_limit(zza_renderer*, size_t limit);                     /* change the budget limit */
 int zza_test_sha256(const unsigned char* data, size_t len, unsigned char out[32]);
@@ -62,6 +72,7 @@ int zza_test_latin1(const char* in, size_t len, int strict, unsigned char* out, 
 /* FNV-1a 32 of the decoded pixel data (image id "iN") or of the decoded mask area (font id "fN") of the
    loaded package. ZZA_ERR_STATE if no package / no such id. */
 int zza_test_hash(zza_renderer*, const char* id, unsigned int* out);
+#endif /* ZZA_TEST_HOOKS */
 
 #ifdef __cplusplus
 }

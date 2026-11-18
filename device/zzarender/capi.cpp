@@ -63,6 +63,7 @@ int zza_load(zza_renderer* r, const zza_file* files, int n) {
     }
     r->pkg = std::move(p);
     r->rend.reset(new zza::Renderer(&r->budget, r->pkg.get()));
+    r->rend->setWorkLimit(r->workLimit);
     return (int)ZZA_OK;
   });
 }
@@ -120,9 +121,19 @@ void zza_anim_end(zza_renderer* r) {
   if (r && r->rend) r->rend->animEnd();
 }
 
+void zza_set_work_limit(zza_renderer* r, uint64_t ops) {
+  if (!r) return;
+  r->workLimit = ops;
+  if (r->rend) r->rend->setWorkLimit(ops);
+}
+
+uint64_t zza_work_used(const zza_renderer* r) { return r && r->rend ? r->rend->workUsed() : 0; }
+
 const char* zza_error(const zza_renderer* r) { return r ? r->error.c_str() : ""; }
 size_t zza_mem_used(const zza_renderer* r) { return r ? r->budget.used : 0; }
 size_t zza_mem_peak(const zza_renderer* r) { return r ? r->budget.peak : 0; }
+
+#ifdef ZZA_TEST_HOOKS
 
 int zza_test_alloc(zza_renderer* r, size_t n) {
   if (!r) return ZZA_ERR_STATE;
@@ -240,16 +251,19 @@ int zza_test_regex(const char* progJson, const char* in, size_t inLen, int group
 }
 
 int zza_test_latin1(const char* in, size_t len, int strict, unsigned char* out, size_t outLen) {
+  if ((!in && len > 0) || (!out && outLen > 0)) return -1;
   int res = -1;
   guarded(nullptr, [&]() {
     std::string o;
     if (zza::utf8ToLatin1(std::string_view(in, len), o, strict != 0)) {
       res = (int)o.size();
-      if (o.size() <= outLen) memcpy(out, o.data(), o.size());
+      if (!o.empty() && o.size() <= outLen) memcpy(out, o.data(), o.size());
     }
     return (int)ZZA_OK;
   });
   return res;
 }
+
+#endif  // ZZA_TEST_HOOKS
 
 }  // extern "C"

@@ -65,6 +65,8 @@ void shade(Canvas& c, int x0, int y0, int x1, int y1, uint32_t keep) {
   if (y0 < 0) y0 = 0;
   if (x1 > c.w) x1 = c.w;
   if (y1 > c.h) y1 = c.h;
+  if (x0 >= x1 || y0 >= y1) return;
+  charge(c.work, (uint64_t)(x1 - x0) * (uint64_t)(y1 - y0));
   for (int y = y0; y < y1; y++) {
     uint8_t* p = c.at(x0, y);
     for (int n = (x1 - x0) * 3; n > 0; n--, p++) *p = (uint8_t)((*p * keep + 128) >> 8);
@@ -79,6 +81,7 @@ constexpr uint32_t kKeepLower = 218;
 
 // Copies rows [r0, r1) of a w-wide leaf to the canvas at (x, y + r0).
 void blitRows(Canvas& c, int x, int y, int w, const uint8_t* leaf, int r0, int r1) {
+  if (r1 > r0) charge(c.work, (uint64_t)w * (uint64_t)(r1 - r0));
   for (int r = r0; r < r1; r++) memcpy(c.at(x, y + r), leaf + (size_t)r * w * 3, (size_t)w * 3);
 }
 
@@ -88,6 +91,7 @@ void blitRows(Canvas& c, int x, int y, int w, const uint8_t* leaf, int r0, int r
 // truncated, then >> 8).
 void scaleRows(Canvas& c, int x, int y0, int w, const uint8_t* leaf, int s0, int sh, int dh) {
   const int den = 2 * dh;
+  if (dh > 0) charge(c.work, (uint64_t)w * (uint64_t)dh);
   for (int dy = 0; dy < dh; dy++) {
     // 2·dh·sy with sy = (dy + 0.5)·sh/dh − 0.5.
     int n2 = (2 * dy + 1) * sh - dh;
@@ -202,6 +206,7 @@ struct CanvasScope {
 
 void Renderer::Impl::renderLeaf(JsonObjectConst L, const Eval& ev, int x, int y, int w, int h,
                                 const std::string& value, bool fresh, uint8_t* out) {
+  work.charge((uint64_t)w * (uint64_t)h);  // the canvas copy under the module
   for (int r = 0; r < h; r++) memcpy(out + (size_t)r * w * 3, canvas.at(x, y + r), (size_t)w * 3);
   Eval child = ev;  // text ids set by the children stay private to the leaf
   std::string var = rd::str(L, "var");
