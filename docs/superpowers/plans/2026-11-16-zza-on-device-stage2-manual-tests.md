@@ -33,7 +33,7 @@ Achtung: `./build.sh` erhöht `VERSION` und baut ein Docker-Image. Nur auf dem R
 |---|---|---|
 | 2.1 | `./build.sh` (ohne `DOCKER_PUSH`) | drei ZIPs in `dist/release/`: `zza-macos-arm64.zip`, `zza-macos-intel.zip`, `zza-windows-x64.zip`; `Done: … 0 failed` |
 | 2.2 | macOS-Build mit defekten CLT | Hinweiszeile „darwin builds use CGO_CXXFLAGS=…“, kein Compilerfehler `'cstdint' file not found` |
-| 2.3 | Windows-Build aus dem Log `dist/wails-windows-amd64.log` | keine Compiler-Fehler; mingw-w64 kompiliert den C++-Kern (die macOS-Flags dürfen dort nicht auftauchen) |
+| 2.3 | Windows-Build: `grep -c nostdinc dist/wails-windows-amd64.log` und `grep -ci 'error' dist/wails-windows-amd64.log` | beide Befehle geben `0` aus (mingw kompiliert den C++-Kern, die macOS-Flags tauchen dort nicht auf); `dist/release/zza-windows-x64.zip` enthält `zza.exe` |
 | 2.4 | Größen der Desktop-Binaries vergleichen (vorher = Stand vor Stufe 2, `git stash`/Commit `942a6b0`; nachher = jetzt) | Referenz (Vorab-Messung, `go build -s -w`, macOS arm64): vorher 11,1 MB, nachher 11,5 MB; Wails-`.app`-Binary arm64 12,8 MB, amd64 13,7 MB; Windows-`.exe` 12,7 MB. Eigene Werte hier eintragen, Zuwachs ≈ 0,4 MB |
 | 2.5 | ZIPs entpacken, jeweils starten (macOS: Rechtsklick → Öffnen, ggf. `xattr -dr com.apple.quarantine`) | App startet, Editor öffnet sich |
 
@@ -44,7 +44,8 @@ Achtung: `./build.sh` erhöht `VERSION` und baut ein Docker-Image. Nur auf dem R
 | 3.1 | `zza export -t faltblatt-105-v1 -o /tmp/x.zip` (aus dem entpackten ZIP, in jedem der drei Builds) | „Exported faltblatt-105-v1 to /tmp/x.zip (… bytes)“, Größe unter 3 MB (Referenz ≈ 304 KB) |
 | 3.2 | `/tmp/x.zip` in einem ZIP-Tool öffnen | `manifest.json` ist der erste Eintrag; daneben `t.json`, Bild-, Schrift- und ggf. Regex-Daten; keine unlesbaren Namen |
 | 3.3 | Export für jedes mitgelieferte Template: `faltblatt`, `nederland`, `oebb`, `rhb`, `sbb`, `umuc`, `wienerlinien` (je `-105-v1`) | alle exportierbar (Latin-1 in `rhb`/`sbb` ist bereits angepasst) |
-| 3.4 | Ein Test-Template mit Canvas 320 × 240 bzw. Zeichen „€“ in einem Text exportieren (Kopie unter `/tmp/zza-mt/templates`) | Abbruch mit „nicht ZZA-kompatibel: …“ und konkretem Grund, kein ZIP |
+| 3.4 | Test-Template mit Canvas 320 × 240 exportieren (Kopie unter `/tmp/zza-mt/templates`) | Abbruch mit „nicht ZZA-kompatibel:“ und Grund zur Canvas-Größe (nicht 240 × 240), kein ZIP |
+| 3.4b | Test-Template mit Zeichen „€“ in einem konstanten Text (oder im festen Teil eines `{{…}}`-Textes) exportieren | Abbruch mit „nicht ZZA-kompatibel:“ und Grund zu Zeichen außerhalb von Latin-1, kein ZIP |
 | 3.5 | Test-Template mit `match(name, "{{pattern}}")` (nicht konstantes Muster) | „Regex-Muster muss konstant sein“ |
 | 3.6 | Test-Template mit ungültigem Muster `match(x, "(")` | Ablehnung wie bei Go-`regexp` |
 
@@ -60,7 +61,8 @@ Editor öffnen (`zza` bzw. `zza serve`, dann `/edit/<template>`).
 | 4.4 | `umuc-105-v1` auf ZZA, Modus **Animation** | Uhr-Schleife (60 Frames, Sekundenzeiger läuft), Endlosschleife |
 | 4.5 | Ein nicht animiertes Template (z. B. `sbb-105-v1`) im Modus Animation auf ZZA | GIF mit einem Frame, kein Fehler |
 | 4.6 | Datei im Editor ändern (z. B. Text- oder Farbwert) | ZZA-Vorschau rendert neu aus den Dateien auf der Platte |
-| 4.7 | Test-Template mit Canvas ≠ 240 × 240 oder „€“ in Konstante auf ZZA | statt eines Bildes Meldung „nicht ZZA-kompatibel:“ mit je einem Grund pro Zeile |
+| 4.7 | Test-Template mit Canvas ≠ 240 × 240 (z. B. 320 × 240) auf ZZA | statt eines Bildes Meldung „nicht ZZA-kompatibel:“ mit Grund zur Canvas-Größe |
+| 4.7b | Test-Template mit „€“ in einer Konstante auf ZZA | statt eines Bildes Meldung „nicht ZZA-kompatibel:“ mit Grund zu Latin-1, je Grund eine Zeile |
 | 4.8 | Seite neu laden | Auswahl Server/ZZA ist je Template gemerkt |
 | 4.9 | Zugdaten-JSON mit Zeichen > U+00FF (z. B. „Łódź“, „日本“) im Daten-Editor | auf ZZA erscheinen `?` statt dieser Zeichen; Server-Vorschau zeigt die echten Zeichen |
 | 4.10 | `zza-server` starten (`PORT=18080 TEMPLATES_DIR=./templates go run ./cmd/zza-server serve`) | Galerie läuft wie bisher, keine ZZA-Vorschau, `/edit/…` gibt es nicht |
