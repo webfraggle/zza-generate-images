@@ -53,7 +53,8 @@ struct Scan {
   // first digit at 10^308 needs strtod, on a bounded canonical copy: the
   // overflow threshold (between DBL_MAX and 2^1024) is an integer of 309
   // digits, so 330 significant digits plus a sticky digit decide exactly.
-  bool num() {
+  // Not inlined: the buffer stays out of checkDataJson's frame (<= 512 bytes).
+  __attribute__((noinline)) bool num() {
     char buf[kRangeDigits + kDecExtra];  // 362 bytes
     DecNorm norm(buf, kRangeDigits);
     while (p < end && (jsDigit(*p) || *p == '-' || *p == '+' || *p == '.' || *p == 'e' || *p == 'E')) {

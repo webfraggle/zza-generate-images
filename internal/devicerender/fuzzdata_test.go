@@ -249,3 +249,47 @@ func TestDataHugeNumber(t *testing.T) {
 	}
 
 }
+
+// TestParseFloatLongStrings: numeric strings (not JSON numbers) of any length
+// that reach a filter (mul, greaterThan, …) parse like Go's strconv.ParseFloat:
+// long decimal strings go through the same bounded canonical form as the data
+// parser, in Go syntax (sign, leading/trailing point, leading zeros).
+func TestParseFloatLongStrings(t *testing.T) {
+	now := time.Date(2026, 1, 1, 10, 8, 37, 0, time.UTC)
+	digits := strings.Repeat("7", 200<<10)
+	cases := append(longNumbers(),
+		"+"+strings.Repeat("1", 70),
+		"."+strings.Repeat("0", 100)+"5",
+		strings.Repeat("3", 80)+".",
+		strings.Repeat("3", 80)+".e-70",
+		"000"+strings.Repeat("0", 80)+"42",
+		"-"+strings.Repeat("0", 100)+".0",
+		"0x1"+strings.Repeat("0", 70)+"p-200",
+		strings.Repeat("1", 70)+"x", // invalid
+		strings.Repeat("1", 70)+"e", // invalid
+		digits, "0."+digits+"e2000", "1."+digits+"e308", "0."+strings.Repeat("0", 200<<10)+"1",
+	)
+	for i, n := range cases {
+		data := `{"a":"` + n + `"}`
+		var m map[string]any
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatal(err)
+		}
+		for _, expr := range []string{"{{a | mul(1)}}", "{{a | add(0)}}"} {
+			start := time.Now()
+			want := renderer.EvalForTest(m, now, 0, 1, 0, expr, false)
+			got, rc := testEval(data, "", toZza(now), 0, 1, 0, expr, false)
+			if rc != 0 || got != want {
+				t.Errorf("case %d (%.40s…) %s: go %.60q, c++ %.60q (code %d)", i, n, expr, want, got, rc)
+			}
+			if d := time.Since(start); d > time.Second {
+				t.Errorf("case %d: %v", i, d)
+			}
+		}
+		cond := "greaterThan(a, '0')"
+		want := renderer.EvalForTest(m, now, 0, 1, 0, cond, true)
+		if got, rc := testEval(data, "", toZza(now), 0, 1, 0, cond, true); rc != 0 || got != want {
+			t.Errorf("case %d (%.40s…) %s: go %q, c++ %q", i, n, cond, want, got)
+		}
+	}
+}

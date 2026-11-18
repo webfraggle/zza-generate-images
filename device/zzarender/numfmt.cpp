@@ -5,9 +5,55 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "decnum.h"
+
 namespace zza {
 
 namespace {
+
+// Decimal strings at least this long go through DecNorm (the data parser's
+// threshold: ArduinoJson's number buffer holds 63 characters).
+constexpr size_t kLongNumber = 64;
+
+// strtod of a syntactically valid decimal float (Go syntax, no underscores),
+// in bounded work: the digits are fed to DecNorm as 0.<digits>e<exp+intDigits>,
+// which keeps kDecExactDigits significant digits plus a sticky digit, so the
+// result rounds exactly like strtod of the whole string (and like the data
+// parser, which uses the same canonical form).
+double strtodLong(std::string_view s) {
+  std::string buf((size_t)kDecExactDigits + kDecExtra, '\0');  // heap: > 512 bytes
+  DecNorm norm(&buf[0], kDecExactDigits);
+  size_t i = 0;
+  if (s[i] == '+' || s[i] == '-') {
+    if (s[i] == '-') norm.feed('-');
+    i++;
+  }
+  norm.feed('0');
+  norm.feed('.');
+  long long intDigits = 0;
+  bool frac = false;
+  for (; i < s.size() && s[i] != 'e' && s[i] != 'E'; i++) {
+    if (s[i] == '.') {
+      frac = true;
+      continue;
+    }
+    if (!frac && intDigits < 1000000000LL) intDigits++;
+    norm.feed(s[i]);
+  }
+  long long e = 0;
+  bool eneg = false;
+  if (i < s.size()) {  // exponent (validated by the caller)
+    i++;
+    if (s[i] == '+' || s[i] == '-') eneg = s[i++] == '-';
+    for (; i < s.size(); i++)
+      if (e < 1000000000LL) e = e * 10 + (s[i] - '0');  // saturates far beyond float64
+  }
+  long long total = (eneg ? -e : e) + intDigits;
+  char exp[24];
+  snprintf(exp, sizeof exp, "e%lld", total);
+  for (const char* p = exp; *p; p++) norm.feed(*p);
+  return strtod(norm.finish(), nullptr);
+}
 
 struct Digits {
   char d[24];  // decimal digits, no leading/trailing zeros (except the value 0)
@@ -189,23 +235,28 @@ bool parseFloat(std::string_view s, double* out) {
   if (i != s.size()) return false;
   if (underscores && !underscoreOK(s)) return false;
 
-  char stackBuf[64];
+  char stackBuf[kLongNumber];
   std::string heapBuf;
-  const char* cstr;
+  std::string_view num = s;
   if (underscores) {
     heapBuf.reserve(s.size());
     for (char c : s)
       if (c != '_') heapBuf.push_back(c);
-    cstr = heapBuf.c_str();
-  } else if (s.size() < sizeof stackBuf) {
-    memcpy(stackBuf, s.data(), s.size());
-    stackBuf[s.size()] = 0;
-    cstr = stackBuf;
-  } else {
-    heapBuf.assign(s.data(), s.size());
-    cstr = heapBuf.c_str();
+    num = heapBuf;
   }
-  double v = strtod(cstr, nullptr);
+  double v;
+  if (num.size() >= kLongNumber) {
+    if (hex) {
+      std::string h(num);  // hex digits: strtod is linear and exact
+      v = strtod(h.c_str(), nullptr);
+    } else {
+      v = strtodLong(num);
+    }
+  } else {
+    memcpy(stackBuf, num.data(), num.size());
+    stackBuf[num.size()] = 0;
+    v = strtod(stackBuf, nullptr);
+  }
   if (std::isinf(v)) return false;  // out of range
   *out = v;
   return true;

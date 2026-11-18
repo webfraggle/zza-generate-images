@@ -1,6 +1,12 @@
 // Budget allocator: all significant core memory goes through ZzaBudget so the
 // firmware can cap PSRAM use. Over budget or raw malloc NULL -> std::bad_alloc.
 #pragma once
+// The core reports budget exhaustion and render errors with exceptions that
+// the C API turns into status codes; without exceptions a failed allocation
+// would abort the firmware.
+#if !defined(__cpp_exceptions)
+#error "zzarender requires C++ exceptions (-fexceptions)"
+#endif
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
