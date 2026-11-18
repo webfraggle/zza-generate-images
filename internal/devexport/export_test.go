@@ -620,3 +620,53 @@ func TestImageDimensionsCheckedBeforeDecoding(t *testing.T) {
 		}
 	}
 }
+
+// TestDrawnConstantsLatin1: constants that reach the screen are checked for
+// Latin-1 also inside {{ }} (prefix, suffix, replace, format arguments) and in
+// loop and splitflap values; text that only selects or removes (match, strip,
+// conditions) is not.
+func TestDrawnConstantsLatin1(t *testing.T) {
+	text := func(v string) string {
+		return "  - type: text\n    font: b\n    x: 0\n    y: 0\n    color: \"#fff\"\n    value: " + v + "\n"
+	}
+	child := "    layers:\n      - {type: text, font: b, x: 0, y: 0, color: \"#fff\", value: \"{{v}}\"}\n"
+	loop := func(v string) string {
+		return "  - type: loop\n    var: v\n    value: " + v + "\n" + child
+	}
+	flap := func(v string) string {
+		return "  - type: splitflap\n    var: v\n    x: 0\n    y: 0\n    width: 20\n    height: 20\n    value: " + v + "\n" + child
+	}
+	for _, c := range []struct {
+		body string
+		bad  bool
+	}{
+		{text(`"{{x | prefix('€')}}"`), true},
+		{text(`"{{x | suffix(\"€\")}}"`), true},
+		{text(`"{{x | replace('a', '€')}}"`), true},
+		{text(`"{{x | format('€ HH:mm')}}"`), true},
+		{text(`"{{x | format('€ HH:mm', 60)}}"`), true},
+		{text(`{if: "eq(x, 'a')", then: "{{x | suffix('€')}}", else: "b"}`), true},
+		{loop(`"a|€|b"`), true},
+		{loop(`"{{x | prefix('€')}}"`), true},
+		{flap(`"€"`), true},
+		{flap(`"{{x | suffix('€')}}"`), true},
+		{text(`"{{x | replace('€', 'E')}}"`), false},
+		{text(`"{{x | strip('€') | stripAll('€') | before('€') | after('€')}}"`), false},
+		{text(`"{{x | match('€+', 0)}}"`), false},
+		{text(`{if: "eq(x, '€')", then: "a", else: "b"}`), false},
+		{loop(`"{{x | stripAll('€')}}"`), false},
+		{flap(`"{{x | prefix('é')}}"`), false},
+	} {
+		dir, name := writeTemplate(t, canvas240, c.body, nil)
+		_, err := Export(dir, name)
+		var r string
+		if inc, ok := err.(*Incompatible); ok {
+			r = strings.Join(inc.Reasons, "|")
+		} else if err != nil {
+			t.Fatalf("%s: %v", c.body, err)
+		}
+		if got := strings.Contains(r, "Latin-1"); got != c.bad {
+			t.Errorf("%s: reasons %q, want Latin-1 reason = %v", c.body, r, c.bad)
+		}
+	}
+}

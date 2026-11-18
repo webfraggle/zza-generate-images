@@ -109,6 +109,10 @@ func (a *analysis) walkLayers(layers []renderer.Layer, js []any, path string) {
 			a.textLayer(l, obj, lp)
 		case "image":
 			a.imageLayer(l, obj)
+		case "loop", "splitflap": // the value reaches the screen via {{var}}
+			for _, s := range layerStrings(obj["value"]) {
+				a.drawnConstants(lp, s)
+			}
 		}
 		for _, r := range l.Reel {
 			for _, c := range r {
@@ -177,14 +181,26 @@ func (a *analysis) textLayer(l *renderer.Layer, obj map[string]any, path string)
 				g.chars[r] = true
 			}
 		}
-		// Literal segments (outside {{ }}) are constants: the device would draw '?'.
-		for _, r := range interpRe.ReplaceAllString(s, "") {
+		a.drawnConstants(path, s)
+	}
+	a.refs = append(a.refs, layerRef{obj: obj, key: "_f", f: k})
+}
+
+// drawnConstants checks the constant text of a value that reaches the screen
+// (a text value, or a loop/splitflap value drawn via {{var}}): the literal
+// segments outside {{ }} and the quoted filter arguments that become part of
+// the result (prefix, suffix, replace, format). The device would draw '?' for
+// characters outside Latin-1.
+func (a *analysis) drawnConstants(path, s string) {
+	check := func(lit string) {
+		for _, r := range lit {
 			if r > 0xFF {
 				a.reason("%s (value): Zeichen U+%04X %q in %q liegt außerhalb von Latin-1", path, r, r, s)
 			}
 		}
 	}
-	a.refs = append(a.refs, layerRef{obj: obj, key: "_f", f: k})
+	check(interpRe.ReplaceAllString(s, ""))
+	renderer.ScanDrawnLiterals(s, check)
 }
 
 func (a *analysis) loadFont(file string) {

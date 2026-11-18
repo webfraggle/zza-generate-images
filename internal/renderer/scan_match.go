@@ -71,3 +71,30 @@ func scanPipelineMatches(expr string, depth int, visit MatchVisitor) {
 		}
 	}
 }
+
+// ScanDrawnLiterals finds the quoted filter arguments in the {{…}} pipelines
+// of s whose text becomes part of the result: the argument of prefix and
+// suffix, the replacement of replace and the pattern of format. Arguments
+// that only select or remove text (match, strip, before, …) and numeric
+// arguments are not visited. The device exporter checks these constants for
+// Latin-1.
+func ScanDrawnLiterals(s string, visit func(lit string)) {
+	for _, m := range interpolateRe.FindAllStringSubmatch(s, -1) {
+		stages := splitTopLevel(strings.TrimSpace(m[1]), '|')
+		for _, st := range stages[1:] {
+			name, args := parseFilterCall(strings.TrimSpace(st))
+			var a string
+			switch {
+			case (name == "prefix" || name == "suffix") && len(args) == 1:
+				a = args[0]
+			case name == "replace" && len(args) == 2:
+				a = args[1]
+			case name == "format" && (len(args) == 1 || len(args) == 2):
+				a = args[0]
+			default:
+				continue
+			}
+			visit(unquote(a))
+		}
+	}
+}
