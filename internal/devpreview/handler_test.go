@@ -2,6 +2,7 @@ package devpreview
 
 import (
 	"bytes"
+	"context"
 	"image/gif"
 	"image/png"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -128,5 +130,40 @@ func TestDataOver256KB400(t *testing.T) {
 	rec := serve(New(shipped), "faltblatt-105-v1", "", big)
 	if rec.Code != 400 {
 		t.Errorf("status %d: %.200s", rec.Code, rec.Body)
+	}
+}
+
+// TestConcurrencyCap: at most maxConcurrent previews run at once; further
+// requests wait and get 503 when cancelled or after the wait timeout.
+func TestConcurrencyCap(t *testing.T) {
+	h := New(shipped)
+	h.waitTimeout = 20 * time.Millisecond
+	for i := 0; i < cap(h.sem); i++ {
+		h.sem <- struct{}{}
+	}
+	body := defaultJSON(t, "sbb-105-v1")
+	if rec := serve(h, "sbb-105-v1", "", body); rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+		t.Errorf("busy: %d %q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	h.waitTimeout = time.Minute
+	req := httptest.NewRequest(http.MethodPost, "/edit/sbb-105-v1/zza-render", strings.NewReader(body)).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	mux := http.NewServeMux()
+	mux.Handle(Pattern, h)
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("cancelled: %d", rec.Code)
+	}
+	<-h.sem // one slot free again
+	if rec := serve(h, "sbb-105-v1", "", body); rec.Code != 200 {
+		t.Fatalf("free slot: %d %s", rec.Code, rec.Body)
+	}
+	if len(h.sem) != cap(h.sem)-1 {
+		t.Errorf("slot not released: %d of %d taken", len(h.sem), cap(h.sem))
+	}
+	if cap(h.sem) != 2 {
+		t.Errorf("cap %d, want 2", cap(h.sem))
 	}
 }

@@ -29,17 +29,25 @@ const (
 	maxBodyBytes = 1 << 20
 	// memBudget is the core's memory budget for one preview render.
 	memBudget = 16 << 20
+	// maxConcurrent bounds simultaneous previews (export + core render), like
+	// the server's GIF renders (maxConcurrentGIFRenders).
+	maxConcurrent = 2
+	// defaultWaitTimeout is how long a request waits for a free slot.
+	defaultWaitTimeout = 15 * time.Second
 )
 
 // Handler renders ZZA previews of the templates under templatesDir.
 type Handler struct {
 	templatesDir string
 	now          func() time.Time
+	sem          chan struct{} // limits concurrent previews
+	waitTimeout  time.Duration // max wait for a slot in sem
 }
 
 // New returns a handler for templates in templatesDir.
 func New(templatesDir string) *Handler {
-	return &Handler{templatesDir: templatesDir, now: time.Now}
+	return &Handler{templatesDir: templatesDir, now: time.Now, sem: make(chan struct{}, maxConcurrent),
+		waitTimeout: defaultWaitTimeout}
 }
 
 // ServeHTTP implements http.Handler for POST /edit/{template}/zza-render.
@@ -73,6 +81,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var data map[string]interface{}
 	if err := json.Unmarshal(body, &data); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	wait := time.NewTimer(h.waitTimeout)
+	defer wait.Stop()
+	select {
+	case h.sem <- struct{}{}:
+		defer func() { <-h.sem }()
+	case <-r.Context().Done():
+		http.Error(w, "request cancelled while waiting for a preview slot", http.StatusServiceUnavailable)
+		return
+	case <-wait.C:
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "all preview slots busy, try again", http.StatusServiceUnavailable)
 		return
 	}
 
