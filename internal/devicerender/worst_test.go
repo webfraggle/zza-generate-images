@@ -5,7 +5,6 @@ import (
 	"errors"
 	"image"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ const (
 )
 
 // TestWorstCaseBudget runs the templates at the limits (spec §9 "Worst-Case",
-// testdata/devtemplates/worst-*): export (or a rejection for size only), load,
+// testdata/devtemplates/worst-*): export (all five must export), load,
 // still image and the complete animation within 6 MB, near the Go renderer;
 // MemPeak is logged (input for the manual test plan and Stage 3 sizing). With
 // 1 MB the core returns ErrNoMem without crashing and renders the still image
@@ -35,18 +34,8 @@ func TestWorstCaseBudget(t *testing.T) {
 		name := filepath.Base(d)
 		t.Run(name, func(t *testing.T) {
 			p, err := devexport.Export(covRoot, name)
-			var inc *devexport.Incompatible
-			if errors.As(err, &inc) {
-				for _, r := range inc.Reasons {
-					if !strings.Contains(r, "Paket ist") {
-						t.Fatalf("rejected for another reason than the package size: %v", inc)
-					}
-				}
-				t.Logf("rejected for size: %v", inc)
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
+			if err != nil { // the worst cases are at the limits, not beyond: they must export
+				t.Fatalf("Export: %v", err)
 			}
 			size := 0
 			for _, b := range p.Files {

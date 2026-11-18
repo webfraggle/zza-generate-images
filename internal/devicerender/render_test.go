@@ -127,12 +127,8 @@ func TestRenderShippedNear(t *testing.T) {
 				t.Fatal(err)
 			}
 			p, err := devexport.Export(templatesRoot, name)
-			var inc *devexport.Incompatible
-			if errors.As(err, &inc) {
-				t.Skipf("not exportable: %v", inc)
-			}
-			if err != nil {
-				t.Fatal(err)
+			if err != nil { // every shipped template is ZZA-compatible
+				t.Fatalf("Export: %v", err)
 			}
 			r := loadPkg(t, p)
 			data := readDefault(t, templatesRoot, name)
