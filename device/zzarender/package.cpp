@@ -7,6 +7,9 @@
 
 namespace zza {
 
+// One layout on every target (pinned in third_party/ArduinoJson.h).
+static_assert(sizeof(detail::VariantSlotDiff) == 4, "ArduinoJson slot offsets must be 4 bytes");
+
 void* JsonAlloc::allocate(size_t n) {
   if (n > SIZE_MAX - 16) throw std::bad_alloc();
   uint8_t* p = static_cast<uint8_t*>(b->alloc(n + 16));
