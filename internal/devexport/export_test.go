@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 const testFont = "../../templates/faltblatt-105-v1/NimbusSanL-Bol.otf"
@@ -503,5 +505,73 @@ func TestZIPLocalHeadersComplete(t *testing.T) {
 		if !bytes.Equal(got[n], b) {
 			t.Errorf("%s differs", n)
 		}
+	}
+}
+
+// TestYAMLAliasLimits: aliases are expanded with cycle detection and a node
+// cap, so hostile YAML is rejected instead of recursing forever (stack
+// overflow) or allocating without bound.
+func TestYAMLAliasLimits(t *testing.T) {
+	const layer = "  - type: rect\n    x: 0\n    y: 0\n    width: 1\n    height: 1\n    color: \"#000\"\n"
+	bomb := func(merge bool) string {
+		var b strings.Builder
+		b.WriteString("zz_l0: &l0 [\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\",\"xxxxxxxx\"]\n")
+		for i := 1; i <= 9; i++ {
+			if merge {
+				fmt.Fprintf(&b, "zz_l%d: &l%d {<<: {k: *l%d}", i, i, i-1)
+				for j := 0; j < 10; j++ {
+					fmt.Fprintf(&b, ", a%d: *l%d", j, i-1)
+				}
+				b.WriteString("}\n")
+				continue
+			}
+			fmt.Fprintf(&b, "zz_l%d: &l%d [", i, i)
+			for j := 0; j < 10; j++ {
+				if j > 0 {
+					b.WriteString(",")
+				}
+				fmt.Fprintf(&b, "*l%d", i-1)
+			}
+			b.WriteString("]\n")
+		}
+		return b.String()
+	}
+	for name, extra := range map[string]string{
+		"cycle":       "zz_extra: &a [*a]\n",
+		"cycle-map":   "zz_extra: &a {k: *a}\n",
+		"cycle-merge": "zz_extra: &a {<<: *a}\n",
+		"bomb":        bomb(false),
+		"bomb-merge":  bomb(true),
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, tn := writeTemplate(t, canvas240, layer+extra, nil)
+			start := time.Now()
+			_, err := Export(dir, tn)
+			inc, ok := err.(*Incompatible)
+			if !ok {
+				t.Fatalf("err = %v, want *Incompatible", err)
+			}
+			if r := strings.Join(inc.Reasons, "|"); !strings.Contains(r, "YAML") {
+				t.Errorf("reasons = %q", r)
+			}
+			if d := time.Since(start); d > 5*time.Second {
+				t.Errorf("took %v", d)
+			}
+		})
+	}
+
+	// Ordinary aliases and merge keys still work.
+	dir, tn := writeTemplate(t, canvas240, "  - &r {type: rect, x: 0, y: 0, width: 1, height: 1, color: \"#000\"}\n  - *r\n  - {<<: *r, x: 5}\n", nil)
+	p, err := Export(dir, tn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tj map[string]any
+	if err := json.Unmarshal(p.Files["t.json"], &tj); err != nil {
+		t.Fatal(err)
+	}
+	ls := tj["layers"].([]any)
+	if len(ls) != 3 || ls[1].(map[string]any)["x"] != float64(0) || ls[2].(map[string]any)["x"] != float64(5) || ls[2].(map[string]any)["width"] != float64(1) {
+		t.Errorf("layers = %v", ls)
 	}
 }

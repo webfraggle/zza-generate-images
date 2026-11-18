@@ -36,7 +36,8 @@ func templateJSON(path string) (map[string]any, error) {
 	if err := yaml.Unmarshal(raw, &root); err != nil {
 		return nil, err
 	}
-	v, err := convertNode(&root, "", false)
+	c := &converter{expanding: map[*yaml.Node]bool{}}
+	v, err := c.node(&root, "", false)
 	if err != nil {
 		return nil, err
 	}
@@ -47,15 +48,36 @@ func templateJSON(path string) (map[string]any, error) {
 	return m, nil
 }
 
-func convertNode(n *yaml.Node, key string, str bool) (any, error) {
+// maxYAMLNodes caps the nodes of template.yaml after expanding aliases (and
+// merge keys). The largest test template (worst-layers) has about 1 900; the cap only
+// stops alias bombs (a few lines expanding to billions of nodes).
+const maxYAMLNodes = 200_000
+
+// converter turns the YAML tree into the t.json tree. Aliases are expanded
+// (like yaml.v3 does when decoding), with cycle detection and a node cap.
+type converter struct {
+	expanding map[*yaml.Node]bool // alias targets currently being expanded
+	nodes     int
+}
+
+func (c *converter) node(n *yaml.Node, key string, str bool) (any, error) {
+	if c.nodes++; c.nodes > maxYAMLNodes {
+		return nil, fmt.Errorf("YAML hat nach dem Auflösen der Aliase mehr als %d Knoten", maxYAMLNodes)
+	}
 	switch n.Kind {
 	case yaml.DocumentNode:
 		if len(n.Content) == 0 {
 			return nil, fmt.Errorf("leeres Dokument")
 		}
-		return convertNode(n.Content[0], key, str)
+		return c.node(n.Content[0], key, str)
 	case yaml.AliasNode:
-		return convertNode(n.Alias, key, str)
+		if n.Alias == nil || c.expanding[n.Alias] {
+			return nil, fmt.Errorf("zyklischer YAML-Alias *%s", n.Value)
+		}
+		c.expanding[n.Alias] = true
+		v, err := c.node(n.Alias, key, str)
+		delete(c.expanding, n.Alias)
+		return v, err
 	case yaml.MappingNode:
 		if condKeys[key] {
 			pairs := make([]any, 0, len(n.Content)/2)
@@ -72,7 +94,7 @@ func convertNode(n *yaml.Node, key string, str bool) (any, error) {
 				merges = append(merges, v)
 				continue
 			}
-			cv, err := convertNode(v, k.Value, false)
+			cv, err := c.node(v, k.Value, false)
 			if err != nil {
 				return nil, err
 			}
@@ -87,7 +109,7 @@ func convertNode(n *yaml.Node, key string, str bool) (any, error) {
 				srcs = mv.Content
 			}
 			for _, s := range srcs {
-				cv, err := convertNode(s, key, false)
+				cv, err := c.node(s, key, false)
 				if err != nil {
 					return nil, err
 				}
@@ -103,8 +125,8 @@ func convertNode(n *yaml.Node, key string, str bool) (any, error) {
 		return out, nil
 	case yaml.SequenceNode:
 		out := make([]any, 0, len(n.Content))
-		for _, c := range n.Content {
-			cv, err := convertNode(c, key, key == "reel")
+		for _, e := range n.Content {
+			cv, err := c.node(e, key, key == "reel")
 			if err != nil {
 				return nil, err
 			}
