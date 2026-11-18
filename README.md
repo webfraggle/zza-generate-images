@@ -67,9 +67,28 @@ curl -X POST 'http://localhost:18080/umuc-105-v1/render?format=gif' -H 'Content-
 - `POST …/render` bleibt auch mit `?format=gif` vom HTTPS-Redirect ausgenommen (Microcontroller ohne TLS).
 - Format des GIFs und Template-Syntax: `docs/yaml-template-spec.md` (`type: splitflap`, „Frame-Animation", „GIF-Ausgabe").
 
+## ZZA-Export und -Vorschau (Desktop)
+
+Templates lassen sich für den Controller (ZZA) exportieren, der sie mit einem eigenen C++-Renderer (`device/zzarender/`) selbst zeichnet:
+
+```bash
+go run ./cmd/zza export -t faltblatt-105-v1 -o /tmp/faltblatt-zza.zip
+```
+
+Der Export prüft die Kompatibilität (Canvas 240 × 240, Latin-1-Konstanten, konstante Regex-Muster, Paket ≤ 3 MB; siehe „ZZA-kompatibel“ in `docs/yaml-template-spec.md`). Im Editor schaltet **Server / ZZA** die Vorschau auf den Geräte-Renderer um. Das ZIP lädst du in der Web-UI der Firmware hoch.
+
+Der C++-Kern wird per cgo in die Desktop-Builds eingebunden. Der Server-Build bleibt CGO-frei. Auf einem Mac mit defekten Command Line Tools (Fehler `'cstdint' file not found`) setzt `build.sh` für die macOS-Builds automatisch `CGO_CXXFLAGS`; für `go test`/`go build` von Hand siehe `device/README.md`.
+
 ## Tests
 
 ```bash
+go test ./...
+```
+
+Mit cgo-Kern auf so einem Mac:
+
+```bash
+export CGO_CXXFLAGS="-nostdinc++ -isystem $(xcrun --show-sdk-path)/usr/include/c++/v1"
 go test ./...
 ```
 
@@ -87,7 +106,7 @@ go test ./...
 Voraussetzungen für die Desktop-Builds:
 - [Wails CLI](https://wails.io/docs/gettingstarted/installation) (`go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.3`)
 - Xcode Command Line Tools (`xcode-select --install`)
-- Für Windows-Cross-Compile vom Mac: `brew install mingw-w64`
+- Für Windows-Cross-Compile vom Mac: `brew install mingw-w64` (kompiliert auch den C++-Kern, `x86_64-w64-mingw32-g++`)
 
 Jedes Desktop-ZIP enthält die Binary/`.app`, den vollständigen `templates/`-Ordner und ein deutschsprachiges `README.txt` mit Erst-Start-Anleitung.
 

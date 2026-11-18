@@ -4,6 +4,8 @@ set -euo pipefail
 #
 # Desktop build (zza):
 #   macOS ARM64, macOS AMD64, Windows AMD64 — Wails cross-compile (CGO), no Docker needed.
+#   The binaries embed the C++ device core (device/zzarender, ZZA preview) via cgo:
+#   macOS needs clang (Xcode CLT), Windows needs mingw-w64 (x86_64-w64-mingw32-g++).
 #
 # Server Docker image (zza-server):
 #   Local:  single-arch for the current machine (--load into local Docker daemon)
@@ -34,6 +36,16 @@ DOCKER_PUSH="${DOCKER_PUSH:-0}"
 
 mkdir -p "$OUTDIR"
 
+# Some Apple Command Line Tools installs do not find the libc++ headers for C++
+# (cgo compile of device/zzarender fails with "'cstdint' file not found").
+# Only in that case point clang at the SDK's libc++; healthy setups stay untouched.
+# Applied to darwin targets only (it would break the mingw cross-compile).
+DARWIN_CXXFLAGS=""
+if [[ "$(uname -s)" == "Darwin" ]] && ! echo '#include <cstdint>' | c++ -x c++ -fsyntax-only - >/dev/null 2>&1; then
+    DARWIN_CXXFLAGS="-nostdinc++ -isystem $(xcrun --show-sdk-path)/usr/include/c++/v1"
+    echo "Note: darwin builds use CGO_CXXFLAGS=$DARWIN_CXXFLAGS (libc++ headers not found by default)"
+fi
+
 ok=0
 failed=0
 skipped=0
@@ -53,6 +65,9 @@ build_desktop() {
     # env_prefix is intentionally unquoted below so env receives each KEY=VAL
     # as a separate argument; quoting it would make env treat the whole string
     # as a single arg and fail.
+    # darwin/amd64 is cross-compiled from arm64 by clang (Wails passes -arch x86_64).
+    # The libc++ workaround contains a space, so it cannot go through the unquoted
+    # env_prefix; it is exported only around the darwin build via an array.
     local env_prefix=""
     if [[ "$target_os" == "windows" ]]; then
         env_prefix="CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++"
@@ -60,7 +75,12 @@ build_desktop() {
 
     # wails build must run from the package directory (where wails.json + main.go live).
     # -s skips the frontend build step (no Wails JS in this project — we embed our own web).
-    if ! (cd "$REPO_ROOT/cmd/zza" && env $env_prefix wails build \
+    local cxxflags_env=()
+    if [[ "$target_os" == "darwin" && -n "$DARWIN_CXXFLAGS" ]]; then
+        cxxflags_env=("CGO_CXXFLAGS=$DARWIN_CXXFLAGS")
+    fi
+
+    if ! (cd "$REPO_ROOT/cmd/zza" && env ${cxxflags_env[@]+"${cxxflags_env[@]}"} $env_prefix wails build \
             -platform "$wails_platform" \
             -ldflags "$LDFLAGS" \
             -clean -trimpath -s) \

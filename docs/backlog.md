@@ -31,6 +31,12 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 - YAML-Alias-Bombe-Schutz im Editor-Save (`gopkg.in/yaml.v3` ohne `SetMaxAliasCount`-Härtung). Body ist auf 1 MiB begrenzt; weitere Mitigation falls jemals Multi-Tenant.
 - CORS im Desktop-Build einschränken statt Wildcard `*` auf `/render`.
 
+- Go-Bug: `stripBetween` mit leerem öffnendem Begrenzer (`stripBetween('', …)`) läuft endlos (Schleife in `internal/renderer`). Nur durch Template-Argumente auslösbar, daher geringes Risiko. Der C++-Kern gibt den Wert in diesem Fall unverändert zurück; Go sollte dasselbe tun (R5).
+
+## ZZA auf dem Gerät
+
+- **Stufe 3: Firmware-Integration** (eigener Plan): Sync-Script `tools/sync-zzarender.sh`, Firmware-Adapter (eigener Render-Task mit ~10 KB Stack, PSRAM-Hook, Verteilung auf D1/D2, Push, DMA), Animations-Strategie nach Spec §12.4, Upload-Seite mit `templateCommit`/`templateDelete`, Auswahl pro Gleis, Backup, E2E auf DUAL und QUAD. Messungen und Pflichtpunkte: Spec §13 (MemPeak, ArduinoJson als einzige Kopie, Verschachtelungstiefe 80, newlib `strtod`/`printf`, `zza_anim_end`).
+
 ## Animation / Uhr (Nachträge)
 
 - Microcache (~1 s) oder Singleflight für BYPASS-Antworten zeitabhängiger Templates: wiederholte `GET /{template}/preview?format=gif` belegen sonst beide GIF-Slots (andere bekommen 503); PNG-Pfad hat kein Concurrency-Limit.

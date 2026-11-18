@@ -836,6 +836,23 @@ layers:
 
 ---
 
+## ZZA-kompatibel
+
+Ein Template läuft auch direkt auf dem Controller (ZZA), wenn es kompatibel ist. `zza export -t <name> -o <name>-zza.zip` prüft das und schreibt das Paket; die ZZA-Vorschau im Desktop-Editor zeigt das Ergebnis des Geräte-Renderers. Sonst meldet der Export „nicht ZZA-kompatibel: …“ mit allen Gründen.
+
+Bedingungen:
+
+- **Canvas 240 × 240.** Andere Größen werden abgelehnt. `canvas.colors` gilt nur für die GIF-Ausgabe und wird ignoriert.
+- **Konstanten nur Latin-1** (U+0000–U+00FF). Das gilt auch für die festen Textteile außerhalb von `{{…}}` in interpolierten Texten. Zeichen, die erst zur Laufzeit aus den Zugdaten kommen, sind ausgenommen: Das Gerät zeichnet alles über U+00FF als `?`.
+- **Konstante `match`-Muster.** Das Muster einer `match(…)`-Funktion muss ein Literal in Anführungszeichen sein, kein `{{…}}` und keine Variable, denn das Gerät kann zur Laufzeit keine Regex kompilieren. Ungültige Muster (nach Go-`regexp`) werden abgelehnt.
+- **Regex-Größe:** Das kompilierte Muster darf höchstens 2 000 Instruktionen und 8 000 Runes umfassen („Regex-Muster zu groß für das Gerät“).
+- **Paket höchstens 3 MB.** Gerätespeicher ist begrenzt; viele und große Bilder oder viele Schriftgrößen überschreiten das schnell.
+- Weitere Renderer-Limits (Layer-Anzahl, Rekursionstiefe, Textlänge nach Interpolation, Animationsgrenzen) gelten wie im Server, teils mit festen Gerätegrenzen.
+
+Glyphenkanten: Das Gerät setzt Glyphen auf ganze Pixel. Die Server-Vorschau kann deshalb an Textkanten leicht abweichen, vor allem bei mehrfach übereinander gezeichnetem Text. Die ZZA-Vorschau entspricht dem Gerät.
+
+---
+
 ## Entschiedene Punkte
 
 | Thema | Entscheidung |

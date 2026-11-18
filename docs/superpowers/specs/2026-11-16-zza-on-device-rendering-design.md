@@ -114,6 +114,7 @@ ZZA-Vorschau im Editor, Tests                     DisplayBuffer → TFT_eSPI
 - **Abhängigkeiten des Kerns:**
   - nur C++17-Standardbibliothek und ArduinoJson (header-only, läuft auch auf dem Host);
   - die ArduinoJson-Version ist in beiden Repos gleich gepinnt;
+  - **Nachtrag (Stufe 2, R4):** Der Kern bringt ein gepatchtes ArduinoJson 6.21.6 mit (`ZZA PATCH`: Float-Parsing über `strtod`, damit Datenzahlen wie im Go-Renderer gelesen werden). Die Firmware muss diesen mitgelieferten Header als **einzige** ArduinoJson-Kopie verwenden und den `lib_deps`-Eintrag entfernen. Sonst gibt es einen ODR-Konflikt, und Gerät und ZZA-Vorschau lesen Zahlen nicht mehr gleich;
   - kein Arduino, kein TFT_eSPI, kein FreeRTOS.
 - **Ausgabe des Kerns:** Er rendert die ganze Canvas (240 × 240) und liefert sie als RGB565, entweder in einen vom Aufrufer gestellten Puffer oder zeilenweise über einen Callback **[B]**. Die Aufteilung auf die zwei 240 × 120-Displays macht der Adapter, nicht der Kern. Speicher holt er über eine Allokator-Schnittstelle, damit die Firmware PSRAM nutzen kann.
 
@@ -391,3 +392,24 @@ Bildvergleich C++ ↔ Go-Renderer: Layout, Bilder, Bedingungen, Filter, Zeiger u
 5a. **Statischer Vorspann [P]:** Ebenen vor dem ersten `splitflap` werden in einer Split-Flap-Animation einmal gerendert und pro Frame zurückkopiert. Gültigkeitsbedingung: Im Split-Flap-Modus ist `now` eingefroren und `anim.*` konstant, diese Ebenen ändern sich also nie. Setzt der erste `splitflap` eine `if`-Kette fort, entfällt die Optimierung.
 5. **Paketgröße / LittleFS:** Partition 3,375 MB, belegt ~0,9 MB → nur 2–3 weitere Templates in Rohform. v1 braucht: Bilder RLE-komprimiert (oder PNG), Glyphen auf die möglichen Zeichen beschränken wo statisch bestimmbar (Reels, konstante Texte), sonst voller Latin-1-Satz. Kerning bleibt drin (≈ 1 800 Paare je Schrift, sichtbar). Eine größere LittleFS-Partition ist eine Option für später (App-Partitionen haben 6,25 MB, Firmware braucht 1,2 MB), aber nur mit einmaligem USB-Flash.
 6. **Ladezeit** 1,4 s: zulässig für Template-Wechsel; beim Booten wird zuerst das eingebaute Layout gezeigt, falls das Laden länger dauert **[B]**.
+
+## 13. Nachtrag: Ergebnisse Stufe 2 und Eingaben für Stufe 3 (2026-11-17)
+
+**Server- und ZZA-Vorschau (R12, R14).** Der Kern setzt Glyphen auf ganze Pixel (keine Subpixel-Phasen, vierfacher Glyphenspeicher wäre sonst nötig). Die Server-Vorschau (Go) rastert dagegen je Glyphe in ihrer Subpixel-Phase. Beide Vorschauen können deshalb an Glyphenkanten abweichen, besonders bei vielfach übereinander gezeichnetem Text an derselben Stelle (die Kanten summieren sich bei ganzen Pixeln anders). Maßgeblich ist die **ZZA-Vorschau**: Sie ist bitgleich zum Gerät. Der Test-Vergleich Go ↔ C++ nutzt ein allgemeines Maß (3×3-Weichzeichnung plus Nachbarschaftsvergleich plus 8×8-Blockmittel), keine Ausnahmen je Template.
+
+**Worst-Case-Speicher (`MemPeak`, Task 8, Generator-Fälle am Limit):**
+
+| Fall | MemPeak |
+|---|---|
+| flap (Split-Flap, Limit) | 3 161 KB |
+| frames (125 Frames) | 1 404 KB |
+| images (viele/große Bilder) | 2 487 KB |
+| layers (Layer-Limit, Skalierungs-Cache) | 1 381 KB |
+| text (Textlimits) | 4 165 KB (3,97 MB schon nach dem Laden) |
+
+**Eingaben für Stufe 3 (Firmware):**
+- Render-Task braucht ca. **10 KB Stack** (Rekursion im Evaluator und in Layern); auf dem Gerät messen.
+- ArduinoJson-Verschachtelungstiefe: der Kern lässt für `t.json` **80** zu. Ob der Gerätepuffer dieselbe Tiefe verträgt, muss auf dem Gerät gemessen werden.
+- newlib-`strtod`/`printf` auf dem ESP32-S3 müssen **korrekt runden** (Float-Parsing und Zahlenformatierung entsprechen sonst nicht dem Go-Verhalten); Float-printf muss aktiviert sein.
+- `zza_anim_end` gibt den Animationsspeicher frei. Die Leihe aus dem Pool (§12.4) hängt davon ab: nach dem Abspielen aufrufen, bei Schleifen beim nächsten Wechsel.
+- Animations-Strategie (live messen, vorrendern, Rückfall-Kette) und Adapter siehe §12.4 und `docs/backlog.md` (Stufe 3).
