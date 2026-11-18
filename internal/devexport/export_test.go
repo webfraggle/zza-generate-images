@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
@@ -573,5 +574,49 @@ func TestYAMLAliasLimits(t *testing.T) {
 	ls := tj["layers"].([]any)
 	if len(ls) != 3 || ls[1].(map[string]any)["x"] != float64(0) || ls[2].(map[string]any)["x"] != float64(5) || ls[2].(map[string]any)["width"] != float64(1) {
 		t.Errorf("layers = %v", ls)
+	}
+}
+
+// pngHeaderOnly returns a PNG that declares w×h pixels but has no image data:
+// image.DecodeConfig accepts it, image.Decode fails.
+func pngHeaderOnly(w, h uint32) []byte {
+	var b bytes.Buffer
+	b.WriteString("\x89PNG\r\n\x1a\n")
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:], w)
+	binary.BigEndian.PutUint32(ihdr[4:], h)
+	ihdr[8], ihdr[9] = 8, 6 // 8-bit RGBA
+	chunk := append([]byte("IHDR"), ihdr...)
+	binary.Write(&b, binary.BigEndian, uint32(len(ihdr)))
+	b.Write(chunk)
+	binary.Write(&b, binary.BigEndian, crc32.ChecksumIEEE(chunk))
+	return b.Bytes()
+}
+
+// TestImageDimensionsCheckedBeforeDecoding: the size limits apply to the
+// declared dimensions, before the image is decoded (no huge allocation).
+func TestImageDimensionsCheckedBeforeDecoding(t *testing.T) {
+	for _, c := range []struct {
+		w, h uint32
+		big  bool
+	}{
+		{30000, 30000, true}, // 900 M pixels
+		{4000, 2000, true},   // 8 M pixels: over the device's 6 291 456
+		{70000, 1, true},     // wider than the format's u16
+		{2000, 3000, false},  // 6 M pixels: within the limit (then fails decoding)
+	} {
+		dir, name := writeTemplate(t, canvas240, "  - type: image\n    file: big.png\n    x: 0\n    y: 0\n", nil)
+		if err := os.WriteFile(filepath.Join(dir, name, "big.png"), pngHeaderOnly(c.w, c.h), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Export(dir, name)
+		inc, ok := err.(*Incompatible)
+		if !ok {
+			t.Fatalf("%dx%d: err = %v", c.w, c.h, err)
+		}
+		r := strings.Join(inc.Reasons, "|")
+		if got := strings.Contains(r, "zu groß für das Gerät"); got != c.big {
+			t.Errorf("%dx%d: reasons %q, want too big = %v", c.w, c.h, r, c.big)
+		}
 	}
 }

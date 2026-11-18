@@ -2,11 +2,13 @@ package devexport
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
 	_ "image/jpeg" // decoders for the formats renderImage permits
 	_ "image/png"
+	"io"
 	"math"
 	"os"
 
@@ -16,7 +18,14 @@ import (
 const (
 	maxImageFileBytes = 16 << 20
 	maxImageDim       = 16384 // renderer.maxCanvasDimension
+	// maxImagePixels: the most pixels of a source image (and of every .img in a
+	// package); the device core enforces the same limit when loading.
+	maxImagePixels = maxPackageBytes * 2 // 6 291 456 (= 8 × package size / 4 bytes)
+	maxImageSide   = 0xFFFF              // .img stores u16 sides
 )
+
+// errImageTooBig: the image's declared size exceeds what the device accepts.
+var errImageTooBig = errors.New("zu groß für das Gerät")
 
 // imgKey identifies one exported image: the template file and the constant
 // target size (w = h = 0: the original size).
@@ -39,6 +48,18 @@ func loadImage(path string) (*image.NRGBA, error) {
 		return nil, err
 	}
 	defer f.Close()
+	// Check the declared size before decoding, so a small file declaring a huge
+	// image is rejected without allocating it.
+	cfg, _, err := image.DecodeConfig(f)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Width > maxImageSide || cfg.Height > maxImageSide || cfg.Width*cfg.Height > maxImagePixels {
+		return nil, errImageTooBig
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
 	src, _, err := image.Decode(f)
 	if err != nil {
 		return nil, err

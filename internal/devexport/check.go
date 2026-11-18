@@ -1,6 +1,7 @@
 package devexport
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -229,11 +230,10 @@ func (a *analysis) imageLayer(l *renderer.Layer, obj map[string]any) {
 	if src == nil {
 		src = &imgSource{}
 		src.img, src.err = loadImage(filepath.Join(a.dir, file))
-		if src.err == nil && (src.img.Bounds().Dx() > 0xFFFF || src.img.Bounds().Dy() > 0xFFFF) {
-			src.err = fmt.Errorf("zu groß")
-		}
 		a.srcImgs[file] = src
-		if src.err != nil {
+		if errors.Is(src.err, errImageTooBig) {
+			a.reason("Bild %q ist zu groß für das Gerät", file)
+		} else if src.err != nil {
 			a.reason("Bild %q nicht lesbar: %v", file, src.err)
 		}
 	}
@@ -255,7 +255,7 @@ func (a *analysis) imageLayer(l *renderer.Layer, obj map[string]any) {
 		}
 		k.W, k.H = scaledSize(src.img, w, h)
 	}
-	if px := k.W * k.H; px*4 > maxPackageBytes || src.img.Bounds().Dx()*src.img.Bounds().Dy()*4 > maxPackageBytes*8 {
+	if k.W*k.H*4 > maxPackageBytes { // the source size is checked in loadImage
 		a.reason("Bild %q ist zu groß für das Gerät", file)
 		return
 	}

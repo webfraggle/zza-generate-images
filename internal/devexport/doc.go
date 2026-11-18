@@ -48,7 +48,7 @@
 //
 // # iN.img
 //
-//	u16 w, u16 h, u8 enc, data
+//	u16 w, u16 h, u8 enc, data      (w, h >= 1, w*h <= 6 291 456)
 //	enc 0: w*h*4 bytes RGBA8888, non-premultiplied, row-major
 //	enc 1: RLE over 4-byte pixels, decodes to exactly w*h pixels
 //
