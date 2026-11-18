@@ -413,3 +413,26 @@ Bildvergleich C++ ↔ Go-Renderer: Layout, Bilder, Bedingungen, Filter, Zeiger u
 - newlib-`strtod`/`printf` auf dem ESP32-S3 müssen **korrekt runden** (Float-Parsing und Zahlenformatierung entsprechen sonst nicht dem Go-Verhalten); Float-printf muss aktiviert sein.
 - `zza_anim_end` gibt den Animationsspeicher frei. Die Leihe aus dem Pool (§12.4) hängt davon ab: nach dem Abspielen aufrufen, bei Schleifen beim nächsten Wechsel.
 - Animations-Strategie (live messen, vorrendern, Rückfall-Kette) und Adapter siehe §12.4 und `docs/backlog.md` (Stufe 3).
+
+**Nachträge aus dem Abschluss-Review Stufe 2 (2026-11-18).**
+
+- **Rechenaufwand je Aufruf (Anti-Ziel „unbegrenzter Rechenaufwand“).** Jeder Aufruf von `zza_render`, `zza_anim_begin` und `zza_anim_frame` zählt seine dominanten Operationen (geschriebene/geblendete Pixel inkl. Leaves und Flip-Zeichnung, Skalierungs-Taps, gesetzte Glyphen, Regex-VM-Thread-Schritte, Evaluator-Bytes) und bricht beim Überschreiten mit `ZZA_ERR_TEMPLATE` „Rechenaufwand zu hoch“ ab; der Renderer bleibt benutzbar. API: `zza_set_work_limit(r, ops)` (0 = Standard, bleibt über `zza_load` erhalten), `zza_work_used(r)`. Gemessen (`TestWorkLimitMargin`, je Template mit default/leeren/langen Daten; `TestGeneratedNear`, 300 erzeugte Templates), größter Wert eines Aufrufs:
+
+  | Quelle | größter Aufruf |
+  |---|---|
+  | worst-layers (Standbild) | 23 684 966 |
+  | worst-images (Standbild) | 2 510 915 |
+  | worst-flap (`anim_begin`) | 2 327 437 |
+  | worst-frames (Frame) | 1 199 012 |
+  | ausgelieferte Templates (max. faltblatt, `anim_begin`) | 272 668 |
+  | cov-* (max. cov-image, lange Daten) | 1 413 931 |
+  | erzeugte Templates (300) | 254 358 |
+
+  Standard `ZZA_DEFAULT_WORK_LIMIT` = **100 000 000** (4,2 × worst-layers). Das Angriffs-Paket aus dem Security-Review (240×240-Glyphe mit Vorschub 0, 256 Text-Layer à 4096 Zeichen, vorher 136 s je Render) endet auf dem Mac nach 0,38 s. Wie lange 10⁸ Operationen auf dem ESP32-S3 dauern, ist in Stufe 3 zu messen; ggf. setzt die Firmware ein kleineres Limit.
+- **Interpolation höchstens 1 MiB je Feld** (`kMaxInterpolateBytes`, 4 × die 256-KiB-Datengrenze); darüber `ZZA_ERR_TEMPLATE`. **Abweichung von Go** (dort keine Grenze); legitime Templates erreichen sie nicht (Text wird ohnehin auf 4096 Zeichen gekürzt).
+- **Lade-Plausibilität im Kern** wie im Exporter: Regex-Programme ≤ 2 000 Instruktionen und ≤ 8 000 Rune-Werte; Bilder ≤ 6 291 456 Pixel (= 8 × Paketgröße / 4 Byte); Glyphen-Masken ≤ 1024 Pixel je Seite. Der Exporter lehnt Templates mit größeren Glyphen ab (Schriftgröße/Skalierung zu groß) und prüft Bildmaße per `image.DecodeConfig` **vor** dem Dekodieren.
+- **Exporter:** YAML-Aliase werden mit Zykluserkennung und höchstens 200 000 Knoten aufgelöst (größtes Test-Template ca. 1 900); die Latin-1-Prüfung umfasst auch Konstanten in `{{…}}`, die gezeichnet werden (`prefix`, `suffix`, Ersatztext von `replace`, `format`-Muster), und die Konstanten von `loop`-/`splitflap`-Werten (nicht Bedingungen und `match`-Muster).
+- **ArduinoJson-Layout festgelegt** (ZZA PATCH): 4-Byte-Slot-Offsets auch auf 32 Bit (sonst zerstört ein Container mit > 32 767 Elementen die Verkettung), dazu `USE_LONG_LONG`, `USE_DOUBLE`, String-Deduplizierung, `DECODE_UNICODE`, NaN/Infinity/Kommentare aus, Alignment an. **Eingabe Stufe 3:** ein JSON-Slot wird auf dem ESP32-S3 dadurch 24 statt 16 Byte groß; der Pool von `t.json` und Zugdaten wächst entsprechend (Worst-Case-Speicher auf dem Gerät neu messen).
+- **C++-Exceptions sind Pflicht** (`#error` ohne `__cpp_exceptions`); die `zza_test_*`-Funktionen gibt es nur mit `ZZA_TEST_HOOKS`.
+- **Lange Zahl-Strings** (z. B. `{{a | mul(2)}}` mit 200 KB Ziffern) laufen wie lange Zahlen in den Zugdaten über die beschränkte kanonische Form (`decnum.h`) vor `strtod`: beschränkter Aufwand, Rundung wie Go.
+- **ZZA-Vorschau (Desktop):** höchstens 2 gleichzeitige Renders (wie die GIF-Renders des Servers), sonst nach 15 s Wartezeit 503.

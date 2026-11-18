@@ -3,7 +3,7 @@
 // and CGO-free. The device core (device/zzarender) reads exactly these formats.
 //
 // All multi-byte integers are little-endian. File names are flat and at most
-// 12 characters.
+// 12 characters; manifest.json (13 characters) is the one exception.
 //
 // # Package (ZIP)
 //
