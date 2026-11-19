@@ -50,6 +50,40 @@ inkludiert alle `device/zzarender/*.cpp`, da cgo nur Dateien im Paketordner übe
 go test ./internal/devicerender/
 ```
 
+## Firmware-Kopie synchronisieren
+
+Die Firmware (`Zugzielanzeiger-tpl`) trägt eine Kopie unter `lib/zzarender/`, die nie
+direkt bearbeitet wird:
+
+```sh
+tools/sync-zzarender.sh <firmware-repo>          # kopiert nach <fw>/lib/zzarender/, löscht Veraltetes
+tools/sync-zzarender.sh --check <firmware-repo>  # Exit 0 = Kopie gleich, sonst Exit 1 mit Liste
+```
+
+Kopiert werden `device/zzarender/*.{h,cpp}` und `third_party/` (nicht `tools/`).
+`SOURCE.txt` enthält `commit <hash>` (mit `-dirty` bei uncommitteten Änderungen in
+`device/`), `date <ISO>` und je Datei `<sha256>  <pfad>`. Test: `TestSyncScript`
+(nur Temp-Ordner).
+
+### ArduinoJson-Namespace
+
+Der Kern legt sein ArduinoJson in den Namespace `ArduinoJson::ArduinoJson6216_ZZA`
+(`ARDUINOJSON_VERSION_NAMESPACE` im ZZA-PATCH-Block von `third_party/ArduinoJson.h`).
+Grund: Die Firmware kann eine zweite ArduinoJson-Kopie (`lib_deps`) für ihren eigenen
+Code behalten; ohne eigenen Namespace gäbe es doppelte Symbole (ODR) mit
+unterschiedlichem Layout (4-Byte-Slot-Offsets, `strtod`-Patch). Der Kern-Code
+schreibt weiter `ArduinoJson::`, der Namespace ist `inline`.
+
+### Vorschau wie das Gerät: `zza render --zza`
+
+```sh
+zza render -t <name> -i data.json -o out.png --zza [--time 2026-01-01T10:08:37]
+```
+
+Rendert über Exporter und Kern (nur PNG, bitgleich zum Gerät; nicht kompatible
+Templates enden mit „nicht ZZA-kompatibel: …“ und Exit ≠ 0). `--time` fixiert die
+Uhr für beide Renderer (ohne Zonenangabe in der Zeitzone des Templates).
+
 ### macOS: libc++-Eigenheit
 
 Die Apple Command Line Tools finden die libc++-Header nicht von selbst. Vor jedem

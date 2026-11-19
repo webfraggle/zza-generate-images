@@ -14,3 +14,10 @@
 #include "splitflap.cpp"
 #include "text.cpp"
 #include "utf8.cpp"
+
+#ifdef ZZA_TEST_HOOKS
+// The core's ArduinoJson lives in its own namespace (ZZA PATCH), so it cannot
+// clash with another copy in the firmware. The build breaks without it.
+static_assert(sizeof(ArduinoJson::ArduinoJson6216_ZZA::JsonDocument) > 0,
+              "ArduinoJson must be in the ArduinoJson6216_ZZA namespace (ZZA PATCH)");
+#endif

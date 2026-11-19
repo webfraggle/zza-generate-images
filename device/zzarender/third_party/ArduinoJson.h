@@ -35,6 +35,13 @@
 #if defined(ARDUINOJSON_ENABLE_ALIGNMENT) && ARDUINOJSON_ENABLE_ALIGNMENT != 1
 #  error "zzarender requires ARDUINOJSON_ENABLE_ALIGNMENT 1"
 #endif
+// ZZA PATCH: the core's ArduinoJson lives in its own inline namespace. A second
+// copy of the library in the same firmware (e.g. a lib_deps entry) then does not
+// collide at link time (ODR); `ArduinoJson::` names keep working (inline namespace).
+#ifdef ARDUINOJSON_VERSION_NAMESPACE
+#  error "zzarender sets ARDUINOJSON_VERSION_NAMESPACE itself"
+#endif
+#define ARDUINOJSON_VERSION_NAMESPACE ArduinoJson6216_ZZA
 #ifndef ARDUINOJSON_SLOT_OFFSET_SIZE
 #  define ARDUINOJSON_SLOT_OFFSET_SIZE 4
 #endif
