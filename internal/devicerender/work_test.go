@@ -275,7 +275,7 @@ func TestInterpolateCap(t *testing.T) {
 
 	// In a render: ErrTemplate.
 	dir := t.TempDir()
-	writeTemplate(t, dir, "cap", "  - {type: text, font: reg, x: 0, y: 0, color: \"#fff\", value: \""+strings.Repeat("{{a}}", 5)+"\"}\n")
+	writeTemplate(t, dir, "cap", "  - {type: text, font: reg, x: 0, y: 0, color: \"#ffffff\", value: \""+strings.Repeat("{{a}}", 5)+"\"}\n")
 	r := loadDevice(t, dir, "cap")
 	d := []byte(`{"a":"` + strings.Repeat("x", 250<<10) + `"}`)
 	if _, err := r.Render(d, time.Date(2026, 1, 1, 10, 8, 37, 0, time.UTC)); !errors.Is(err, ErrTemplate) ||
@@ -284,5 +284,53 @@ func TestInterpolateCap(t *testing.T) {
 	}
 	if b, err := os.ReadFile(filepath.Join(dir, "cap", "template.yaml")); err != nil || len(b) == 0 {
 		t.Fatal(err)
+	}
+}
+
+// TestWorkLimitSubstringSearch (R16): every substring search of the evaluator
+// is charged to the work budget by the searched length, in addition to the
+// bytes of the filter values. 250 KiB (the data limit is 256 KiB) without a hit, chained filters.
+func TestWorkLimitSubstringSearch(t *testing.T) {
+	const n = 250 << 10
+	data := []byte(`{"a":"` + strings.Repeat("x", n) + `"}`)
+	now := time.Date(2026, 1, 1, 10, 8, 37, 0, time.UTC)
+	text := func(v string) string {
+		return "  - {type: text, font: reg, x: 0, y: 0, color: \"#ffffff\", value: \"" + v + "\"}\n"
+	}
+
+	// Four searching filters: replace (count scan + replace scan), before,
+	// stripAll, before: five scans of n bytes. The values cost 5 × n on top.
+	dir := t.TempDir()
+	writeTemplate(t, dir, "chain", text("{{a | replace('x','y') | before('q') | stripAll('q') | before('q')}}"))
+	r := loadDevice(t, dir, "chain")
+	if _, err := r.Render(data, now); err != nil {
+		t.Fatal(err)
+	}
+	if used, want := testWorkUsed(r), uint64(5*n+5*n); used < want {
+		t.Errorf("work %d, want at least %d (searched bytes plus value bytes)", used, want)
+	}
+
+	// A condition: contains scans the field once.
+	writeTemplate(t, dir, "cond", "  - {if: \"contains(a, 'q')\", type: rect, x: 0, y: 0, width: 4, height: 4, color: \"#ffffff\"}\n")
+	r = loadDevice(t, dir, "cond")
+	if _, err := r.Render(data, now); err != nil {
+		t.Fatal(err)
+	}
+	if used, want := testWorkUsed(r), uint64(2*n); used < want {
+		t.Errorf("contains: work %d, want at least %d", used, want)
+	}
+
+	// Many chained searches stop at the limit, quickly.
+	chain := "{{a" + strings.Repeat(" | replace('x','y') | before('q') | stripAll('q') | before('q')", 8) + "}}"
+	writeTemplate(t, dir, "many", text(chain))
+	r = loadDevice(t, dir, "many")
+	testSetWorkLimit(r, 2_000_000)
+	start := time.Now()
+	_, err := r.Render(data, now)
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("render took %v", d)
+	}
+	if !errors.Is(err, ErrTemplate) || !strings.Contains(err.Error(), "Rechenaufwand zu hoch") {
+		t.Fatalf("err = %v, want ErrTemplate Rechenaufwand zu hoch", err)
 	}
 }

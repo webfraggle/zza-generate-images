@@ -173,11 +173,13 @@ bool isNumLiteral(std::string_view t) {
 // search after each removal like Go's doStripBetween, but without rescanning
 // the unchanged prefix. Both delimiters empty would loop forever in Go; the
 // string is returned unchanged there.
-std::string stripBetween(std::string_view s, std::string_view open, std::string_view close) {
+std::string stripBetween(std::string_view s, std::string_view open, std::string_view close, Work* work) {
   if (open.empty() && close.empty()) return std::string(s);
+  charge(work, s.size() + 1);  // the searches for open and close (each byte of s is searched once)
   std::string out;  // finished prefix of the current string (no open occurrence in it)
   size_t pos = 0;   // current string = out + s[pos:]
   for (;;) {
+    charge(work, open.size() + 1);  // the overlap check at the join below
     // Earliest occurrence of `open` in out + s[pos:]: spanning the join first.
     size_t startInOut = std::string::npos;  // index in `out` where a spanning match starts
     size_t consumedFromS = 0;               // bytes of s[pos:] covered by the open match
@@ -473,6 +475,7 @@ std::string Eval::applyFilter(std::string value, std::string_view filter, int de
   if (name == "strip") {
     if (na == 1) {
       std::string_view pre = unquote(args[0]);
+      charge(work_, pre.size() + 1);  // the prefix comparison
       if (hasPrefix(value, pre)) value.erase(0, pre.size());
       return value;
     }
@@ -480,14 +483,16 @@ std::string Eval::applyFilter(std::string value, std::string_view filter, int de
     if (na == 1) {
       std::string_view from = unquote(args[0]);
       if (from.empty()) return value;
+      charge(work_, value.size() + from.size() + 1);  // the search
       return replaceAll(value, from, "");
     }
   } else if (name == "stripBetween") {
-    if (na == 2) return stripBetween(value, unquote(args[0]), unquote(args[1]));
+    if (na == 2) return stripBetween(value, unquote(args[0]), unquote(args[1]), work_);
   } else if (name == "before") {
     if (na == 1) {
       std::string_view sep = unquote(args[0]);
       if (!sep.empty()) {
+        charge(work_, value.size() + sep.size() + 1);  // the search
         size_t i = value.find(sep);
         if (i != std::string::npos) value.resize(i);
       }
@@ -497,6 +502,7 @@ std::string Eval::applyFilter(std::string value, std::string_view filter, int de
     if (na == 1) {
       std::string_view sep = unquote(args[0]);
       if (!sep.empty()) {
+        charge(work_, value.size() + sep.size() + 1);  // the search
         size_t i = value.find(sep);
         if (i != std::string::npos) return value.substr(i + sep.size());
       }
@@ -540,6 +546,8 @@ std::string Eval::applyFilter(std::string value, std::string_view filter, int de
       if (from.empty()) return value;
       std::string_view to = unquote(args[1]);
       size_t count = 0;
+      // The counting scan and the replacing scan both search the whole value.
+      charge(work_, 2 * (value.size() + from.size()) + 1);
       for (size_t i = value.find(from); i != std::string::npos; i = value.find(from, i + from.size())) count++;
       // len(value) + count*(len(to)-len(from)) > limit, in signed 64-bit like Go.
       int64_t total = static_cast<int64_t>(value.size()) +
@@ -631,11 +639,23 @@ bool Eval::evalCond(std::string_view expr, int depth) const {
 
   std::string field = pipeline(trimSpace(args[0]), 1);
   if (fn == "startsWith") {
-    if (args.size() == 2) return hasPrefix(field, unquote(args[1]));
+    if (args.size() == 2) {
+      std::string_view pre = unquote(args[1]);
+      charge(work_, pre.size() + 1);  // the prefix comparison
+      return hasPrefix(field, pre);
+    }
   } else if (fn == "endsWith") {
-    if (args.size() == 2) return hasSuffix(field, unquote(args[1]));
+    if (args.size() == 2) {
+      std::string_view suf = unquote(args[1]);
+      charge(work_, suf.size() + 1);  // the suffix comparison
+      return hasSuffix(field, suf);
+    }
   } else if (fn == "contains") {
-    if (args.size() == 2) return field.find(unquote(args[1])) != std::string::npos;
+    if (args.size() == 2) {
+      std::string_view sub = unquote(args[1]);
+      charge(work_, field.size() + sub.size() + 1);  // the search
+      return field.find(sub) != std::string::npos;
+    }
   } else if (fn == "isEmpty") {
     return field.empty();
   } else if (fn == "eq" || fn == "equals") {
