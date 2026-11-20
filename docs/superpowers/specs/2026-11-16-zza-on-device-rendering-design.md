@@ -152,7 +152,7 @@ ZZA-Vorschau im Editor, Tests                     DisplayBuffer → TFT_eSPI
 - **Mehrere Templates, Auswahl pro Gleis [C]:**
   - Auf dem Gerät können mehrere Templates liegen.
   - Jedes Gleis wählt sein eigenes, wie heute `imageUrl`. DUAL hat ein Gleis, QUAD hat zwei (A und B) mit unabhängig wählbaren Templates. Ein Template füllt immer beide Displays seines Gleises.
-  - Umsetzung **[P]**: Die PNG-Modi (`Mode_PngManual`, `Mode_PngInterval`) bekommen eine zweite Bildquelle, „lokales Template `<name>`“ statt `imageUrl`. Diese Modi tun heute schon genau das, nämlich ein Bild aus der Gleis-Config erzeugen. Neue Modi wären die Alternative **[B]** nach Blick in den Code.
+  - Umsetzung (korrigiert in Stufe 3, siehe §15 P1): Das Gleis-Feld `template` ersetzt in den **Zugmodi** (Manuell, Intervall, Live, Client-Züge) das Online-Bild; die PNG-Modi bleiben unverändert, denn die Online-Bild-Logik liegt in den Zugmodi, nicht in `Mode_Png*`.
 - **Ablage:** `/tpl_<name>/<datei>`, also flach mit genau einer Ordnerebene, wie die übrigen eigenen Ordner (`GleisA`, `GleisAimg*`). Die Dateinamen im Paket hält der Exporter kurz, damit die LittleFS-Namenslänge passt **[B]**: prüfen.
 - **Übertragung: Browser entpackt, Firmware nimmt Einzeldateien [C].**
   - Neue Seite bzw. neuer Abschnitt „Templates“ in der Firmware-Web-UI (`data/app`).
