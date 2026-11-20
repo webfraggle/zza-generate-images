@@ -35,7 +35,7 @@ Spec: `docs/superpowers/specs/2026-11-20-template-clock-design.md`. Alle Punkte 
 - [ ] Modus `ntp` ohne Internet: Uhr läuft ab 0:00, Template zeigt das. Nach WLAN/Internet springt die Anzeige auf die echte Zeit.
 - [ ] Faktor 4: der Sekundenzeiger läuft viermal so schnell.
 - [ ] Faktor 100: es wird höchstens alle 100 ms gezeichnet, Sekunden werden übersprungen; Weboberfläche und Taster bleiben bedienbar.
-  Grenzen (Spec „Schnelle Modellbahnuhr“, „Zu langsam“): Uhr-Updates belegen höchstens 25 % der Zeit (Abstand ≥ 100 ms und ≥ 4 × letzte Update-Dauer); ein Uhr-Update > 500 ms hält das Bild an (`clockOff: true` bis zu neuen Zugdaten); ein Uhr-Frame > 500 ms oder > 50 % seiner Frame-Dauer bricht die Animation ab, das Gleis zeigt das Standbild der Uhr (`mode: "still"`).
+  Grenzen (Spec „Schnelle Modellbahnuhr“, „Zu langsam“): Uhr-Updates belegen höchstens 25 % der Zeit (Abstand ≥ 100 ms und ≥ 4 × letzte Update-Dauer); drei Uhr-Updates in Folge > 500 ms (oder eines > 1,5 s) halten das Bild an (`clockOff: true` bis zu neuen Zugdaten), einzelne Ausreißer nicht; drei Uhr-Frames in Folge > 500 ms oder > 50 % ihrer Frame-Dauer brechen die Animation ab, das Gleis zeigt das Standbild der Uhr (`mode: "still"`).
 - [ ] Faktor 0,1: die Uhr läuft zehnmal langsamer, kein Flackern.
 
 ## 4. Beide Gleise (MAN-TPL-006, QUAD)

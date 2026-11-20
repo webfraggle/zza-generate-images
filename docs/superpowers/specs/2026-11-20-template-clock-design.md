@@ -121,12 +121,18 @@ Regeln dazu:
 - **Schnelle Modellbahnuhr.** Bei Faktor > 1 ändert sich die Sekunde öfter als einmal je Echtzeit-Sekunde.
   Uhr-Updates belegen höchstens 25 % der Zeit: Abstand zwischen zwei Updates = max(100 ms, 4 × Dauer des letzten
   Updates aus Rendern + Zeichnen); dazwischen werden Sekunden übersprungen. Für Uhren ersetzt das die
-  70-%-Regel aus §12.4 (Security-Review 2026-11-20).
+  70-%-Regel aus §12.4 (Security-Review 2026-11-20). Ein einzelner Ausreißer verzögert nur das nächste Update.
 - **Zu langsam.** Dauert ein Update länger als sein Takt, fallen Takte aus (kein Aufholen). Grenzen
-  (Security-Review 2026-11-20, ersetzen für Uhren die 1,5-s-Grenze):
-  - Uhr-Update eines Standbilds oder Endbilds > 500 ms (Rendern + Zeichnen) oder Arbeitsgrenze überschritten →
-    keine Uhr-Updates mehr für diese Daten, das Bild bleibt stehen, bis neue Daten kommen (`clockOff`).
-  - Frame der Frame-Animation mit Uhr > 500 ms oder > 50 % seiner Frame-Dauer (Rendern + Zeichnen) → die
+  (Security-Review 2026-11-20). Die Kosten sind Wanduhr-Zeit und enthalten Verdrängung (Webserver, WLAN, das
+  andere Gleis; auf dem QUAD gemessen: e2e-clock-sec sonst ≈ 56 ms mit Ausreißern bis 528 ms), deshalb zählen
+  die 500-ms- und 50-%-Grenzen erst bei **drei Updates bzw. Frames in Folge**; eines innerhalb der Grenze setzt
+  die Zählung zurück (Gerätelauf 2026-11-20). Sofort wirken weiter: ein Bild > 1,5 s, die Arbeitsgrenze und
+  Fehler des Kerns.
+  - Drei Uhr-Updates eines Standbilds oder Endbilds in Folge > 500 ms (Rendern + Zeichnen), eines > 1,5 s oder
+    Arbeitsgrenze überschritten → keine Uhr-Updates mehr für diese Daten, das Bild bleibt stehen, bis neue
+    Daten kommen (`clockOff`).
+  - Drei Frames der Frame-Animation mit Uhr in Folge > 500 ms oder > 50 % ihrer Frame-Dauer (Rendern +
+    Zeichnen), oder einer > 1,5 s → die
     Animation wird abgebrochen, das Gleis zeigt das Standbild der Uhr, das dann der Regel oben folgt
     (`umuc-105-v1` mit etwa 200 ms je 1-s-Frame bleibt live).
   - Kein Speicher für den Vergleich (`zza_render_diff` NOMEM) → ganzes Bild neu; schlägt auch das fehl, zeigt
