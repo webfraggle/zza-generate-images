@@ -184,3 +184,58 @@ func isErrForbidden(err error) bool {
 	return errors.Is(err, ErrForbidden) || errors.Is(err, ErrInvalidName)
 }
 func isErrNotFound(err error) bool { return errors.Is(err, ErrFileNotFound) }
+
+func TestFileVersion(t *testing.T) {
+	v := FileVersion([]byte("hello"))
+	if v != "2cf24dba5fb0a30e" { // sha256("hello")[:8] hex
+		t.Errorf("got %q", v)
+	}
+	if FileVersion(nil) != "e3b0c44298fc1c14" {
+		t.Errorf("empty: got %q", FileVersion(nil))
+	}
+}
+
+func TestWriteTextFileIfMatch(t *testing.T) {
+	dir, name := makeTestTemplate(t)
+	v0, err := CurrentVersion(dir, name, "template.yaml")
+	if err != nil || v0 == "" {
+		t.Fatalf("CurrentVersion = %q, %v", v0, err)
+	}
+	v1, err := WriteTextFileIfMatch(dir, name, "template.yaml", []byte("a: 1\n"), v0)
+	if err != nil || v1 != FileVersion([]byte("a: 1\n")) {
+		t.Fatalf("matching write: v=%q err=%v", v1, err)
+	}
+	_, err = WriteTextFileIfMatch(dir, name, "template.yaml", []byte("a: 2\n"), v0)
+	if !errors.Is(err, ErrVersionConflict) || !strings.Contains(err.Error(), v1) {
+		t.Fatalf("stale write error = %v", err)
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, name, "template.yaml"))
+	if string(got) != "a: 1\n" {
+		t.Errorf("file changed despite conflict: %q", got)
+	}
+	for _, exp := range []string{"", "*"} {
+		if _, err := WriteTextFileIfMatch(dir, name, "template.yaml", []byte("a: 3\n"), exp); err != nil {
+			t.Errorf("unconditional write (%q): %v", exp, err)
+		}
+	}
+	if _, err := WriteTextFileIfMatch(dir, name, "new.json", []byte("{}"), "abc"); !errors.Is(err, ErrVersionConflict) {
+		t.Errorf("missing file with expected version: %v", err)
+	}
+	v, err := CurrentVersion(dir, name, "missing.json")
+	if v != "" || err != nil {
+		t.Errorf("CurrentVersion(missing) = %q, %v", v, err)
+	}
+}
+
+func TestVersionConflictError(t *testing.T) {
+	var err error = &VersionConflictError{Current: "abc"}
+	var vc *VersionConflictError
+	if !errors.Is(err, ErrVersionConflict) || !errors.As(err, &vc) || vc.Current != "abc" {
+		t.Errorf("errors.Is/As failed: %v", err)
+	}
+	dir, name := makeTestTemplate(t)
+	_, err = WriteTextFileIfMatch(dir, name, "template.yaml", []byte("x"), "stale")
+	if !errors.As(err, &vc) || vc.Current != FileVersion([]byte("meta:\n  name: Test\n")) {
+		t.Errorf("handler error: %v", err)
+	}
+}

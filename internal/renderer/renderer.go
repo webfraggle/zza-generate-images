@@ -1,12 +1,14 @@
 package renderer
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -29,7 +31,7 @@ import (
 type Renderer struct {
 	TemplatesDir string
 	fontMu       sync.RWMutex
-	fontCache    map[string]*opentype.Font // key: absolute file path; guarded by fontMu
+	fontCache    map[string]*opentype.Font // key: abs path \x00 file size \x00 mtime ns; guarded by fontMu
 	nowFunc      func() time.Time          // injectable clock for tests; nil = time.Now
 }
 
@@ -69,27 +71,46 @@ func LoadTemplate(templatesDir, name string) (*Template, error) {
 	}
 	defer f.Close()
 
+	tmpl, err := parseTemplate(f, tmplPath)
+	if err != nil {
+		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
+	}
+	return tmpl, nil
+}
+
+// ParseTemplate parses and validates template YAML held in memory. dir is the
+// absolute template directory (stored in Template.Dir; assets and fonts are
+// resolved against it when rendering).
+func ParseTemplate(src []byte, dir string) (*Template, error) {
+	tmpl, err := parseTemplate(bytes.NewReader(src), dir)
+	if err != nil {
+		return nil, fmt.Errorf("renderer: ParseTemplate: %w", err)
+	}
+	return tmpl, nil
+}
+
+// parseTemplate decodes and validates a template; errors carry no prefix.
+func parseTemplate(r io.Reader, dir string) (*Template, error) {
 	var tmpl Template
-	dec := yaml.NewDecoder(f)
-	if err := dec.Decode(&tmpl); err != nil {
-		return nil, fmt.Errorf("renderer: LoadTemplate: decoding YAML: %w", err)
+	if err := yaml.NewDecoder(r).Decode(&tmpl); err != nil {
+		return nil, fmt.Errorf("decoding YAML: %w", err)
 	}
 
-	tmpl.Dir = tmplPath
+	tmpl.Dir = dir
 
 	if c := tmpl.Meta.Canvas.Colors; c != 0 && (c < 2 || c > 256) {
-		return nil, fmt.Errorf("renderer: LoadTemplate: canvas.colors must be between 2 and 256 (got %d)", c)
+		return nil, fmt.Errorf("canvas.colors must be between 2 and 256 (got %d)", c)
 	}
 	if err := tmpl.validateAnimation(); err != nil {
-		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
+		return nil, err
 	}
 	if err := checkDuplicateIDs(tmpl.Layers, map[string]bool{}); err != nil {
-		return nil, fmt.Errorf("renderer: LoadTemplate: %w", err)
+		return nil, err
 	}
 
 	loc, err := loadTimezone(tmpl.Meta.Timezone)
 	if err != nil {
-		return nil, fmt.Errorf("renderer: LoadTemplate: invalid meta.timezone %q: %w", tmpl.Meta.Timezone, err)
+		return nil, fmt.Errorf("invalid meta.timezone %q: %w", tmpl.Meta.Timezone, err)
 	}
 	tmpl.loc = loc
 
@@ -784,18 +805,21 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 
 	absPath := filepath.Join(dir, filename)
 
+	// Security: limit font file size before reading into memory.
+	// The stat also feeds the cache key so a replaced font file is reloaded.
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("getFont: stat %q: %w", filename, err)
+	}
+	key := absPath + "\x00" + strconv.FormatInt(info.Size(), 10) + "\x00" + strconv.FormatInt(info.ModTime().UnixNano(), 10)
+
 	r.fontMu.RLock()
-	cached, ok := r.fontCache[absPath]
+	cached, ok := r.fontCache[key]
 	r.fontMu.RUnlock()
 	if ok {
 		return cached, nil
 	}
 
-	// Security: limit font file size before reading into memory.
-	info, err := os.Stat(absPath)
-	if err != nil {
-		return nil, fmt.Errorf("getFont: stat %q: %w", filename, err)
-	}
 	if info.Size() > maxFontFileBytes {
 		return nil, fmt.Errorf("getFont: font file %q exceeds maximum size of %d MB", filename, maxFontFileBytes/1024/1024)
 	}
@@ -811,7 +835,12 @@ func (r *Renderer) getFont(dir, filename string) (*opentype.Font, error) {
 	}
 
 	r.fontMu.Lock()
-	r.fontCache[absPath] = otf
+	for k := range r.fontCache { // drop stale versions of the same file
+		if strings.HasPrefix(k, absPath+"\x00") {
+			delete(r.fontCache, k)
+		}
+	}
+	r.fontCache[key] = otf
 	r.fontMu.Unlock()
 	return otf, nil
 }

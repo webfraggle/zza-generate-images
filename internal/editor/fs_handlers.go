@@ -5,7 +5,9 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 	"gopkg.in/yaml.v3"
@@ -20,6 +22,8 @@ type InvalidateCacheFn func(template string)
 type FSHandlers struct {
 	TemplatesDir string
 	Invalidate   InvalidateCacheFn
+	// Feed serves GET /edit/{template}/events. nil answers 404 (no watcher).
+	Feed ChangeFeed
 }
 
 // NewFSHandlers constructs handlers. invalidate may be nil in tests.
@@ -34,6 +38,7 @@ func NewFSHandlers(templatesDir string, invalidate InvalidateCacheFn) *FSHandler
 func (h *FSHandlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /edit/{template}/files", h.ListFiles)
 	mux.HandleFunc("GET /edit/{template}/file/{filename}", h.GetFile)
+	mux.HandleFunc("GET /edit/{template}/events", h.Events)
 	mux.HandleFunc("POST /edit/{template}/save", h.Save)
 	mux.HandleFunc("POST /edit/{template}/upload", h.Upload)
 	mux.HandleFunc("DELETE /edit/{template}/file/{filename}", h.DeleteFile)
@@ -75,6 +80,7 @@ func (h *FSHandlers) GetFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not read file", http.StatusInternalServerError)
 	default:
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("ETag", `"`+FileVersion(data)+`"`)
 		_, _ = w.Write(data)
 	}
 }
@@ -106,8 +112,20 @@ func (h *FSHandlers) Save(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := WriteTextFile(h.TemplatesDir, name, req.Filename, []byte(req.Content)); err != nil {
+	expected := strings.TrimPrefix(strings.TrimSpace(r.Header.Get("If-Match")), "W/")
+	expected = strings.Trim(expected, `"`)
+	newVersion, err := WriteTextFileIfMatch(h.TemplatesDir, name, req.Filename, []byte(req.Content), expected)
+	if err != nil {
 		switch {
+		case errors.Is(err, ErrVersionConflict):
+			var vce *VersionConflictError
+			cur := ""
+			if errors.As(err, &vce) {
+				cur = vce.Current
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "conflict", "current_version": cur})
 		case errors.Is(err, ErrForbidden), errors.Is(err, ErrInvalidName):
 			http.Error(w, "forbidden", http.StatusForbidden)
 		default:
@@ -119,7 +137,40 @@ func (h *FSHandlers) Save(w http.ResponseWriter, r *http.Request) {
 	if h.Invalidate != nil {
 		h.Invalidate(name)
 	}
+	w.Header().Set("ETag", `"`+newVersion+`"`)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// eventsTimeout is how long the long-poll waits for changes.
+const eventsTimeout = 25 * time.Second
+
+// Events is the long-poll endpoint for file changes of a template.
+func (h *FSHandlers) Events(w http.ResponseWriter, r *http.Request) {
+	if h.Feed == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name, ok := h.requireTemplate(w, r)
+	if !ok {
+		return
+	}
+	var batch ChangeBatch
+	if s := r.URL.Query().Get("since"); s == "" {
+		batch = ChangeBatch{Seq: h.Feed.Current()}
+	} else {
+		since, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			http.Error(w, "invalid since", http.StatusBadRequest)
+			return
+		}
+		batch = h.Feed.Wait(r.Context(), name, since, eventsTimeout)
+	}
+	if batch.Files == nil {
+		batch.Files = []string{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(batch)
 }
 
 func (h *FSHandlers) Upload(w http.ResponseWriter, r *http.Request) {

@@ -1445,3 +1445,37 @@ body.editor-page {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* External-change notice and save-conflict dialog (editor) */
+.external-change {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  flex-shrink: 0;
+  font-size: .77rem;
+  font-weight: 500;
+  color: var(--red);
+  border-bottom: 1px solid var(--red);
+  background: var(--surface-2);
+}
+.external-change[hidden] { display: none; }
+.external-change span { flex: 1; }
+
+#conflict-dialog {
+  max-width: 420px;
+  padding: 20px 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-color);
+  font-size: .9rem;
+  line-height: 1.5;
+}
+#conflict-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+#conflict-dialog .dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}

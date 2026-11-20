@@ -205,6 +205,14 @@ func (s *Server) RegisterEditor(h *editor.FSHandlers, extra ...EditorRoute) {
 	s.editorHandler = mux
 }
 
+// ForgetPreview drops the cached preview GIF of a template (called by the
+// file watcher when files change from outside the editor).
+func (s *Server) ForgetPreview(name string) {
+	s.previewMu.Lock()
+	delete(s.previewGIFs, name)
+	s.previewMu.Unlock()
+}
+
 // InvalidateTemplateCache touches template.yaml so the next render recomputes.
 // The existing renderAndServe key includes template.yaml's mod-time, so bumping
 // it invalidates all cached PNGs for the template.
@@ -212,6 +220,7 @@ func (s *Server) InvalidateTemplateCache(name string) {
 	if err := renderer.ValidateTemplateName(name); err != nil {
 		return
 	}
+	s.ForgetPreview(name)
 	p := filepath.Join(s.templatesDir, name, "template.yaml")
 	now := time.Now()
 	if err := os.Chtimes(p, now, now); err != nil {

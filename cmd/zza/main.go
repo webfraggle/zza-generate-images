@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/webfraggle/zza-generate-images/internal/cli"
@@ -12,8 +16,10 @@ import (
 	"github.com/webfraggle/zza-generate-images/internal/desktop"
 	"github.com/webfraggle/zza-generate-images/internal/devpreview"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
+	"github.com/webfraggle/zza-generate-images/internal/mcp"
 	"github.com/webfraggle/zza-generate-images/internal/server"
 	"github.com/webfraggle/zza-generate-images/internal/version"
+	"github.com/webfraggle/zza-generate-images/internal/watch"
 	"github.com/webfraggle/zza-generate-images/web"
 )
 
@@ -40,6 +46,7 @@ func rootCmd() *cobra.Command {
 	root.AddCommand(cli.RenderCmd()) // render has its own --templates-dir (default ./templates)
 	root.AddCommand(cli.ExportCmd()) // export has its own --templates-dir (default ./templates)
 	root.AddCommand(serveCmd())
+	root.AddCommand(mcpCmd())
 	root.AddCommand(versionCmd())
 	return root
 }
@@ -60,10 +67,11 @@ func serveCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Run the editor+preview server without opening a window",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			handler, err := buildHandler(templatesDir)
+			handler, stop, err := buildHandler(templatesDir)
 			if err != nil {
 				return err
 			}
+			defer stop()
 			return desktop.RunServerOnly("127.0.0.1:"+port, handler)
 		},
 	}
@@ -73,26 +81,58 @@ func serveCmd() *cobra.Command {
 	return c
 }
 
+func mcpCmd() *cobra.Command {
+	var templatesDir string
+	c := &cobra.Command{
+		Use:   "mcp",
+		Short: "Run an MCP server on stdin/stdout for AI clients (Claude Desktop, Claude Code)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			exe, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("locating executable: %w", err)
+			}
+			tdir, err := desktop.ResolveTemplatesDir(templatesDir, exe)
+			if err != nil {
+				return err
+			}
+			if err := desktop.EnsureTemplatesDir(tdir); err != nil {
+				return err
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			return mcp.Run(ctx, mcp.Config{TemplatesDir: tdir})
+		},
+	}
+	// stdout belongs to the MCP protocol: Cobra must never write usage or help there.
+	c.SilenceUsage = true
+	c.SetOut(os.Stderr)
+	c.Flags().StringVar(&templatesDir, "templates-dir", "",
+		"path to templates directory (defaults to sibling of executable)")
+	return c
+}
+
 func runGUI(override string) error {
-	handler, err := buildHandler(override)
+	handler, stop, err := buildHandler(override)
 	if err != nil {
 		return err
 	}
+	defer stop()
 	return desktop.RunGUI("Zugzielanzeiger", handler)
 }
 
-// buildHandler wires the HTTP server with editor handlers attached.
-func buildHandler(templatesOverride string) (*server.Server, error) {
+// buildHandler wires the HTTP server with editor handlers attached. The
+// returned stop function ends the file watcher.
+func buildHandler(templatesOverride string) (*server.Server, func(), error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return nil, fmt.Errorf("locating executable: %w", err)
+		return nil, nil, fmt.Errorf("locating executable: %w", err)
 	}
 	tdir, err := desktop.ResolveTemplatesDir(templatesOverride, exe)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := desktop.EnsureTemplatesDir(tdir); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	log.Printf("templates: %s", tdir)
 
@@ -106,14 +146,25 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 	}
 	srv, err := server.New(cfg, web.FS)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	srv.SetEditorEnabled(true)
+	h := editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache)
+	stop := func() {}
+	if w, err := watch.New(tdir, 200*time.Millisecond); err != nil {
+		log.Printf("watch disabled: %v", err)
+	} else {
+		w.OnChange(func(t string, _ []string) { srv.ForgetPreview(t) })
+		ctx, cancel := context.WithCancel(context.Background())
+		go w.Run(ctx)
+		stop = cancel
+		h.Feed = w
+	}
 	preview := devpreview.New(tdir)
-	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache),
+	srv.RegisterEditor(h,
 		server.EditorRoute{Pattern: devpreview.Pattern, Handler: preview},
 		server.EditorRoute{Pattern: devpreview.ExportPattern, Handler: preview.ExportHandler()})
-	return srv, nil
+	return srv, stop, nil
 }
 
 // cacheDirFor returns a user-specific cache directory for desktop runs.

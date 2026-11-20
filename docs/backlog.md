@@ -30,6 +30,18 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 
 - YAML-Alias-Bombe-Schutz im Editor-Save (`gopkg.in/yaml.v3` ohne `SetMaxAliasCount`-Härtung). Body ist auf 1 MiB begrenzt; weitere Mitigation falls jemals Multi-Tenant.
 - CORS im Desktop-Build einschränken statt Wildcard `*` auf `/render`.
+- Host-Allowlist/Origin-Prüfung für den lokalen Editor (DNS-Rebinding/CSRF; betrifft auch `/edit/{t}/events`).
+- `govulncheck` in den Build aufnehmen. Stand 2026-11-15 (`govulncheck ./...`): 29 erreichbare Befunde — Standardbibliothek go1.26.2 (Toolchain auf ≥ 1.26.11 heben), `golang.org/x/image` v0.18.0 → ≥ v0.39.0 (GO-2026-4962, Speicher bei bösartigen SFNT-Fonts; erreichbar über Renderer und `list_fonts`/`add_font`), `golang.org/x/net` v0.35.0 → ≥ v0.60.0.
+
+## MCP-Server (Nachträge)
+
+- Einheitliche Namensregeln über alle Tools (bereinigen per `SanitizeFilename` vs. ablehnen).
+- Helfer für Fehlerkürzung, Endungsprüfung und Namens-Regex zusammenführen.
+- Einheitliche Fehlertexte für Größen und Endungen.
+- `ctx`-Abbruch auch für Render (`render_preview`, Probe-Render) und Foto-Werkzeuge.
+- `create_template` räumt bei einem Fehler nach `InitTemplate` den halb angelegten Ordner nicht auf.
+- `add_font` mit abweichender `id` für eine schon registrierte Datei gibt still die alte id zurück.
+- Windows: stdio-Betrieb des GUI-Binaries und Chtimes→Write-Echo des Watchers praktisch prüfen.
 
 - Go-Bug: `stripBetween` mit leerem öffnendem Begrenzer (`stripBetween('', …)`) läuft endlos (Schleife in `internal/renderer`). Nur durch Template-Argumente auslösbar, daher geringes Risiko. Der C++-Kern gibt den Wert in diesem Fall unverändert zurück; Go sollte dasselbe tun (R5).
 

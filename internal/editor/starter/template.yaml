@@ -7,20 +7,60 @@ meta:
     width: 240
     height: 240
 
+# Das Bild enthält beide Seiten des Anzeigers (1,05" = je Seite 240×120 px):
+#   Seite A = obere Hälfte (y 0–119), Seite B = untere Hälfte (y 120–239).
+# Gleis-Feld außen: oben links, unten rechts. Deshalb wird die untere Hälfte
+# gespiegelt aufgebaut (Blöcke vertauscht), nicht 1:1 kopiert.
+#
+# Text-Layer brauchen eine Schrift — unter fonts: eintragen (KI: add_font), z.B.
+# fonts:
+#   - id: bold
+#     file: Roboto-Bold.ttf
+
 layers:
-  # Obere Hälfte
+  # ---------- Obere Hälfte = Seite A (y 0–119) ----------
+  # Hintergrund
   - type: rect
     x: 0
     y: 0
     width: 240
     height: 120
-    color: "#1a1a1a"
+    color: "#142a9b"
 
-  # Untere Hälfte (Kopie der oberen)
+  # Gleis-Feld (x 0–43), außen = oben links
+  - type: rect
+    x: 0
+    y: 0
+    width: 44
+    height: 120
+    color: "#ffffff"
+
+  # Inhaltsfeld (x 44–239): hier Zeit, Ziel, Via, Hinweis als Text-Layer
+
+  # ---------- Untere Hälfte = Seite B (y 120–239), gespiegelt ----------
+  # Hintergrund für Lücken zwischen den kopierten Blöcken
+  - type: rect
+    x: 0
+    y: 120
+    width: 240
+    height: 120
+    color: "#142a9b"
+
+  # copy-Layer immer am Ende: sie kopieren alles, was davor gezeichnet wurde.
+  # Inhaltsfeld nach links unten (x 44–239 → x 0–195)
+  - type: copy
+    src_x: 44
+    src_y: 0
+    src_width: 196
+    src_height: 120
+    x: 0
+    y: 120
+
+  # Gleis-Feld außen = unten rechts (x 0–43 → x 196–239)
   - type: copy
     src_x: 0
     src_y: 0
-    src_width: 240
+    src_width: 44
     src_height: 120
-    x: 0
+    x: 196
     y: 120

@@ -149,11 +149,15 @@ Kommandozeile:
   zza                 — startet die GUI (Standard)
   zza serve --port N  — startet nur den lokalen Server, ohne Fenster
   zza render -t NAME -i in.json -o out.png  — rendert ein Template als PNG
+  zza mcp             — MCP-Server für Claude Desktop / Claude Code (siehe Anleitung)
   zza version         — gibt die Version aus
 EOF
 
-    # Zip the staging dir (contents, not the dir itself).
-    (cd "$staging" && zip -rq "../release/$zip_name" .)
+    # Zip the staging dir (contents, not the dir itself). Remove any previous
+    # ZIP first: `zip -r` adds to an existing archive, so templates deleted
+    # from the repo would otherwise linger in every later release.
+    rm -f "$RELEASE_DIR/$zip_name"
+    (cd "$staging" && zip -rq "../release/$zip_name" . -x '*.DS_Store')
     rm -rf "$staging"
     echo "  → $RELEASE_DIR/$zip_name"
     ok=$((ok+1))
