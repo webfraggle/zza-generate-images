@@ -330,7 +330,7 @@ layers:
 
 - Der Zielwert muss nicht im `reel` stehen; er wird am Ende trotzdem angezeigt (freier Via-Text, ungewöhnliche Zeichen). Zeichen außerhalb des `reel` werden einfach so gezeichnet.
 - `min_flips`, `max_flips` und `flip_frames` steuern, wie lange und wie schnell eine Klappe rattert. Ohne Angabe: mindestens 4 Schritte, höchstens so viele, wie in `duration` passen.
-- **Determinismus:** Gleiches Template + exakt gleicher Request-Body (Bytes, also auch gleiche Leerzeichen und Schlüsselreihenfolge) ergibt immer dasselbe GIF (bytegleich); ein anders formatierter Body kann ein anderes Ablaufmuster ergeben. Die Klappen stoppen aber zu unterschiedlichen Zeiten. Das gilt nicht für Templates, die `{{now.*}}` verwenden — die Uhrzeit wird einmal pro Animation eingefroren, ändert sich aber von Aufruf zu Aufruf.
+- **Determinismus:** Gleiches Template + exakt gleicher Request-Body (Bytes, also auch gleiche Leerzeichen und Schlüsselreihenfolge) ergibt immer dasselbe GIF (bytegleich); ein anders formatierter Body kann ein anderes Ablaufmuster ergeben. Die Klappen stoppen aber zu unterschiedlichen Zeiten. Das gilt nicht für Templates, die `{{now.*}}` verwenden — bei Split-Flap wird die Uhrzeit einmal pro Animation eingefroren (im Frame-Modus läuft `now` je Frame mit), sie ändert sich aber von Aufruf zu Aufruf.
 - Das GIF spielt einmal ab und bleibt auf dem letzten Frame stehen. Dieses Bild ist identisch mit dem normalen PNG der gleichen Daten. Das erste Frame zeigt die Klappen bereits in Bewegung, weil das Display vorher das Standbild des alten Zugs zeigt.
 - Ein Template ohne `splitflap`-Layer liefert bei `?format=gif` ein GIF mit nur einem Frame.
 - Grenzen: max. 64 Klappen pro Template, max. 64 `reel`-Einträge pro Layer, max. 125 Frames, maximal mögliche Frames (`duration × fps`) × Breite × Höhe ≤ 32.000.000 Pixel (Obergrenze, vorab geprüft).
@@ -513,7 +513,7 @@ Division durch 0 ergibt `0`. Nicht-numerische Werte werden unverändert durchger
 **Variablen als Argument:** Das Argument von `add`, `sub`, `mul`, `div` und `mod` darf auch eine Variable oder eine ganze Filterkette sein (ohne Anführungszeichen):
 
 ```yaml
-rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+rotate: "{{anim.frame | mul(6)}}"
 value:  "{{zug2.zeit | minutes | sub(zug1.zeit | minutes)}}"
 ```
 
@@ -571,7 +571,8 @@ Mit `format(muster)` kann die Zeit frei formatiert werden:
 value: "{{now | format('HH:mm:ss')}}"    # → "15:54:07"
 value: "{{now | format('dd.MM.yyyy')}}"  # → "24.03.2026"
 value: "{{now | format('EEEE')}}"        # → "Dienstag"
-value: "{{now | format('HH:mm:ss', anim.time)}}"  # Uhr läuft in der Animation mit (zweites Argument: Sekunden-Versatz)
+value: "{{now | format('HH:mm:ss')}}"           # Uhr läuft in der Animation und auf dem Gerät von selbst
+value: "{{now | format('HH:mm', 90)}}"          # zweites Argument: Versatz in Sekunden (hier 90 s später)
 ```
 
 ### Zeitzone
@@ -727,14 +728,14 @@ layers:
     file: sekundenzeiger.png
     x: 100
     y: 100
-    rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+    rotate: "{{now.second | mul(6)}}"
 ```
 
 Regeln:
 
 - `frames`: 2–125, `frame_delay`: 0.02–10 Sekunden (in 0.01-Schritten), `frames × frame_delay` höchstens 120 s. Nicht kombinierbar mit `fps`/`duration` oder einem `splitflap`-Layer.
 - `loop: true` wiederholt das GIF endlos, sonst spielt es einmal.
-- `now` wird einmal pro Render gelesen: Stunden- und Minutenzeiger stehen im GIF still, nur der Sekundenzeiger läuft. Er beginnt bei der aktuellen Sekunde und steht nach 60 Frames wieder am Anfang.
+- `now` läuft im Frame-Modus mit: Frame *i* zeigt Startzeit + *i* × `frame_delay`. Stunden-, Minuten- und Sekundenzeiger bewegen sich von allein; der Sekundenzeiger beginnt bei der aktuellen Sekunde und steht nach 60 Frames wieder am Anfang. Addiere für eine Uhr **kein** `anim.frame`/`anim.time` zu `now` (`now.second | add(anim.frame)`): das zählt die Zeit doppelt, die Uhr läuft doppelt so schnell. Alle Fälle (PNG, GIF, Split-Flap, Gerät) stehen in der Tabelle „Bedeutung von `now`“ in [yaml-template-spec.md](yaml-template-spec.md#bedeutung-von-now).
 - `anim.frame` (0 … frames−1) und `anim.frames` sind in Text-/Wert-Ausdrücken und in Koordinaten-Ausdrücken (x/y/width/height) verfügbar; `anim.time` (Sekunden seit Start) nur in Text-/Wert-Ausdrücken, nicht in Koordinaten. Im PNG ist `anim.frame` = 0, das PNG gleicht also Frame 0 des GIFs.
 - Templates mit `now` werden vom Server nicht gecacht (`X-Cache: BYPASS`), die Uhr bleibt also nie stehen.
 
