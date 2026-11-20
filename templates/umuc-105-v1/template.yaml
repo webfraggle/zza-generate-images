@@ -39,8 +39,8 @@ layers:
 
   # Uhr: Zifferblatt-Mitte (39,56). Zeiger-PNGs 70×70, Drehpunkt = Bildmitte,
   # bei 0° nach oben; rotate dreht im Uhrzeigersinn, x/y = Drehpunkt.
-  # now ist pro Render eingefroren: Stunde und Minute stehen im GIF still,
-  # nur der Sekundenzeiger läuft über anim.frame (60 Frames à 1 s).
+  # now läuft im GIF mit (Frame i = Start + i s, 60 Frames à 1 s) und zeigt
+  # auf dem Gerät die Geräte-Uhr; kein Versatz über anim.frame nötig.
   - type: image
     file: clock-hour.png
     x: 39
@@ -57,7 +57,7 @@ layers:
     file: clock-seconds.png
     x: 39
     y: 56
-    rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+    rotate: "{{now.second | mul(6)}}"
 
   # Kopfzeile der Abfahrtsliste
   - type: text

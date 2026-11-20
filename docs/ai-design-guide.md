@@ -454,6 +454,12 @@ Regeln:
   color: "#ffffff"
 ```
 
+- **Uhren:** Beschreibe die Uhr einmal mit `now`: `rotate: "{{now.second | mul(6)}}"`,
+  `{{now | format('HH:mm:ss')}}`. `now` läuft im GIF je Frame weiter und zeigt auf dem
+  Gerät die Geräte-Uhr. Addiere **nie** `anim.frame` oder `anim.time` zur Uhrzeit
+  (`now.second | add(anim.frame)`, `format('HH:mm:ss', anim.time)`): das zählt die Zeit
+  doppelt, die Uhr läuft doppelt so schnell. Ein Standbild mit Uhrzeit aktualisiert sich
+  auf dem Gerät selbst (Manifest-Feld `clock`: `minute` bzw. `second`).
 - Schreibe nie Beispieldaten fest ins Template (kein `value: "15:54"`); `write_file`
   warnt bei festen Uhrzeiten.
 - Lege in `default.json` realistische Werte passend zum Vorbild an (Bahnhofsnamen,

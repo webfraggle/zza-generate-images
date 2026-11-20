@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"bytes"
+	"encoding/json"
 	"image"
 	"os"
 	"path/filepath"
@@ -141,5 +142,36 @@ layers:
 	assertSameImage(t, "last frame", a.Frames[len(a.Frames)-1], pngAt(t, tmpl, start))
 	if ticks != 1 {
 		t.Errorf("clock read %d times, want once", ticks)
+	}
+}
+
+// The shipped clock templates describe the clock once (now); frame 3 of a
+// GIF starting at 10:08:57 must equal the PNG at 10:09:00.
+func TestShippedClockTemplates(t *testing.T) {
+	start := time.Date(2026, 11, 20, 10, 8, 57, 0, time.UTC)
+	for _, name := range []string{"umuc-105-v1", "nederland-105-v1", "oebb-105-v1"} {
+		t.Run(name, func(t *testing.T) {
+			tmpl, err := LoadTemplate("../../templates", name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := os.ReadFile("../../templates/" + name + "/default.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var data map[string]interface{}
+			if err := json.Unmarshal(raw, &data); err != nil {
+				t.Fatal(err)
+			}
+			r := NewWithClock("../../templates", func() time.Time { return start })
+			a := mustAnimate(t, r, tmpl, data, nil)
+			want, err := NewWithClock("../../templates", func() time.Time {
+				return time.Date(2026, 11, 20, 10, 9, 0, 0, time.UTC)
+			}).Render(tmpl, data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertSameImage(t, "frame 3", a.Frames[3], want)
+		})
 	}
 }

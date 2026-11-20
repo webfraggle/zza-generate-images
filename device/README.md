@@ -74,6 +74,28 @@ Code behalten; ohne eigenen Namespace gäbe es doppelte Symbole (ODR) mit
 unterschiedlichem Layout (4-Byte-Slot-Offsets, `strtod`-Patch). Der Kern-Code
 schreibt weiter `ArduinoJson::`, der Namespace ist `inline`.
 
+### C-API: Uhrzeit und Animation
+
+Die vollständige Beschreibung steht in `zzarender_c.h`. Zur Zeit gilt:
+
+- `int zza_anim_frame(zza_renderer*, int i, const zza_time* now, unsigned char* rgb888, int* delay_cs, zza_rect* dirty, int max_rects, int* n_rects)`
+  rendert Frame *i* in `rgb888` (das muss Frame *i*−1 enthalten). `now == NULL`: Der Kern rechnet
+  selbst wie Go: im Frame-Modus Startzeit von `zza_anim_begin` + `floor(i * delay_cs / 100)` Sekunden
+  mit Übertrag ins Datum; Split-Flap und Standbild (`frames == 1`) nutzen die Startzeit. `now != NULL`:
+  diese Zeit gilt für den Frame (Frame-Modus und Standbild); Split-Flap ignoriert sie. Go-Brücke,
+  ZZA-Vorschau und MCP-Gerätecheck rufen mit `NULL`; die Firmware gibt die Geräte-Uhr hinein.
+- `int zza_clock(const zza_renderer*)` liefert aus dem Manifest-Feld `clock` (`"none"`, `"minute"`,
+  `"second"`) `ZZA_CLOCK_NONE`, `ZZA_CLOCK_MINUTE` oder `ZZA_CLOCK_SECOND`: wie oft ein Standbild
+  aufgefrischt werden muss. Ohne Paket oder ohne Feld: `ZZA_CLOCK_NONE`; `zza_load` weist andere Werte
+  mit `ZZA_ERR_FORMAT` ab.
+- `int zza_render_diff(zza_renderer*, const char* data, size_t len, const zza_time* now, unsigned char* rgb888, zza_rect* dirty, int max_rects, int* n_rects)`
+  wie `zza_render`, aber `rgb888` enthält das vorige Bild und wird an Ort und Stelle aktualisiert; die
+  geänderten Rechtecke werden wie bei `zza_anim_frame` gemeldet (0 = unverändert; mehr als `max_rects`:
+  ein umschließendes Rechteck). `ZZA_ERR_STATE`, solange eine Animation offen ist. Der Vergleichspuffer
+  (172800 Byte) belegt nur während des Aufrufs Budget-Speicher; bei einem Fehler bleibt `rgb888` unverändert.
+
+Siehe Spec `docs/superpowers/specs/2026-11-20-template-clock-design.md`.
+
 ### Vorschau wie das Gerät: `zza render --zza`
 
 ```sh

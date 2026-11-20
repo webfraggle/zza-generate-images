@@ -181,6 +181,7 @@ ZZA-Vorschau im Editor, Tests                     DisplayBuffer → TFT_eSPI
   - Der Adapter übergibt dem Kern eine Zeit.
   - In v1 ist das eine **zufällige Uhrzeit** pro Start bzw. Zugwechsel **[C]**.
   - Der Kern kennt keine Zeitquelle; NTP/RTC wird später nur im Adapter ergänzt.
+  - Spätere Stufe (Geräte-Uhr, laufendes `now`, Manifest-Feld `clock`): siehe `2026-11-20-template-clock-design.md`.
 
 ## 7. Paketformat „ZZA-Template v1“
 
@@ -345,7 +346,7 @@ Jede Stufe folgt dem üblichen Ablauf: Spec-Detail, Plan mit TDD-Tasks, manuelle
    - User-Guide „Template auf den ZZA übertragen“;
    - Template-Spec um „ZZA-kompatibel“ ergänzen;
    - MCP-Kompatibilitätsprüfung.
-5. **Später, eigener Entwurf:** NTP/RTC und echte Uhrzeit, Live-Uhr.
+5. **Später, eigener Entwurf:** NTP/RTC und echte Uhrzeit, Live-Uhr. Entwurf: `2026-11-20-template-clock-design.md`.
 
 ## 11. Offen
 

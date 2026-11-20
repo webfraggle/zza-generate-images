@@ -97,8 +97,9 @@ func TestUmuc105_Expressions(t *testing.T) {
 			t.Errorf("rotate %s = %q, want %q", l.File, got, w)
 		}
 		if l.File == "clock-seconds.png" {
-			if got := e.withAnim(59, 60, 100).Interpolate(l.Rotate.Resolve(e)); got != "534" {
-				t.Errorf("rotate seconds at frame 59 = %q, want 534", got)
+			// anim.frame no longer shifts the hand; the clock comes from now.
+			if got := e.withAnim(59, 60, 100).Interpolate(l.Rotate.Resolve(e)); got != "180" {
+				t.Errorf("rotate seconds at frame 59 = %q, want 180 (no double count)", got)
 			}
 		}
 	}

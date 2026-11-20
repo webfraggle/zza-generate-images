@@ -168,7 +168,7 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   file: clock-seconds.png
   x: 120
   y: 120
-  rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+  rotate: "{{now.second | mul(6)}}"
 ```
 
 ---
@@ -375,7 +375,7 @@ Beide Beispiele stammen aus `templates/faltblatt-105-v1/template.yaml` (dort ste
 
 - Ein Umklappen von Wert A auf Wert B dauert `flip_frames` Frames: erst fällt die obere Hälfte (obere Hälfte von A, gestaucht und abgedunkelt, über der oberen Hälfte von B), dann klappt die untere Hälfte von B nach unten über A. Solange ein Modul läuft, folgt Umklappen auf Umklappen ohne Ruheframe.
 - Jedes Modul durchläuft `k` Schritte entlang seines `reel` (zyklisch) und endet auf dem Zielwert. Liegt der Zielwert im `reel`, wird die Startposition so gewählt, dass der Lauf dort ankommt; sonst folgt er als letzter Schritt auf `reel`-Einträge. `k` wird pro Modul pseudozufällig aus `[min_flips, max_flips]` gezogen; die Grenzen werden auf das begrenzt, was in `duration` passt. Die Module stoppen deshalb zu unterschiedlichen Zeiten.
-- **Deterministisch:** Der Zufall ist ein Hash aus Template-Name, Request-Body, Layer- und Modulnummer. Gleiches Template + gleicher Request-Body ⇒ **bytegleiches GIF**. Der Zeitpunkt für `{{now.*}}` wird einmal pro Animation eingefroren; die Zusage gilt daher nur für Templates ohne `now`.
+- **Deterministisch:** Der Zufall ist ein Hash aus Template-Name, Request-Body, Layer- und Modulnummer. Gleiches Template + gleicher Request-Body ⇒ **bytegleiches GIF**. Beim Split-Flap-GIF wird der Zeitpunkt für `{{now.*}}` einmal beim Start eingefroren, im Frame-Modus läuft `now` mit (siehe [Bedeutung von `now`](#bedeutung-von-now)); die Zusage gilt daher nur für Templates ohne `now`.
 - **Start und Ende:** Frame 0 zeigt bereits alle Module in Bewegung, denn das Display zeigt vorher das Standbild des alten Zugs. Das letzte Frame ist das Standbild und entspricht dem PNG-Render derselben Daten (bis auf die GIF-Palettierung). Das GIF spielt **einmal** (keine Loop-Extension) und bleibt auf dem letzten Frame stehen.
 - Alle übrigen Layer (auch `copy`) werden pro Frame normal gerendert.
 - Ein Template ohne `splitflap`-Layer und ohne `meta.animation.frames` ergibt bei `?format=gif` ein GIF mit einem einzigen Frame.
@@ -413,9 +413,32 @@ meta:
 
 **Ablauf:** Bei `?format=gif` wird die komplette Layer-Liste `frames`-mal durchlaufen, jedes Frame mit eigener `anim.frame`. `copy`-Layer übernehmen den Zustand des jeweiligen Frames. Es gibt keinen zusätzlichen Halte-Frame am Ende. Gleiche aufeinanderfolgende Frames werden zusammengefasst (Verzögerung addiert).
 
-**`now` ist eingefroren:** Die Uhrzeit wird einmal pro Render gelesen und gilt für alle Frames. Stunden- und Minutenzeiger stehen im GIF also still, nur Ausdrücke mit `anim.*` ändern sich. Der Sekundenzeiger beginnt bei der aktuellen Sekunde (`now.second`) und läuft pro Frame weiter.
+**`now` läuft mit:** Die Startzeit wird einmal pro Render gelesen (auf die Sekunde abgeschnitten). Frame *i* rendert mit Startzeit + *i* × `frame_delay`, das Datum läuft über Mitternacht mit. Stunden-, Minuten- und Sekundenzeiger bewegen sich im GIF also von allein; ein Versatz über `anim.frame` oder `anim.time` ist für eine Uhr nicht nötig (siehe [Bedeutung von `now`](#bedeutung-von-now)).
+
+**Achtung, doppelte Geschwindigkeit:** Wer zu `now` noch `anim.frame` oder `anim.time` addiert (`now.second | add(anim.frame)`, `format('HH:mm:ss', anim.time)`), zählt die Zeit doppelt: die Uhr läuft doppelt so schnell. Ältere Templates mit dieser Schreibweise müssen angepasst werden.
 
 **PNG = Frame 0:** `?format=png` (und Vorschau) rendert das Template mit `anim.frame = 0`, also pixelgleich zu Frame 0 des GIFs.
+
+### Bedeutung von `now`
+
+| Fall | `now` |
+|---|---|
+| PNG, Vorschau-Standbild | Zeitpunkt des Renderns (= Frame 0 des GIF, wie bisher) |
+| GIF im Frame-Modus | Start + `anim.frame` × `frame_delay`, je Frame neu (Datum läuft über Mitternacht mit) |
+| GIF mit Split-Flap | eingefroren beim Start (wie bisher, 0,5–5 s) |
+| Gerät | Uhr des Geräts beim Rendern des Bildes |
+
+`anim.frame`, `anim.frames`, `anim.time` und `format('…', sek)` bleiben unverändert erhalten. Für Uhren braucht man den Versatz nicht mehr: `now.second`, `now.minute` und `format('HH:mm:ss')` genügen. Die Zusagen „PNG = Frame 0“ und „bytegleiches GIF ohne `now`“ gelten weiter.
+
+**Auf dem Gerät** zeigt jedes Bild die Zeit der Geräte-Uhr in dem Moment, in dem es gerendert wird. Das Datum ist dort fest der 1.1.2026 (Donnerstag); `meta.timezone` gilt nicht, es zählt, was die Geräte-Uhr liefert. Ein ZZA-Paket trägt im `manifest.json` das Feld `clock`:
+
+| `clock` | Wann | Verhalten auf dem Gerät |
+|---|---|---|
+| `none` | kein `now` im Template (auch der Wert bei fehlendem Feld) | Standbild bleibt stehen |
+| `minute` | `now` wird verwendet, aber nicht die Sekunde (auch nur das Datum) | Standbild wird neu gerendert, sobald sich die Minute der Geräte-Uhr ändert |
+| `second` | `now.second` oder ein `format`-Muster mit Sekunden; auch wenn das Muster nicht statisch lesbar ist | Standbild wird jede Sekunde neu gerendert |
+
+Im Frame-Modus rendert das Gerät bei `minute`/`second` immer live im Takt von `frame_delay`, `now` ist die Geräte-Uhr je Frame. Bei Split-Flap bleibt die Zeit beim Start eingefroren. Gezeichnet wird nur, was sich ändert.
 
 ### Animationsvariablen
 
@@ -446,7 +469,7 @@ layers:
     file: clock-seconds.png
     x: 120
     y: 120
-    rotate: "{{now.second | add(anim.frame) | mul(6)}}"
+    rotate: "{{now.second | mul(6)}}"
 ```
 
 Nach 60 Frames steht der Zeiger wieder auf der Startposition, die Endlosschleife springt nicht.
@@ -500,7 +523,7 @@ Variablen aus dem JSON-Input werden mit `{{` und `}}` eingebettet.
 {{now.weekday}}      Wochentag          z.B. "Dienstag"
 ```
 
-`now` wird in der Zeitzone `meta.timezone` ausgewertet (Standard `Europe/Berlin`) und ist pro Render (bzw. pro GIF) eingefroren.
+`now` wird in der Zeitzone `meta.timezone` ausgewertet (Standard `Europe/Berlin`). Ob `now` pro Render feststeht oder je Frame weiterläuft, steht in der Tabelle unter [Bedeutung von `now`](#bedeutung-von-now).
 
 ```
 {{anim.frame}}       Frame-Nummer       0 … frames−1 (sonst 0)
@@ -512,8 +535,11 @@ Datum/Zeit lässt sich auch formatieren:
 ```yaml
 value: "{{now | format('HH:mm')}}"     # → "15:51"
 value: "{{now | format('dd.MM.yyyy')}}" # → "24.03.2026"
-value: "{{now | format('HH:mm:ss', anim.time)}}" # laufende Uhr in einer Animation (Versatz in Sekunden)
+value: "{{now | format('HH:mm:ss')}}"  # laufende Uhr: now läuft im GIF und auf dem Gerät von selbst
+value: "{{now | format('HH:mm', 90)}}"  # mit Versatz in Sekunden (hier: 90 s später)
 ```
+
+Kein `anim.frame`/`anim.time` als Versatz für eine Uhr: `now` läuft selbst mit, ein zusätzlicher Versatz zählt die Zeit doppelt (Uhr läuft doppelt so schnell).
 
 Format-Tokens: `HH` (Stunde 00–23), `hh` (Stunde 01–12), `mm` (Minute), `ss` (Sekunde), `dd` (Tag), `MM` (Monat), `yyyy` (Jahr), `EE` (Wochentag kurz), `EEEE` (Wochentag lang)
 
@@ -579,7 +605,7 @@ Ist der Wert links keine Zahl, bleibt er unverändert; ein leerer Wert (z.B. ein
 ```yaml
 rotate: "{{now.minute | mul(6)}}"                                    # Minutenzeiger: 0–354°
 rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"        # Stundenzeiger mit Minutenanteil (10:15 → 307.5°)
-rotate: "{{now.second | add(anim.frame) | mul(6)}}"                  # Sekundenzeiger, läuft im GIF
+rotate: "{{now.second | mul(6)}}"                                   # Sekundenzeiger, läuft im GIF und auf dem Gerät
 value:  "{{now.hour | mul(30) | round}}"                             # Winkel als Zahl ausgeben
 # Minuten bis zur Abfahrt relativ zu Zug 1 (+5 wie im Original); über Mitternacht positiv:
 value:  "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"   # 10:15/10:18 → 8
@@ -862,7 +888,7 @@ Glyphenkanten: Das Gerät setzt Glyphen auf ganze Pixel. Die Server-Vorschau kan
 | Rotation: Koordinaten | `x`/`y` bei gesetztem `rotate` = Mittelpunkt des Bildes auf dem Canvas; kein `pivot_x`/`pivot_y` |
 | Rotation: Richtung | Uhrzeigersinn (positiver Winkel = CW) |
 | Rotation: Drehachse | Liegt für jeden Winkel exakt auf `x`/`y` |
-| Frame-Animation | `meta.animation.frames`/`frame_delay`/`loop`; `anim.*`-Variablen; `now` pro Render eingefroren; nicht mit `splitflap` kombinierbar |
+| Frame-Animation | `meta.animation.frames`/`frame_delay`/`loop`; `anim.*`-Variablen; `now` läuft im Frame-Modus mit; nicht mit `splitflap` kombinierbar |
 | Zeitzone | `meta.timezone`, Standard `Europe/Berlin` |
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |

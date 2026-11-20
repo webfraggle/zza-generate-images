@@ -33,7 +33,7 @@ fonts:
 # - Zeile 2 fließt wie im PHP ($x += $w + 3): Zeit, bei abw > 0 neue Zeit in
 #   Gelb (zeit + abw), dann Ziel — je 3 px Abstand. Eine Zeit ohne ":" wird
 #   unverändert gezeigt, dahinter gibt es dann keine neue Zeit.
-# - Die Uhr läuft im GIF über anim.time; das PNG zeigt Frame 0.
+# - Die Uhr läuft im GIF über now (je Frame neu); das PNG zeigt Frame 0.
 # - Das PHP wandelt vonnach nach ISO-8859-1; hier entfällt das (UTF-8).
 
 layers:
@@ -45,7 +45,7 @@ layers:
 
   # Uhr rechts oben, rechtsbündig an x 236
   - type: text
-    value: "{{now | format('HH:mm:ss', anim.time)}}"
+    value: "{{now | format('HH:mm:ss')}}"
     x: 236
     y: 10
     font: regular
@@ -54,7 +54,7 @@ layers:
     align: right
 
   - type: text
-    value: "{{now | format('HH:mm:ss', anim.time)}}"
+    value: "{{now | format('HH:mm:ss')}}"
     x: 236
     y: 10
     font: regular
@@ -63,7 +63,7 @@ layers:
     align: right
 
   - type: text
-    value: "{{now | format('HH:mm:ss', anim.time)}}"
+    value: "{{now | format('HH:mm:ss')}}"
     x: 236
     y: 10
     font: regular
