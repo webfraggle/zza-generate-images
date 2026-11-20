@@ -437,3 +437,46 @@ Bildvergleich C++ ↔ Go-Renderer: Layout, Bilder, Bedingungen, Filter, Zeiger u
 - **C++-Exceptions sind Pflicht** (`#error` ohne `__cpp_exceptions`); die `zza_test_*`-Funktionen gibt es nur mit `ZZA_TEST_HOOKS`.
 - **Lange Zahl-Strings** (z. B. `{{a | mul(2)}}` mit 200 KB Ziffern) laufen wie lange Zahlen in den Zugdaten über die beschränkte kanonische Form (`decnum.h`) vor `strtod`: beschränkter Aufwand, Rundung wie Go.
 - **ZZA-Vorschau (Desktop):** höchstens 2 gleichzeitige Renders (wie die GIF-Renders des Servers), sonst nach 15 s Wartezeit 503.
+
+## 14. Nachtrag: Messwerte Stufe 3 (2026-11-20)
+
+Gemessen auf dem QUAD-Controller (S3 N16R8, 1,05"), Release-Build, LittleFS aus `data/`, danach einmal mit DUAL-Release auf demselben Gerät. Werkzeug: Firmware `e2e/scripts/tpl-measure.ts` (installiert jedes Paket, schaltet Zugwechsel, liest `/templateStatus`). Die `worst-*`-Templates laufen dort als Geräte-Variante: dieselbe YAML, die Felder auf `config.json`-Pfade umgeschrieben (Host-Render bitgleich zum Original); lange Texte sind auf 1 300 Zeichen gekürzt (Body-Grenze 3 072 Byte von `/api/a/display/N`). Zeiten je Zugwechsel, mehrere Läufe.
+
+**Freier Speicher ohne Template:** PSRAM QUAD 7 224 315 B, DUAL 7 715 027 B (Canvas je Gleis schon belegt).
+
+| Template (Paket) | Laden (davon Lesen) | Bild | Modus, Ablauf | Kern mem / peak |
+|---|---|---|---|---|
+| faltblatt (303 KB, 14 Dateien) | 0,7–2,5 s (0,55–2,3 s) | Frame 0: 41 ms, Frame 1: 48–57 ms bei 50 ms Takt | vorgerendert in 1,3–2,1 s, Leihe 0,95–1,49 MB; Animation gesamt 3,3–4,2 s (33 Frames) | 578 KB / 1,25 MB |
+| nederland (149 KB) | 0,42–0,66 s | 49–58 ms je Frame | live, 1 s Takt (1,1 fps gemessen) | 488 KB / 488 KB |
+| oebb (293 KB) | 0,55–0,64 s | 42–62 ms | live | 657 KB / 658 KB |
+| rhb (166 KB) | 0,43–0,51 s | Standbild 28–37 ms | still | 309 KB / 484 KB |
+| sbb (290 KB, 18 Dateien) | 1,24–1,32 s (1,07–1,15 s) | Standbild 30–36 ms | still | 498 KB / 673 KB |
+| umuc (112 KB, 17 Dateien) | 0,83–0,91 s | 69–78 ms | live | 581 KB / 581 KB |
+| worst-flap | 0,2–1,0 s | anim_begin 0,8–1,8 s | QUAD: nur Endbild (Bedarf 3,16 MB > Budget); DUAL: liveSlow, 8,2 fps (Vorrender-Bedarf 5,4 MB) | 3,16 MB (DUAL) |
+| worst-frames (125 Frames, Schleife) | 0,3–1,2 s | 0,30–0,38 s je Frame | Vorrendern bis der Anteil voll ist, dann liveSlow (Bedarf 14,4 MB) | 1,35 MB / 1,41 MB |
+| worst-images (1,4 MB) | 1,5 s | Standbild 1,03 s | QUAD: eingebautes Layout „zu wenig Speicher beim Rendern“; DUAL: still | 2,30 MB / 2,49 MB |
+| worst-layers | 0,5–0,7 s | Standbild 7,3–8,0 s | still | 1,12 MB / 1,30 MB |
+| worst-text (1,96 MB, 22 Dateien) | DUAL 3,0 s | Standbild 13–28 ms | QUAD: eingebautes Layout „zu wenig Speicher beim Laden“; DUAL: still | 3,96 MB / 4,14 MB |
+
+**QUAD, beide Gleise animiert:** faltblatt + umuc: A vorgerendert (Leihe 1,25–1,39 MB), B live mit 1 s Takt. faltblatt + faltblatt: beide vorgerendert, das Vorrendern läuft verschränkt (2,7–2,8 s je Gleis, Animation gesamt ≈ 5 s), Leihe 1,25–1,55 MB je Gleis, PSRAM-Minimum 1,95 MB. Kein Neustart, keine Panic in allen Läufen; jede Rückfallstufe (vorrendern → liveSlow → Endbild → eingebautes Layout) kam vor.
+
+**Vorrender-Bedarf faltblatt** (Host, Kern und `FrameStore`-Größen des Geräts, 270 zufällige Züge): bis 1,64 MB, 95 %-Quantil 1,40–1,43 MB; Kern-Spitze 1,21–1,27 MB. Mit den Startwerten (Anteil 1,25 MiB) fiel faltblatt bei manchen Zügen auf liveSlow (6 fps, 5,5 s statt 1,7 s).
+
+**Rechenrate:** worst-layers 23,7 Mio. Operationen in 7,8 s → **3,0–3,1 Mio. Operationen/s** (Mischung aus Pixeln, Taps, Glyphen). `anim_begin` von Split-Flaps ist langsamer je Operation (faltblatt 0,27 Mio. in 0,22 s, worst-flap 0,95 Mio. in 0,8 s ≈ 1,1–1,2 Mio./s). Der Kern-Standard 10⁸ entspräche 33 s (Mischung) bis ≈ 85 s. **Befund:** 5 s × Rate = 15 Mio. liegt unter 2 × größtem legitimen Aufruf (47,4 Mio.); die Firmware-Grenze folgt deshalb der 2×-Regel, nicht der 5-s-Regel.
+
+**Verschachtelung:** Paket mit 16 Block-Ebenen, darin ein `splitflap` mit wieder 16 Block-Ebenen, `t.json` auf Tiefe 80 aufgefüllt: lädt und animiert live (13–14 fps); Loop-Stack frei (Hochwasser) **7,9 KB** von 20 KB, also ≈ 12,1 KB belegt (alle anderen Templates ≥ 15,2 KB frei). Tiefe 81: „Paket fehlerhaft: t.json: invalid JSON: TooDeep“, kein Absturz. Zugdaten-Tiefe am `jsoncheck`-Limit ist auf dem Gerät nicht erreichbar (der Kern bekommt `config.json` mit fester Tiefe 3); der Deserializer ist derselbe wie für `t.json` und mit Tiefe 80 abgedeckt.
+
+**Interner Heap:** nach Laden und nach Animation (abgefragt) QUAD ≥ 137 KB, DUAL ≥ 159 KB. Das Minimum seit dem Start (`heap_caps_get_minimum_free_size`) erreichte auf dem QUAD **107 KB** während der Läufe mit zwei Gleisen (ein Gleis: 121 KB; DUAL 143 KB) — kurzzeitig, Ursache nicht eingegrenzt (gleichzeitige HTTP-Anfragen und zwei Ladevorgänge).
+
+**Festgelegt [P]** (Firmware `src/ProjectSetup.h`):
+
+| Wert | QUAD | DUAL | Begründung |
+|---|---|---|---|
+| Kern-Budget je Gleis | 1,5 MiB (war 2,5) | 4,5 MiB (war 4) | QUAD: größter Bedarf eines ausgelieferten Templates 1,27 MB (+ 23 %); DUAL: worst-text (4,14 MB) lädt |
+| Vorrender-Anteil je Gleis | 1,75 MiB (war 1,25) | 2 MiB (war 3) | faltblatt bis 1,64 MB; QUAD: 2 × (1,5 + 1,75) MiB = 6,8 MB von 7,22 MB frei, Rest 0,4 MB für den Rest der Firmware; DUAL: 6,8 MB von 7,7 MB |
+| `TPL_WORK_LIMIT` | 48 000 000 | 48 000 000 | 2 × worst-layers; ≈ 16 s bei 3 Mio./s |
+| `TPL_LOOP_STACK` | 20 KB | 20 KB | tiefstes Paket braucht ≈ 12,1 KB, Reserve 7,9 KB ≥ 4 KB |
+
+Folge: Auf dem QUAD fallen Templates mit 1,5–2,5 MiB Kern-Bedarf (z. B. worst-images) jetzt auf das eingebaute Layout zurück, die vorher liefen; dafür spielt faltblatt immer vorgerendert. Ein Paket, das beim Laden mehr PSRAM braucht als frei ist (Dateien liegen beim Laden zusätzlich im PSRAM), scheitert sauber mit „zu wenig Speicher beim Laden“.
+
+**Befund und Fix (Firmware):** Stellte man auf dem QUAD ein Gleis auf ein Template um, während das andere Gleis sein Paket lud, erschien das Template nie (Status blieb `off`): der Durchlauf hatte „kein Template“ schon entschieden und verbrauchte das Update-Flag für das eingebaute Layout. Behoben, Test API-TPL-015.
