@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
+	"github.com/webfraggle/zza-generate-images/internal/version"
 	"github.com/webfraggle/zza-generate-images/web"
 )
 
@@ -45,8 +47,12 @@ func TestServer_Health(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("health: got %d, want 200", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "ok") {
-		t.Errorf("health body: %q", rr.Body.String())
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("health Content-Type = %q, want application/json", ct)
+	}
+	want := fmt.Sprintf(`{"status":"ok","version":%q}`, version.Version)
+	if got := strings.TrimSpace(rr.Body.String()); got != want {
+		t.Errorf("health body = %q, want %q", got, want)
 	}
 }
 
