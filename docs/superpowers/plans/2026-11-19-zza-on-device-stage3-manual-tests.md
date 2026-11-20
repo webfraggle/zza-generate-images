@@ -11,11 +11,11 @@ Achtung: `uploadfs` überschreibt das komplette LittleFS (Züge, Konfiguration, 
 
 | # | Aktion | Erwartung |
 |---|---|---|
-| 0.1 | Generator: `go vet ./... && go test ./...` (Mac: `CGO_CXXFLAGS` setzen) | grün |
-| 0.2 | Generator: `tools/sync-zzarender.sh --check ../Zugzielanzeiger-tpl` | Exit 0, keine Abweichung |
-| 0.3 | Firmware: `tools/test-native.sh` und `cd e2e && npm run unit` | grün |
-| 0.4 | Firmware: `pio run` für QUAD/DUAL Debug/Release und `Zugzielanzeiger_ST7735_096_QUAD_Debug` | alle bauen |
-| 0.5 | Firmware: `ZZA_CLI=<pfad-zu-zza> node run.ts --quad <ip> --yes` | grün, keine Reste auf dem Gerät |
+| 0.1 | Generator: `go vet ./... && go test ./...` (Mac: `CGO_CXXFLAGS` setzen) | grün — ✅ 2026-11-20 |
+| 0.2 | Generator: `tools/sync-zzarender.sh --check ../Zugzielanzeiger-tpl` | Exit 0, keine Abweichung — ✅ 2026-11-20 |
+| 0.3 | Firmware: `tools/test-native.sh` und `cd e2e && npm run unit` | grün — ✅ 2026-11-20 (native 58 Tests, unit 153) |
+| 0.4 | Firmware: `pio run` für QUAD/DUAL Debug/Release und `Zugzielanzeiger_ST7735_096_QUAD_Debug` | alle bauen — ✅ 2026-11-20 |
+| 0.5 | Firmware: `ZZA_CLI=<pfad-zu-zza> node run.ts --quad <ip> --yes` | grün, keine Reste auf dem Gerät — ⚠️ 2026-11-20: 280 bestanden, 3 rot (API-IMG-018, API-TRAIN-025 nicht Template-bezogen, UI-DOCS-001 nach Fix der openapi-Kopie offen bis uploadfs); alle API-/UI-TPL grün |
 
 ## 1. Installieren (QUAD, Release + `uploadfs`)
 

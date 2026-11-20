@@ -39,6 +39,8 @@ internal/
   devicerender/          # DESKTOP-ONLY — cgo-Brücke zum C++-Kern device/zzarender (Mac: CGO_CXXFLAGS, siehe device/README.md)
 device/
   zzarender/             # C++-Kern des On-Device-Renderers (Master-Kopie; Firmware-Kopie nie direkt bearbeiten)
+tools/
+  sync-zzarender.sh      # kopiert device/zzarender/ in die Firmware (lib/zzarender); `--check <firmware-repo>` muss Exit 0 liefern
   README.md
 web/                     # Frontend-Assets (HTML-Templates, CSS, JS) — embedded
 templates/               # YAML-Templates

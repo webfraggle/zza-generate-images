@@ -466,13 +466,13 @@ Gemessen auf dem QUAD-Controller (S3 N16R8, 1,05"), Release-Build, LittleFS aus 
 
 **Verschachtelung:** Paket mit 16 Block-Ebenen, darin ein `splitflap` mit wieder 16 Block-Ebenen, `t.json` auf Tiefe 80 aufgefüllt: lädt und animiert live (13–14 fps); Loop-Stack frei (Hochwasser) **7,9 KB** von 20 KB, also ≈ 12,1 KB belegt (alle anderen Templates ≥ 15,2 KB frei). Tiefe 81: „Paket fehlerhaft: t.json: invalid JSON: TooDeep“, kein Absturz. Zugdaten-Tiefe am `jsoncheck`-Limit ist auf dem Gerät nicht erreichbar (der Kern bekommt `config.json` mit fester Tiefe 3); der Deserializer ist derselbe wie für `t.json` und mit Tiefe 80 abgedeckt.
 
-**Interner Heap:** nach Laden und nach Animation (abgefragt) QUAD ≥ 137 KB, DUAL ≥ 159 KB. Das Minimum seit dem Start (`heap_caps_get_minimum_free_size`) erreichte auf dem QUAD **107 KB** während der Läufe mit zwei Gleisen (ein Gleis: 121 KB; DUAL 143 KB) — kurzzeitig, Ursache nicht eingegrenzt (gleichzeitige HTTP-Anfragen und zwei Ladevorgänge).
+**Interner Heap:** nach Laden und nach Animation (abgefragt) QUAD ≥ 137 KB, DUAL ≥ 159 KB. Das Minimum seit dem Start (`heap_caps_get_minimum_free_size`) erreichte auf dem QUAD **107 KB** während der Läufe mit zwei Gleisen (ein Gleis: 121 KB; DUAL 143 KB) — Dauer unbekannt, Ursache nicht eingegrenzt (gleichzeitige HTTP-Anfragen und zwei Ladevorgänge).
 
 **Festgelegt [P]** (Firmware `src/ProjectSetup.h`):
 
 | Wert | QUAD | DUAL | Begründung |
 |---|---|---|---|
-| Kern-Budget je Gleis | 1,5 MiB (war 2,5) | 4,5 MiB (war 4) | QUAD: größter Bedarf eines ausgelieferten Templates 1,27 MB (+ 23 %); DUAL: worst-text (4,14 MB) lädt |
+| Kern-Budget je Gleis | 1,5 MiB (war 2,5) | 4,5 MiB (war 4) | QUAD: größter Bedarf eines ausgelieferten Templates 1,27 MB (+ 23 %); DUAL: worst-text (4,14 MB Spitze) lädt |
 | Vorrender-Anteil je Gleis | 1,75 MiB (war 1,25) | 2 MiB (war 3) | faltblatt bis 1,64 MB; QUAD: 2 × (1,5 + 1,75) MiB = 6,8 MB von 7,22 MB frei, Rest 0,4 MB für den Rest der Firmware; DUAL: 6,8 MB von 7,7 MB |
 | `TPL_WORK_LIMIT` | 48 000 000 | 48 000 000 | 2 × worst-layers; ≈ 16 s bei 3 Mio./s |
 | `TPL_LOOP_STACK` | 20 KB | 20 KB | tiefstes Paket braucht ≈ 12,1 KB, Reserve 7,9 KB ≥ 4 KB |
@@ -480,3 +480,18 @@ Gemessen auf dem QUAD-Controller (S3 N16R8, 1,05"), Release-Build, LittleFS aus 
 Folge: Auf dem QUAD fallen Templates mit 1,5–2,5 MiB Kern-Bedarf (z. B. worst-images) jetzt auf das eingebaute Layout zurück, die vorher liefen; dafür spielt faltblatt immer vorgerendert. Ein Paket, das beim Laden mehr PSRAM braucht als frei ist (Dateien liegen beim Laden zusätzlich im PSRAM), scheitert sauber mit „zu wenig Speicher beim Laden“.
 
 **Befund und Fix (Firmware):** Stellte man auf dem QUAD ein Gleis auf ein Template um, während das andere Gleis sein Paket lud, erschien das Template nie (Status blieb `off`): der Durchlauf hatte „kein Template“ schon entschieden und verbrauchte das Update-Flag für das eingebaute Layout. Behoben, Test API-TPL-015.
+
+## 15. Nachtrag Stufe 3: Entscheidungen, die den Entwurf geändert haben (2026-11-20)
+
+Bei der Umsetzung der Firmware-Integration wurden folgende Punkte anders entschieden als oben beschrieben; sie gelten.
+
+- **P1 Bildquelle:** Das Gleis-Feld `template` (Name oder leer, in `config.json`) ersetzt das Online-Bild in den **Zugmodi** (Manuell, Intervall, Live, Client-Züge). `imageUrl` bleibt gespeichert und wird ignoriert; Bildmodi und Client-Bild bleiben unverändert (die Online-Bild-Logik liegt in den Zugmodi, nicht in `Mode_Png*`; §6.3 entsprechend korrigiert).
+- **P2 Kern im Loop-Task:** Kein eigener Render-Task. Der Kern läuft im Loop-Task (Core 1) mit 20 KB Stack (`SET_LOOP_TASK_STACK_SIZE`), damit Sprites und SPI in einem Task bleiben. Je Durchlauf höchstens ein Frame; nur das Laden blockiert (0,3–2,5 s). Messung: tiefstes Paket braucht ≈ 12,1 KB, Reserve 7,9 KB.
+- **P3 Eigener ArduinoJson-Namespace** (ersetzt R4, „einzige Kopie“): Die Firmware behält ArduinoJson in `lib_deps` (Mobadi-Regel), der Kern trägt seine Kopie in einem eigenen Namespace, beide stehen ohne ODR-Konflikt nebeneinander.
+- **P4 Upload und Commit:** `POST /templateBegin?name=` leert/erstellt `/tpl_<name>.new`, damit ein Wiederholungsversuch nicht an Resten scheitert. `POST /templateCommit` ist ein **asynchroner Auftrag (R4-1)**: Antwort 202, Prüfen und Umbenennen läuft im `webServerTask` unter dem Dateisystem-Mutex (Watchdog-Risiko im HTTP-Handler), das Ergebnis steht in `GET /templateStatus` (`job: {name, state: idle|running|ok|error, error}`); ein zweiter Commit währenddessen gibt 409 `busy`. Das Aufräumen alter Ordner (`.old`, `.del`) geschieht ebenfalls im `webServerTask` in Häppchen, Reste räumt der Start auf. Die Web-UI fragt den Status ab.
+- **P6 Namenslänge:** Auf dem Gerät `[a-z0-9-]`, 1–32 Zeichen (LittleFS-Pfadlänge: `/tpl_<32>.new/<12>` < 64). Der Generator lässt 64 zu; die Web-UI lehnt längere Namen vor dem Upload mit Klartext ab.
+- **Datenquelle:** Der Kern bekommt `Config::configJson()` (RAM-Stand), nicht die Datei. Nach dem Speichern ist das byteidentisch mit `config.json`; der RAM-Stand ist neuer, wenn MQTT oder der Client-Modus Daten setzen, bevor gespeichert wurde.
+- **R6-1 „Zugwechsel“:** Jede Änderung des JSON, das das Template bekommt, löst Animation und eine neue Zufallszeit aus; identische Daten tun nichts. Ein echtes Faltblatt klappt immer, wenn sich der angezeigte Inhalt ändert (auch bei Live-Aktualisierung mit geänderter Abweichung). Kosten: gelegentliches erneutes Klappen nach einem Einstellungs-Speichern.
+- **R5-1 Startschutz:** Die Startmarke (vor `zza_load` gesetzt, danach gelöscht) zählt nur nach einem Panic-/Watchdog-Reset, nicht nach normalem Neustart oder Stromausfall. Entscheidungsfunktion rein und auf dem Host getestet; der echte Absturzpfad nur manuell (MAN-TPL-003).
+- **Backup:** Installierte Templates (`tpl_<name>`) gehören zum Komplett-Backup und kommen nur mit „Alles ersetzen“ zurück; „Hinzufügen“ überspringt sie (sonst Mischstand aus alten und neuen Dateien).
+- **R7-1 Werte aus der Messung (§14):** QUAD-Budget 1,5 MiB / Anteil 1,75 MiB, Arbeitsgrenze 48 Mio. nach der 2×-Regel. Folge: Templates der worst-images-Klasse zeigen auf dem QUAD das eingebaute Layout, pathologische Templates können die Schleife bis ≈ 16 s blockieren. Beides ist eine offene Entscheidung für den Nutzer.

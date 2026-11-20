@@ -35,7 +35,13 @@ Ideen und Wünsche für spätere Features — noch nicht priorisiert, noch nicht
 
 ## ZZA auf dem Gerät
 
-- **Stufe 3: Firmware-Integration** (eigener Plan): Sync-Script `tools/sync-zzarender.sh`, Firmware-Adapter (eigener Render-Task mit ~10 KB Stack, PSRAM-Hook, Verteilung auf D1/D2, Push, DMA), Animations-Strategie nach Spec §12.4, Upload-Seite mit `templateCommit`/`templateDelete`, Auswahl pro Gleis, Backup, E2E auf DUAL und QUAD. Messungen und Pflichtpunkte: Spec §13 (MemPeak, ArduinoJson als einzige Kopie, Verschachtelungstiefe 80, newlib `strtod`/`printf`, `zza_anim_end`).
+- ✅ **Stufe 3 (Firmware-Integration) erledigt** (November 2026): Sync-Script, Kern in der Firmware, Upload/Commit/Löschen, Auswahl pro Gleis, Backup, Rückfall-Kette, E2E auf QUAD (DUAL: API-TPL-016), Messwerte in Spec §14, Entscheidungen in Spec §15.
+- **Stufe 4 (offen):** Export-Knopf im Editor (bisher nur `zza export`), optional `GET /{template}-zza.zip` auf dem Server (CGO-frei prüfen, kein `devicerender`).
+- **Stufe 5 (offen):** Feinschliff nach Praxistest und Release (Version, Release-Notes, Deployment).
+- Offen, Entscheidung: QUAD-Werte (worst-images-Klasse fällt zurück) und Arbeitsgrenze 48 Mio. (Blockade bis ≈ 16 s) bestätigen oder ändern (Spec §15, R7-1).
+- Firmware, Reste aus den Reviews: `DisplayTemplate.cpp` (~740 Zeilen) aufteilen; Kostenmessung von Frame 1 enthält die Mutex-Wartezeit (kann live fälschlich als vorrendern einstufen) und `decide()` nutzt `delay0` statt der Frame-1-Verzögerung; `FrameStore` leckt beim erneuten Speichern die Leihe; die Leihe beachtet Heap-Köpfe nicht (bei der QUAD-Anteilsgröße bedenken).
+- Firmware, Reste: Laden wartet bis ≈ 6,4 s in der Schleife; `/templateStatus` `free` bis 30 s veraltet nach Nicht-Template-Schreibzugriffen; Wiederherstellung schreibt Template-Dateien ohne Prüfung (erst der Lader validiert); `waitForJob` in der Web-UI kann ein altes `ok` desselben Namens akzeptieren; Upload-Chunks nach angenommenem Commit gehen verloren; API-TPL-015 ist zeitempfindlich.
+- Generator, Reste: `tools/sync-zzarender.sh` löscht das Ziel vor der Prüfung der Quellenliste und filtert `third_party` nicht auf `*.h/*.cpp`; `stripBetween`-Overlap-Kosten im Kern O(open) statt O(open²); `renderer.New` bei `--zza` ungenutzt; `TestRenderTimeFlag` schwach.
 
 ## Animation / Uhr (Nachträge)
 
