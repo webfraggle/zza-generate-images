@@ -7,7 +7,7 @@ meta:
     Nach dem Vorbild der neuen blauen DB-Anzeiger, geteilt 2/3 : 1/3.
     Hauptzug (zug1) immer außen: Hinweis-Band oben (weiß), Nummer,
     Abfahrtszeit (+ Verspätung), Ziel, Via (max. 2 Zeilen) und eine
-    Wagenstandanzeige mit Abschnitten A–F (vorerst statisch, wagenstand.png).
+    Wagenstandanzeige mit Abschnitten A-F (vorerst statisch, wagenstand.png).
     Folgezug (zug2) immer innen: Nummer, Zeit (+ Verspätung), Ziel, Via.
   canvas:
     width: 240
@@ -87,7 +87,7 @@ layers:
 
   # Via, Umbruch bis zum unteren Rand
   - type: text
-    value: "{{zug2.via | replace(' - ', ' – ')}}"
+    value: "{{zug2.via}}"
     x: 4
     y: 72
     font: cond
@@ -181,7 +181,7 @@ layers:
 
   # Via, Umbruch; ab Zeile 3 vom Deckstreifen verdeckt
   - type: text
-    value: "{{zug1.via | replace(' - ', ' – ')}}"
+    value: "{{zug1.via}}"
     x: 86
     y: 72
     font: cond
