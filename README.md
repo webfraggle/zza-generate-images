@@ -133,11 +133,20 @@ Pusht ein Multi-Arch-Image (`linux/arm64`+`linux/amd64`) mit Versions-Tag (aus `
 
 Voraussetzung: Traefik läuft bereits (via modellbahn-api).
 
-Update auf neue Image-Version:
+### Deployment per build.sh
 
 ```bash
-ssh -l root -p 2847 87.106.149.199 \
-  "cd ~/zza-generate-images && docker compose pull && docker compose up -d"
+DEPLOY=1 ./build.sh
+```
+
+baut wie `DOCKER_PUSH=1 ./build.sh` (Desktop-ZIPs + Multi-Arch-Image mit Versions-Tag und `latest`), führt danach auf der VM in `~/zza-generate-images` `docker compose pull && docker compose up -d` aus und wartet, bis `https://gen.yuv.de/health` die neue Version meldet (`{"status":"ok","version":"vX.Y.Z"}`). Schlägt ein Build-Schritt fehl, wird nicht deployt. SSH-Login und laufendes Docker werden vor dem Hochzählen von `VERSION` geprüft.
+
+Die Anmeldung läuft über deinen SSH-Schlüssel, es wird kein Passwort hinterlegt. Ziel ist der Alias `modellbahn-vm` aus `~/.ssh/config` – derselbe wie bei modellbahn-api (Einrichtung dort im README, Abschnitt „Deployment per build.sh“). Anderer Alias: `DEPLOY_SSH=… DEPLOY=1 ./build.sh`.
+
+Manuell geht das Update weiterhin so:
+
+```bash
+ssh modellbahn-vm "cd ~/zza-generate-images && docker compose pull && docker compose up -d"
 ```
 
 Templates liegen als Bind Mount unter `./templates/` und bleiben bei Updates erhalten. Cache liegt im Named Volume `cache_data` und kann jederzeit weggeworfen werden.

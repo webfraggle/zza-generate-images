@@ -13,7 +13,7 @@ Dual-Build aus einer Go-Codebase:
 
 Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/devicerender` und `internal/devpreview` nicht importieren (Prüfung: `CGO_ENABLED=0 go build ./cmd/zza-server && go list -deps ./cmd/zza-server | grep -E 'fsnotify|modelcontextprotocol|oksvg|rasterx|internal/mcp|internal/watch|internal/devicerender|internal/devpreview'` muss leer sein). Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
 
-**Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health`.
+**Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health` (`{"status":"ok","version":"vX.Y.Z"}`, wie modellbahn-api; `DEPLOY=1 ./build.sh` wartet darauf).
 
 **Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`), `GET /edit/{template}/zza-export` (ZZA-Paket `<template>-zza.zip` wie `zza export`, Knopf „Für ZZA exportieren“ im Editor und auf der Detailseite; Fehler wie zza-render).
 
@@ -69,7 +69,7 @@ Env-Vars (nur Server liest sie): `PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MA
 4. Feature-Branch, Subagent-driven implementation mit Spec- und Code-Quality-Review pro Task.
 5. Vor Merge: security-reviewer + code-reviewer auf den Branch-Diff.
 6. Merge → develop → push.
-7. Optional: `DOCKER_PUSH=1 ./build.sh` für Multi-Arch-Push, `gh release create` für Desktop-ZIPs.
+7. Optional: `DOCKER_PUSH=1 ./build.sh` für Multi-Arch-Push, `DEPLOY=1 ./build.sh` zusätzlich mit Deployment auf der VM (SSH-Alias `modellbahn-vm`, `~/zza-generate-images`), `gh release create` für Desktop-ZIPs.
 
 ## Deployment
 

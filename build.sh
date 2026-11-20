@@ -14,8 +14,33 @@ set -euo pipefail
 #   Usage:
 #     ./build.sh                  → desktop binaries + local Docker image (current arch)
 #     DOCKER_PUSH=1 ./build.sh    → desktop binaries + multi-arch push to registry
+#     DEPLOY=1 ./build.sh         → all of the above, then pull + restart on the server
+#
+# DEPLOY=1 logs in to the server with your SSH key (no password is stored or
+# asked for). The target is an alias from ~/.ssh/config, default "modellbahn-vm"
+# (same VM and key as modellbahn-api); override with DEPLOY_SSH=other-alias.
+# See README, section "Deployment per build.sh".
 
+cd "$(dirname "$0")"
 export PATH="$HOME/go/bin:$PATH"
+
+DEPLOY="${DEPLOY:-0}"
+DEPLOY_SSH="${DEPLOY_SSH:-modellbahn-vm}"
+DEPLOY_DIR="${DEPLOY_DIR:-zza-generate-images}"
+HEALTH_URL="${HEALTH_URL:-https://gen.yuv.de/health}"
+DOCKER_PUSH="${DOCKER_PUSH:-0}"
+if [[ "$DEPLOY" == "1" ]]; then
+    DOCKER_PUSH=1
+    # BatchMode: fail instead of asking for a password, before anything is built.
+    if ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$DEPLOY_SSH" true 2>/dev/null; then
+        echo "SSH login to '$DEPLOY_SSH' with your key failed – see README, section \"Deployment per build.sh\". VERSION was not changed." >&2
+        exit 1
+    fi
+fi
+if [[ "$DOCKER_PUSH" == "1" ]] && ! docker info >/dev/null 2>&1; then
+    echo "Docker is not running – start Docker Desktop first (open -a Docker). VERSION was not changed." >&2
+    exit 1
+fi
 
 # ── Auto-increment patch version ─────────────────────────────────────────────
 VERSION_FILE="VERSION"
@@ -32,7 +57,6 @@ LDFLAGS="-s -w -X ${VERSION_PKG}.Version=${NEW_VERSION}"
 OUTDIR="dist"
 IMAGE="ghcr.io/webfraggle/zza-generate-images"
 IMAGE_TAG="$NEW_VERSION"
-DOCKER_PUSH="${DOCKER_PUSH:-0}"
 
 mkdir -p "$OUTDIR"
 
@@ -209,3 +233,26 @@ fi
 echo ""
 echo "Done: $ok built, $failed failed, $skipped skipped."
 echo "Desktop binaries in $OUTDIR/"
+
+if [[ "$DEPLOY" != "1" ]]; then
+    exit 0
+fi
+
+echo ""
+if [[ "$failed" -gt 0 ]]; then
+    echo "Not deploying: $failed build step(s) failed." >&2
+    exit 1
+fi
+echo "=== Deploy to $DEPLOY_SSH:~/$DEPLOY_DIR ==="
+ssh -o BatchMode=yes "$DEPLOY_SSH" "cd ~/$DEPLOY_DIR && docker compose pull && docker compose up -d"
+
+echo "  waiting for $HEALTH_URL to report $NEW_VERSION ..."
+for _ in $(seq 1 15); do
+    if curl -fsS -m 5 "$HEALTH_URL" 2>/dev/null | grep -q "\"version\":\"$NEW_VERSION\""; then
+        echo "  → $NEW_VERSION is live"
+        exit 0
+    fi
+    sleep 2
+done
+echo "The server did not report $NEW_VERSION within 30s. Check: ssh $DEPLOY_SSH 'cd ~/$DEPLOY_DIR && docker compose logs --tail 30'" >&2
+exit 1
