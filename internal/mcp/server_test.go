@@ -36,7 +36,8 @@ func TestNewServer_Instructions(t *testing.T) {
 	for _, want := range []string{"240x240", "-105-v1", "get_design_guide",
 		"list_fonts -> add_font", "text layers need a font", "the starter has none",
 		"svg_to_png", "import_image", "perspective_correct", "sample_colors", "crop_image",
-		"color_to_alpha", "quantize_colors", "must exist before write_file"} {
+		"color_to_alpha", "quantize_colors", "must exist before write_file",
+		"Latin-1", "1.5 MiB", "15 M operations", `"device:"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("instructions lack %q", want)
 		}

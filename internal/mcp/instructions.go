@@ -12,10 +12,10 @@ Hard rules:
   that swap the blocks; a single copy of the whole top half is only right for symmetric layouts.
 - Flat look: solid colour areas, 2-5 strong colours, no gradients, shadows or photos; text >= 10 px.
 - Everything that changes per train is a text layer with {{zug1.…}} placeholders, never baked into an image.
-- Latin-1 only (U+0000-U+00FF): the ZZA renders nothing else. Every text value, filter argument,
-  meta field and test-data string must be Latin-1 — no en/em dash (use -), no typographic quotes
-  (use ' or "), no ellipsis (use ...), no bullet (use ·), no arrows, no €, no emoji.
-  write_file and create_template refuse anything else; YAML comments are exempt.
+- Latin-1 only (U+0000-U+00FF) in all values and test data: no en/em dash (use -), no typographic
+  quotes, no ellipsis (use ...), no bullet (use ·), no arrows, no €, no emoji. write_file refuses others.
+- Device limits: 1.5 MiB core memory (images: drawn area x 4 bytes; fonts), 15 M operations per image.
+  Fix every "device:" warning of write_file, else the display shows its built-in layout.
 
 Workflow: look at 1-2 similar templates (list_templates, read_template, render_preview),
 create_template, then after EVERY change call render_preview and compare with the reference.

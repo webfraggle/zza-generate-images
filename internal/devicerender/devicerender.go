@@ -279,6 +279,10 @@ func (r *Renderer) MemUsed() int { return int(C.zza_mem_used(r.c)) }
 // MemPeak returns the peak budget usage in bytes.
 func (r *Renderer) MemPeak() int { return int(C.zza_mem_peak(r.c)) }
 
+// WorkUsed returns the operations charged by the last render or animation
+// frame call (the firmware's TPL_WORK_LIMIT applies per call).
+func (r *Renderer) WorkUsed() uint64 { return uint64(C.zza_work_used(r.c)) }
+
 // errFor maps a ZZA_* status code to a Go error (nil for ZZA_OK).
 func (r *Renderer) errFor(code C.int) error {
 	var base error

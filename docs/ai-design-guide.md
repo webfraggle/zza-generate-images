@@ -480,6 +480,17 @@ Regeln:
   es mit nach unten) oder **240×240** mit beiden Hälften, die untere schon gespiegelt
   (umuc). Für flächige Hintergründe genügt ein `rect` — dafür braucht es kein Bild.
 - Dateinamen: Kleinbuchstaben, Ziffern, `-`, `_`, `.`; keine Unterordner.
+- **Speicher auf dem Gerät:** Der Zugzielanzeiger (QUAD) gibt einem Template höchstens
+  **1,5 MiB** Kern-Speicher. Jedes Bild kostet dort seine gezeichnete Fläche × 4 Byte
+  (ein Vollbild 240×240 ≈ 225 KB), jede Schrift ihre Glyphen. Die ausgelieferten
+  Templates brauchen 0,4–1,2 MiB. Wenige Bilder, nur gebrauchte Schriften, flächige
+  Teile als `rect` statt als Bild.
+- **Rechenaufwand auf dem Gerät:** höchstens 15 Mio. Operationen je Bild (≈ 5 s);
+  reale Templates brauchen 0,1–0,3 Mio. Teuer sind sehr viele Layer, große
+  Schleifen und zur Laufzeit skalierte oder gedrehte große Bilder.
+- `write_file` prüft beides mit dem Renderer des Geräts und meldet Überschreitungen
+  als Warnung mit `device:`. Dann zeigt das Gerät statt des Templates sein
+  eingebautes Layout — beheben, bevor das Template fertig ist.
 
 ## 8. Arbeitsweise
 
@@ -731,5 +742,6 @@ Erst wenn alle Punkte erfüllt sind, ist das Template fertig:
 - [ ] Alle vier Testdatensätze (a)–(d) mit `render_preview` geprüft: kein Überlauf,
       keine Reste leerer Felder.
 - [ ] `default.json` enthält realistische Werte passend zum Vorbild und alle Felder.
-- [ ] `write_file` meldet keine Warnungen mehr (oder du kannst jede begründen).
+- [ ] `write_file` meldet keine Warnungen mehr (oder du kannst jede begründen);
+      `device:`-Warnungen (Speicher, Rechenaufwand, nicht ZZA-kompatibel) sind behoben.
 - [ ] Dem Nutzer Name, letzte Vorschau und übrig gebliebene Zwischendateien genannt.

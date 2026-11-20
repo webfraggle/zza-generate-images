@@ -94,7 +94,7 @@ func registerWriteTools(s *sdk.Server, e *env) {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "write_file",
-		Description: "Writes template.yaml, default.json or another .json/.yaml file of a template. Only Latin-1 characters (U+0000-U+00FF) are allowed in YAML keys/values and in JSON (the ZZA renders Latin-1 only; YAML comments are free): use - instead of en/em dashes, ' and \" instead of typographic quotes, ... instead of an ellipsis. template.yaml is validated (YAML, canvas must be 240x240, test render with default.json) and NOT saved if invalid — the error explains why. Pass expected_version from read_template/read_file to avoid overwriting edits made in the editor meanwhile. Returns the new version and warnings (design issues, unknown keys = likely typos). Call render_preview afterwards.",
+		Description: "Writes template.yaml, default.json or another .json/.yaml file of a template. Only Latin-1 characters (U+0000-U+00FF) are allowed in YAML keys/values and in JSON (the ZZA renders Latin-1 only; YAML comments are free): use - instead of en/em dashes, ' and \" instead of typographic quotes, ... instead of an ellipsis. template.yaml is validated (YAML, canvas must be 240x240, test render with default.json) and NOT saved if invalid — the error explains why. Pass expected_version from read_template/read_file to avoid overwriting edits made in the editor meanwhile. Returns the new version and warnings (design issues, unknown keys = likely typos, \"device:\" = would fail on the ZZA: too much memory for the QUAD (1.5 MiB per track) or a render step above the work limit). Fix device warnings before finishing. Call render_preview afterwards.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in writeFileIn) (*sdk.CallToolResult, writeFileOut, error) {
 		out, err := e.writeFile(in)
 		return nil, out, err
@@ -279,13 +279,19 @@ func (e *env) writeFile(in writeFileIn) (writeFileOut, error) {
 		return zero, fmt.Errorf("cannot write %q", in.Name)
 	}
 
+	probeOK := true
 	if in.Name == "default.json" {
 		var data map[string]any
 		if err := json.Unmarshal(content, &data); err == nil {
 			if _, _, err := renderStill(e, in.Template, data); err != nil {
+				probeOK = false
 				warnings = append(warnings, "probe render failed: "+strings.TrimPrefix(e.scrubErr(err, maxErrLen), "render failed: "))
 			}
 		}
+	}
+	// What would fail on the ZZA itself (memory, work limit, compatibility).
+	if probeOK && (in.Name == "template.yaml" || in.Name == "default.json") {
+		warnings = append(warnings, deviceWarnings(e, in.Template)...)
 	}
 	return writeFileOut{Name: in.Name, Version: version, Warnings: warnings}, nil
 }
