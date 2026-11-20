@@ -18,7 +18,9 @@ import (
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 )
 
-// RenderCmd returns the "render" cobra command shared by the server and desktop binaries.
+// RenderCmd returns the "render" cobra command of the desktop binary (cmd/zza). Desktop-only:
+// it imports the cgo bridge internal/devicerender (--zza), which the CGO-free server build
+// (cmd/zza-server) must not link.
 func RenderCmd() *cobra.Command {
 	var (
 		templateName string
