@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Copies the master copy of the on-device renderer core (device/zzarender) into
-# the firmware repo (<fw>/lib/zzarender) and writes SOURCE.txt there.
+# the firmware repo (<fw>/lib/zzarender, <fw> must contain platformio.ini) and
+# writes SOURCE.txt there. The copy is built in a temp dir under <fw>/lib and
+# replaces the old one only when complete.
 #
 #   tools/sync-zzarender.sh <firmware-repo>           sync (stale files are removed)
 #   tools/sync-zzarender.sh --check <firmware-repo>   exit 0 if the copy equals the
@@ -23,6 +25,11 @@ fi
 fw=$1
 if [ ! -d "$fw" ]; then
   echo "firmware repo not found: $fw" >&2
+  exit 2
+fi
+# Only a firmware repo: the sync replaces <fw>/lib/zzarender completely.
+if [ ! -f "$fw/platformio.ini" ]; then
+  echo "not a firmware repo (no platformio.ini): $fw" >&2
   exit 2
 fi
 
@@ -63,13 +70,21 @@ if [ "$check" -eq 1 ]; then
   exit "$bad"
 fi
 
-# Sync: the directory is managed completely, so stale files disappear.
-rm -rf "$dst"
-mkdir -p "$dst"
+# Sync: the directory is managed completely, so stale files disappear. The copy is
+# built next to it (same file system) and only replaces dst once it is complete.
+mkdir -p "$fw/lib"
+tmp=$(mktemp -d "$fw/lib/.zzarender-sync.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+chmod 755 "$tmp"   # mktemp creates 0700; the library dir keeps normal permissions
 list_files | while IFS= read -r f; do
-  mkdir -p "$dst/$(dirname "$f")"
-  cp "$src/$f" "$dst/$f"
+  mkdir -p "$tmp/$(dirname "$f")"
+  cp "$src/$f" "$tmp/$f"
 done
+n=$(find "$tmp" -type f | wc -l | tr -d ' ')
+if [ "$n" -eq 0 ]; then
+  echo "nothing to copy from $src" >&2
+  exit 1
+fi
 
 commit=$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo unknown)
 if [ -n "$(git -C "$repo" status --porcelain -- device 2>/dev/null)" ]; then
@@ -79,5 +94,8 @@ fi
   echo "commit $commit"
   echo "date $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   src_sums
-} >"$dst/SOURCE.txt"
+} >"$tmp/SOURCE.txt"
+rm -rf "$dst"
+mv "$tmp" "$dst"
+trap - EXIT
 echo "synced $(list_files | wc -l | tr -d ' ') files to $dst (commit $commit)"

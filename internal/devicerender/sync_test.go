@@ -11,13 +11,22 @@ import (
 const syncScript = "../../tools/sync-zzarender.sh"
 
 // TestSyncScript: sync into a temp firmware dir, --check detects changed and
-// extra files, a new sync removes stale files again. Never touches a real firmware repo.
+// extra files, a new sync removes stale files again; a directory without
+// platformio.ini is refused untouched. Never touches a real firmware repo.
 func TestSyncScript(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("no bash")
 	}
-	fw := t.TempDir()
+	// fwDir: a temp dir that looks like the firmware repo (platformio.ini)
+	fwDir := func() string {
+		d := t.TempDir()
+		if err := os.WriteFile(filepath.Join(d, "platformio.ini"), []byte("[env]\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	fw := fwDir()
 	run := func(args ...string) (string, int) {
 		out, err := exec.Command(bash, append([]string{syncScript}, args...)...).CombinedOutput()
 		code := 0
@@ -92,7 +101,28 @@ func TestSyncScript(t *testing.T) {
 	if out, code := run("--check", fw); code != 0 {
 		t.Fatalf("--check after the second sync: %d\n%s", code, out)
 	}
-	if code := func() int { _, c := run("--check", t.TempDir()); return c }(); code != 1 {
+	if code := func() int { _, c := run("--check", fwDir()); return c }(); code != 1 {
 		t.Errorf("--check on an empty firmware dir: exit %d, want 1", code)
+	}
+
+	// Not a firmware repo (no platformio.ini): refused with exit 2, nothing written or removed.
+	other := t.TempDir()
+	keep := filepath.Join(other, "lib", "zzarender", "keep.txt")
+	if err := os.MkdirAll(filepath.Dir(keep), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keep, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{other}, {"--check", other}} {
+		if out, code := run(args...); code != 2 || !strings.Contains(out, "platformio.ini") {
+			t.Errorf("%v on a non-firmware dir: exit %d, want 2\n%s", args, code, out)
+		}
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Errorf("sync touched a non-firmware dir: %v", err)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(other, "lib")); len(entries) != 1 {
+		t.Errorf("sync left files in a non-firmware dir: %v", entries)
 	}
 }
