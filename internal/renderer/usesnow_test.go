@@ -59,3 +59,30 @@ func TestUsesNow_RealTemplates(t *testing.T) {
 		}
 	}
 }
+
+func TestClockGranularity(t *testing.T) {
+	val := func(s string) Layer { return Layer{Type: "text", Value: StringOrCond{raw: s}} }
+	cases := []struct {
+		name  string
+		layer Layer
+		want  string
+	}{
+		{"no now", val("Hallo {{zug1.nr}}"), "none"},
+		{"now", val("{{now}}"), "minute"},
+		{"now.day", val("{{now.day}}"), "minute"},
+		{"format date", val("{{now | format('dd.MM.')}}"), "minute"},
+		{"now.second", val("{{now.second | mul(6)}}"), "second"},
+		{"format with seconds", val("{{now | format('HH:mm:ss')}}"), "second"},
+		{"format non-literal pattern", val("{{now | format(muster)}}"), "second"},
+		{"now.second in nested if", Layer{Layers: []Layer{{Type: "rect", If: "greaterThan(now.second, 30)"}}}, "second"},
+		{"now.second outside braces", val("now.second"), "none"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			tmpl := makeTemplate(1, 1, []Layer{c.layer})
+			if got := tmpl.ClockGranularity(); got != c.want {
+				t.Errorf("ClockGranularity() = %q, want %q", got, c.want)
+			}
+		})
+	}
+}

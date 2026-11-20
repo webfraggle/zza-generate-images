@@ -89,7 +89,8 @@ func Export(templatesDir, name string) (*Package, error) {
 		Canvas   [2]int     `json:"canvas"`
 		Files    []fileInfo `json:"files"`
 		Features []string   `json:"features"`
-	}{FormatVersion, name, [2]int{240, 240}, list, features})
+		Clock    string     `json:"clock"`
+	}{FormatVersion, name, [2]int{240, 240}, list, features, tmpl.ClockGranularity()})
 	if err != nil {
 		return nil, err
 	}

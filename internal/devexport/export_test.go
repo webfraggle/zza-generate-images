@@ -17,6 +17,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/webfraggle/zza-generate-images/internal/renderer"
 )
 
 const testFont = "../../templates/faltblatt-105-v1/NimbusSanL-Bol.otf"
@@ -691,5 +693,31 @@ func TestGlyphTooLarge(t *testing.T) {
 	inc, ok := err.(*Incompatible)
 	if !ok || !strings.Contains(strings.Join(inc.Reasons, "|"), "höchstens 1024") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestManifestClock(t *testing.T) {
+	clockOf := func(name string) string {
+		p, err := Export("../../templates", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var mf struct {
+			Clock string `json:"clock"`
+		}
+		if err := json.Unmarshal(p.Files["manifest.json"], &mf); err != nil {
+			t.Fatal(err)
+		}
+		return mf.Clock
+	}
+	if got := clockOf("umuc-105-v1"); got != "second" {
+		t.Errorf("umuc-105-v1 clock = %q, want second", got)
+	}
+	tmpl, err := renderer.LoadTemplate("../../templates", "faltblatt-105-v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := clockOf("faltblatt-105-v1"), tmpl.ClockGranularity(); got != want {
+		t.Errorf("faltblatt-105-v1 clock = %q, want %q", got, want)
 	}
 }

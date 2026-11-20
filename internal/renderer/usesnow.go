@@ -1,10 +1,22 @@
 package renderer
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 var (
-	nowTokenRe     = regexp.MustCompile(`(^|[^A-Za-z0-9_.])now([^A-Za-z0-9_]|$)`)
-	formatFilterRe = regexp.MustCompile(`\bformat\s*\(`)
+	nowTokenRe       = regexp.MustCompile(`(^|[^A-Za-z0-9_.])now([^A-Za-z0-9_]|$)`)
+	nowSecondRe      = regexp.MustCompile(`(^|[^A-Za-z0-9_.])now\.second([^A-Za-z0-9_]|$)`)
+	formatFilterRe   = regexp.MustCompile(`\bformat\s*\(`)
+	formatLiteralArg = regexp.MustCompile(`^\s*(?:'([^']*)'|"([^"]*)")`)
+)
+
+// Clock levels, ordered: a higher level includes the lower ones.
+const (
+	clockNone = iota
+	clockMinute
+	clockSecond
 )
 
 // UsesNow reports whether any evaluated field of the template reads the
@@ -12,48 +24,81 @@ var (
 // blocks, loops and splitflap. Detection is conservative: a false positive
 // only costs a cache miss, a false negative would freeze a clock.
 func (t *Template) UsesNow() bool {
-	return layersUseNow(t.Layers)
+	return t.clockLevel() > clockNone
 }
 
-func layersUseNow(layers []Layer) bool {
+// ClockGranularity reports how often the template changes with the clock:
+// "second" if any evaluated expression reads now.second or formats with
+// seconds (or with a pattern that is not a string literal), "minute" if it
+// reads the clock otherwise, else "none".
+func (t *Template) ClockGranularity() string {
+	switch t.clockLevel() {
+	case clockSecond:
+		return "second"
+	case clockMinute:
+		return "minute"
+	}
+	return "none"
+}
+
+func (t *Template) clockLevel() int {
+	return layersClock(t.Layers)
+}
+
+func layersClock(layers []Layer) int {
+	level := clockNone
 	for i := range layers {
 		l := &layers[i]
-		if condUsesNow(l.Value) || condUsesNow(l.Color) || condUsesNow(l.Rotate) ||
-			exprUsesNow(l.If) || exprUsesNow(l.Elif) || layersUseNow(l.Layers) {
-			return true
+		level = max(level, condClock(l.Value), condClock(l.Color), condClock(l.Rotate),
+			exprClock(l.If), exprClock(l.Elif), layersClock(l.Layers))
+		if level == clockSecond {
+			break
 		}
 	}
-	return false
+	return level
 }
 
-// condUsesNow checks the raw value and all branches of a StringOrCond.
-func condUsesNow(s StringOrCond) bool {
-	if interpUsesNow(s.raw) {
-		return true
-	}
+// condClock checks the raw value and all branches of a StringOrCond.
+func condClock(s StringOrCond) int {
+	level := interpClock(s.raw)
 	if s.cond == nil {
-		return false
+		return level
 	}
 	for _, b := range s.cond.branches {
-		if exprUsesNow(b.ifExpr) || interpUsesNow(b.then) {
-			return true
-		}
+		level = max(level, exprClock(b.ifExpr), interpClock(b.then))
 	}
-	return interpUsesNow(s.cond.els)
+	return max(level, interpClock(s.cond.els))
 }
 
-// exprUsesNow reports whether a bare expression reads the clock.
-func exprUsesNow(s string) bool {
-	return nowTokenRe.MatchString(s) || formatFilterRe.MatchString(s)
+// exprClock returns the clock level of a bare expression.
+func exprClock(s string) int {
+	if nowSecondRe.MatchString(s) {
+		return clockSecond
+	}
+	level := clockNone
+	if nowTokenRe.MatchString(s) {
+		level = clockMinute
+	}
+	for _, loc := range formatFilterRe.FindAllStringIndex(s, -1) {
+		arg := s[loc[1]:]
+		m := formatLiteralArg.FindStringSubmatch(arg)
+		switch {
+		case m == nil:
+			return clockSecond // pattern not known statically
+		case strings.Contains(m[1]+m[2], "ss"):
+			return clockSecond
+		}
+		level = max(level, clockMinute)
+	}
+	return level
 }
 
-// interpUsesNow reports whether any {{…}} in s reads the clock. Text outside
-// the braces does not count.
-func interpUsesNow(s string) bool {
+// interpClock returns the highest clock level of any {{…}} in s. Text
+// outside the braces does not count.
+func interpClock(s string) int {
+	level := clockNone
 	for _, m := range interpolateRe.FindAllStringSubmatch(s, -1) {
-		if exprUsesNow(m[1]) {
-			return true
-		}
+		level = max(level, exprClock(m[1]))
 	}
-	return false
+	return level
 }
