@@ -16,7 +16,7 @@
 - Kern nur in `device/zzarender/` ändern, dann `tools/sync-zzarender.sh ../Zugzielanzeiger-tpl`; `tools/sync-zzarender.sh --check ../Zugzielanzeiger-tpl` muss Exit 0 liefern.
 - Server-Build bleibt CGO-frei (Prüfbefehl in `CLAUDE.md`).
 - Go-Tests der Brücke auf dem Mac: `export CGO_CXXFLAGS="-nostdinc++ -isystem $(xcrun --show-sdk-path)/usr/include/c++/v1"`.
-- Template-Dateien nur über den zza-MCP (`write_file`) ändern, nur Latin-1.
+- Template-Dateien direkt bearbeiten (User 2026-11-20, kein MCP nötig), nur Latin-1.
 - Datum und Zeitzone auf dem Gerät: Datum fest 1.1.2026 (Donnerstag), `meta.timezone` gilt dort nicht.
 - Fehlt `clock` im Manifest, gilt `none`. Formatnummer des Pakets bleibt 1.
 - „PNG = Frame 0“ und „bytegleiches GIF ohne `now`“ gelten weiter. Split-Flap friert `now` beim Start ein.
@@ -124,10 +124,10 @@
 ### Task 5: Templates und Doku
 
 **Files:**
-- Modify (über zza-MCP `write_file`): `templates/umuc-105-v1/template.yaml`, `templates/nederland-105-v1/template.yaml` (`{{now.second | mul(6)}}`), `templates/oebb-105-v1/template.yaml` (`{{now | format('HH:mm:ss')}}`)
+- Modify (direkt): `templates/umuc-105-v1/template.yaml`, `templates/nederland-105-v1/template.yaml` (`{{now.second | mul(6)}}`), `templates/oebb-105-v1/template.yaml` (`{{now | format('HH:mm:ss')}}`)
 - Modify: `docs/yaml-template-spec.md` (meta/Determinismus Z. ~378, Frame-Animation Z. ~401–426, Variablen ~508–546), `docs/ai-design-guide.md`, `device/README.md` (API), `docs/superpowers/specs/2026-11-16-zza-on-device-rendering-design.md` (§ Uhrzeit: Verweis auf die neue Spec)
 
-- [ ] **Step 1:** Ist der zza-MCP nicht verbunden: anhalten und den User bitten, ihn zu starten. Sonst die drei Templates ändern; die `device:`-Warnungen von `write_file` müssen leer bleiben.
+- [ ] **Step 1:** Die drei Templates direkt ändern. Jedes muss sich weiter exportieren lassen (`go run ./cmd/zza export` bzw. der vorhandene Export-Test über alle Templates).
 - [ ] **Step 2:** Test `TestShippedClockTemplates` in `internal/renderer/animation_clock_test.go`: für die drei Templates, Start 10:08:57 – Frame 3 ist pixelgleich zum PNG zur Zeit 10:09:00 (Sekunden laufen einfach, Minute springt). `go test ./...` → PASS.
 - [ ] **Step 3:** Doku: neue Tabelle „Bedeutung von `now`“ aus der Spec übernehmen; Beispiele auf `now.second` / `format('HH:mm:ss')` umstellen; Hinweis, dass `add(anim.frame)` bzw. `anim.time` als Versatz die Uhr doppelt zählt; Manifest-Feld `clock`.
 - [ ] **Step 4:** `go test ./docs/... ./internal/mcp/` (Guide-Tests) → PASS. Commit `feat(templates): clocks use running now; docs`.
