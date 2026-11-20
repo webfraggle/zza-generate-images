@@ -224,7 +224,7 @@ func (r *Renderer) animFrames(data []byte, now time.Time, maxRects int, fn func(
 	rs := unsafe.Slice(rects, maxDirtyRects)
 	for i := 0; i < int(frames); i++ {
 		var delay, n C.int
-		if err := r.errFor(C.zza_anim_frame(r.c, C.int(i), rgb, &delay, rects, C.int(min(maxRects, maxDirtyRects)), &n)); err != nil {
+		if err := r.errFor(C.zza_anim_frame(r.c, C.int(i), nil, rgb, &delay, rects, C.int(min(maxRects, maxDirtyRects)), &n)); err != nil {
 			return false, fmt.Errorf("frame %d: %w", i, err)
 		}
 		dirty := make([]image.Rectangle, int(n))

@@ -13,6 +13,10 @@
 
 namespace zza {
 
+// t advanced by sec seconds (may be negative) with carry into the date;
+// weekday is recomputed.
+zza_time timeAddSeconds(const zza_time& t, int64_t sec);
+
 // Most bytes one interpolate() call may produce. Go has no such cap; a field
 // referring to the whole train data (at most kMaxDataBytes = 256 KiB) four
 // times still fits, anything above throws RenderError (spec §13).

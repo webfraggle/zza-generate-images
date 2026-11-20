@@ -287,6 +287,22 @@ void fmtValue(JsonVariantConst v, std::string& out, int depth) {
 
 }  // namespace
 
+zza_time timeAddSeconds(const zza_time& t, int64_t sec) {
+  int64_t secs = daysFromCivil(t.year, t.month, t.day) * 86400 + t.hour * 3600 + t.minute * 60 + t.second + sec;
+  int64_t days = secs / 86400, rem = secs % 86400;
+  if (rem < 0) {
+    rem += 86400;
+    days--;
+  }
+  zza_time r = t;
+  civilFromDays(days, &r.year, &r.month, &r.day);
+  r.hour = static_cast<int>(rem / 3600);
+  r.minute = static_cast<int>(rem % 3600 / 60);
+  r.second = static_cast<int>(rem % 60);
+  r.weekday = weekdayOfDays(days);
+  return r;
+}
+
 Eval::Eval(JsonVariantConst data, const zza_time& now)
     : data_(data), now_(now), animFrame_(0), animFrames_(1), animDelayCs_(0), regex_(nullptr), work_(nullptr) {
   zza::setIntVar(intVars_, "anim.frame", 0);

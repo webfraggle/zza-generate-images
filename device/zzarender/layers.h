@@ -46,7 +46,7 @@ class Renderer {
   // Renders frame i into rgb888, which must hold frame i-1 (frame 0: anything),
   // see zza_anim_frame. ZZA_ERR_STATE without a session or for i out of range.
   // Throws std::bad_alloc (the session and caches are dropped then).
-  int animFrame(int i, uint8_t* rgb888, int* delayCs, zza_rect* dirty, int maxRects, int* nRects,
+  int animFrame(int i, const zza_time* now, uint8_t* rgb888, int* delayCs, zza_rect* dirty, int maxRects, int* nRects,
                 std::string& err);
 
   // Ends the animation and frees its memory.

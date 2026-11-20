@@ -33,7 +33,7 @@ struct AnimSession {
   Mode mode;
   std::unique_ptr<BudgetJsonDoc> doc;  // data; the evaluators point into it
   JsonVariantConst root;
-  zza_time now;   // frozen for all frames
+  zza_time now;   // start time; frame mode advances it per frame (split-flap: frozen)
   int frames;     // including the final still (split-flap)
   bool loop;
   int delayCs;    // split-flap: per frame before the last; frame mode: every frame

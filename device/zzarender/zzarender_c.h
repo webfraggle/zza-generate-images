@@ -23,7 +23,8 @@ int           zza_render(zza_renderer*, const char* data, size_t len, const zza_
    Split-flap: seed SHA-256(manifest name || 0x00 || data[0..len)), schedule like RenderAnimation,
    *frames = frames incl. the final still (= zza_render). Frame mode (meta.animation.frames):
    *frames = animation.frames. Otherwise *frames = 1. *loop: 1 = repeat (GIF loop), 0 = play once.
-   now is frozen for all frames. Leaves, prefix and frame buffer are budget memory; ZZA_ERR_NOMEM
+   now is the start time: frame mode advances it per frame (see zza_anim_frame), split-flap keeps it
+   frozen. Leaves, prefix and frame buffer are budget memory; ZZA_ERR_NOMEM
    (here or in zza_anim_frame) ends the animation and frees all of it. */
 int           zza_anim_begin(zza_renderer*, const char* data, size_t len, const zza_time* now,
                              int* frames, int* loop);
@@ -32,8 +33,12 @@ int           zza_anim_begin(zza_renderer*, const char* data, size_t len, const 
    frame_delay). dirty receives up to max_rects rectangles that changed against frame i-1 (frame 0:
    the whole canvas; more changes than max_rects: one enclosing rectangle), *n_rects their number
    (0 = unchanged, or nothing reported for max_rects < 1 / dirty NULL). delay_cs, dirty and n_rects
-   may be NULL. ZZA_ERR_STATE without an animation or for i out of range. */
-int           zza_anim_frame(zza_renderer*, int i, unsigned char* rgb888, int* delay_cs,
+   may be NULL. ZZA_ERR_STATE without an animation or for i out of range.
+   now: NULL = frame mode renders frame i at the start time of zza_anim_begin plus
+   floor(i * delay_cs / 100) seconds (carried into the date); split-flap and a still (frames == 1)
+   use the start time. now != NULL is the time of this frame in frame mode and for a still; split-flap
+   ignores it. */
+int           zza_anim_frame(zza_renderer*, int i, const zza_time* now, unsigned char* rgb888, int* delay_cs,
                              zza_rect* dirty, int max_rects, int* n_rects);
 /* Ends the animation and frees its memory (leaves, prefix, frame buffer, data). No-op without one. */
 void          zza_anim_end(zza_renderer*);

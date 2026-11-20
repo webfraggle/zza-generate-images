@@ -6,7 +6,11 @@ package devicerender
 */
 import "C"
 
-import "unsafe"
+import (
+	"image"
+	"time"
+	"unsafe"
+)
 
 // Unexported wrappers around the zza_test_* C functions. import "C" is not
 // allowed in _test.go files, so tests reach the core through these.
@@ -137,7 +141,23 @@ func testAnimFrame(r *Renderer, i int) int {
 	buf := C.malloc(240 * 240 * 3)
 	defer C.free(buf)
 	var delay, n C.int
-	return int(C.zza_anim_frame(r.c, C.int(i), (*C.uchar)(buf), &delay, nil, 0, &n))
+	return int(C.zza_anim_frame(r.c, C.int(i), nil, (*C.uchar)(buf), &delay, nil, 0, &n))
+}
+
+// testAnimFrameAt calls zza_anim_frame for frame i with now (nil: the core
+// advances the time) into a zeroed buffer and returns the ZZA_* code and the
+// frame.
+func testAnimFrameAt(r *Renderer, i int, now *time.Time) (int, *image.NRGBA) {
+	buf := (*C.uchar)(C.calloc(1, 240*240*3))
+	defer C.free(unsafe.Pointer(buf))
+	var cn *C.zza_time
+	if now != nil {
+		t := cTime(*now)
+		cn = &t
+	}
+	var delay, n C.int
+	code := int(C.zza_anim_frame(r.c, C.int(i), cn, buf, &delay, nil, 0, &n))
+	return code, toNRGBA(buf)
 }
 
 // testSetLimit changes the budget limit of r.

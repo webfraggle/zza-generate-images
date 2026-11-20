@@ -587,3 +587,137 @@ func TestFlapErrorsLikeGo(t *testing.T) {
 		})
 	}
 }
+
+// clockFrames writes a frame-mode template with a seconds clock (60 frames of
+// one second) into dir/name and returns it; the font comes from cov-frames.
+func clockFrames(t *testing.T, dir, name string) {
+	t.Helper()
+	copyTemplate(t, covRoot, "cov-frames", dir, name)
+	yaml := `meta:
+  name: "Uhr"
+  canvas: {width: 240, height: 240}
+  animation:
+    frames: 60
+    frame_delay: 1
+    loop: true
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#102030", x: 0, y: 0, width: 240, height: 240}
+  - {type: text, value: "{{now | format('HH:mm:ss')}}", font: reg, size: 16, color: "#ffffff", x: 8, y: 100}
+`
+	if err := os.WriteFile(filepath.Join(dir, name, "template.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAnimFrameNowParity: without now the core advances the clock per frame
+// like the Go renderer (start + f*frame_delay, across midnight).
+func TestAnimFrameNowParity(t *testing.T) {
+	tmp := t.TempDir()
+	clockFrames(t, tmp, "clock")
+	start := time.Date(2026, 1, 1, 23, 59, 30, 0, time.UTC)
+	tmpl, err := renderer.LoadTemplate(tmp, "clock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("{}")
+	g, err := renderer.NewWithClock(tmp, func() time.Time { return start }).RenderAnimation(tmpl, map[string]any{}, renderer.AnimationSeed("clock", data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := loadDevice(t, tmp, "clock").RenderAnimation(data, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Frames) != 60 || len(g.Frames) != 60 {
+		t.Fatalf("frames: C++ %d, Go %d", len(c.Frames), len(g.Frames))
+	}
+	for i := range g.Frames {
+		if msg := nearCheck(t, g.Frames[i], c.Frames[i]); msg != "" {
+			t.Errorf("frame %d: %s", i, msg)
+		}
+		if i > 0 && bytes.Equal(c.Frames[i].Pix, c.Frames[i-1].Pix) {
+			t.Errorf("C++ frame %d equals frame %d (clock did not advance)", i, i-1)
+		}
+	}
+}
+
+// TestAnimFrameNowOverride: a now passed to zza_anim_frame is the time of that
+// frame, in frame mode and for a still.
+func TestAnimFrameNowOverride(t *testing.T) {
+	tmp := t.TempDir()
+	clockFrames(t, tmp, "clock")
+	copyTemplate(t, covRoot, "cov-frames", tmp, "still")
+	still := `meta:
+  name: "Standbild"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#102030", x: 0, y: 0, width: 240, height: 240}
+  - {type: text, value: "{{now | format('HH:mm:ss')}}", font: reg, size: 16, color: "#ffffff", x: 8, y: 100}
+`
+	if err := os.WriteFile(filepath.Join(tmp, "still", "template.yaml"), []byte(still), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 1, 1, 23, 59, 30, 0, time.UTC)
+	noon := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	data := []byte("{}")
+	for _, tc := range []struct {
+		name string
+		i    int
+	}{{"clock", 5}, {"still", 0}} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := loadDevice(t, tmp, tc.name)
+			want, err := r.Render(data, noon)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if code, _ := testAnimBegin(r, data, toZza(start)); code != 0 {
+				t.Fatalf("anim begin: %d", code)
+			}
+			defer testAnimEnd(r)
+			code, got := testAnimFrameAt(r, tc.i, &noon)
+			if code != 0 {
+				t.Fatalf("anim frame: %d", code)
+			}
+			if !bytes.Equal(got.Pix, want.Pix) {
+				t.Error("frame with now differs from Render at that time")
+			}
+			_, without := testAnimFrameAt(r, tc.i, nil)
+			if bytes.Equal(without.Pix, got.Pix) {
+				t.Error("now had no effect")
+			}
+		})
+	}
+}
+
+// TestAnimFrameNowIgnoredForSplitflap: split-flap stays frozen at the start time.
+func TestAnimFrameNowIgnoredForSplitflap(t *testing.T) {
+	r := loadDevice(t, covRoot, "cov-flap")
+	data := readDefault(t, covRoot, "cov-flap")
+	start := time.Date(2026, 1, 1, 10, 8, 37, 0, time.UTC)
+	other := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	code, frames := testAnimBegin(r, data, toZza(start))
+	if code != 0 || frames < 3 {
+		t.Fatalf("anim begin: code %d, %d frames", code, frames)
+	}
+	defer testAnimEnd(r)
+	for _, k := range []int{0, 1, frames / 2, frames - 1} {
+		_, a := testAnimFrameAt(r, k, nil)
+		code, b := testAnimFrameAt(r, k, &other)
+		if code != 0 {
+			t.Fatalf("frame %d: %d", k, code)
+		}
+		if !bytes.Equal(a.Pix, b.Pix) {
+			t.Errorf("frame %d differs with now", k)
+		}
+	}
+}

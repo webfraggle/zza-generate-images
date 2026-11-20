@@ -100,7 +100,7 @@ int zza_anim_begin(zza_renderer* r, const char* data, size_t len, const zza_time
   });
 }
 
-int zza_anim_frame(zza_renderer* r, int i, unsigned char* rgb888, int* delay_cs, zza_rect* dirty, int max_rects,
+int zza_anim_frame(zza_renderer* r, int i, const zza_time* now, unsigned char* rgb888, int* delay_cs, zza_rect* dirty, int max_rects,
                    int* n_rects) {
   if (!r) return ZZA_ERR_STATE;
   return guarded(r, [&]() {
@@ -113,7 +113,7 @@ int zza_anim_frame(zza_renderer* r, int i, unsigned char* rgb888, int* delay_cs,
       r->error = "invalid arguments";
       return (int)ZZA_ERR_STATE;
     }
-    return r->rend->animFrame(i, rgb888, delay_cs, dirty, max_rects, n_rects, r->error);
+    return r->rend->animFrame(i, now, rgb888, delay_cs, dirty, max_rects, n_rects, r->error);
   });
 }
 

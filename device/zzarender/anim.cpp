@@ -198,7 +198,7 @@ int Renderer::animBegin(const char* data, size_t len, const zza_time& now, int* 
 
 void Renderer::animEnd() { d_->anim.reset(); }
 
-int Renderer::animFrame(int i, uint8_t* rgb888, int* delayCs, zza_rect* dirty, int maxRects, int* nRects,
+int Renderer::animFrame(int i, const zza_time* now, uint8_t* rgb888, int* delayCs, zza_rect* dirty, int maxRects, int* nRects,
                         std::string& err) {
   Impl& d = *d_;
   if (!d.anim) {
@@ -231,7 +231,10 @@ int Renderer::animFrame(int i, uint8_t* rgb888, int* delayCs, zza_rect* dirty, i
       } else {
         memset(px, 0, rd::kCanvasBytes);
         d.beginPass(px, Impl::kPassStill);
-        Eval ev = d.rootEval(a.root, a.now);
+        zza_time t = a.now;
+        if (now) t = *now;
+        else if (a.mode == AnimSession::kFrames) t = timeAddSeconds(a.now, (int64_t)i * a.delayCs / 100);
+        Eval ev = d.rootEval(a.root, t);
         if (a.mode == AnimSession::kFrames) ev.setAnim(i, a.frames, a.delayCs);
         d.renderLayers(layers, ev, false, 0, true);
       }
