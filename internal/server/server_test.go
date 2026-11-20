@@ -100,6 +100,9 @@ func TestServer_Detail(t *testing.T) {
 	if !strings.Contains(body, "json-input") {
 		t.Error("detail page should contain JSON textarea")
 	}
+	if strings.Contains(body, "zza-export") {
+		t.Error("server build should NOT show the ZZA export button (route is desktop-only)")
+	}
 	if strings.Contains(body, "Bearbeiten") {
 		t.Error("server build should NOT show edit button")
 	}
@@ -118,6 +121,9 @@ func TestServer_Detail_EditorEnabled_ShowsEditButton(t *testing.T) {
 
 	if !strings.Contains(rr.Body.String(), `href="/edit/sbb-105-v1"`) {
 		t.Error("desktop build should link to /edit/sbb-105-v1")
+	}
+	if !strings.Contains(rr.Body.String(), `id="zza-export-btn"`) {
+		t.Error("desktop build should show the ZZA export button")
 	}
 }
 

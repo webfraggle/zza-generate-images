@@ -33,24 +33,31 @@
           <div class="canvas-frame"><div class="anim-clip" id="anim-clip-top"><img id="anim-img-top" alt="Animation, obere Hälfte"></div></div>
           <div class="canvas-frame"><div class="anim-clip" id="anim-clip-bottom"><img id="anim-img-bottom" alt="Animation, untere Hälfte"></div></div>
         </div>
+        <button type="button" id="replay-btn" class="replay-btn" title="Animation nochmal abspielen" aria-label="Animation nochmal abspielen" hidden>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
         {{end}}
       </div>
 
       <div class="transport">
-        {{if .Animated}}
-        <button type="button" id="play-anim-btn" class="tbtn" disabled>
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>
-          <span id="play-label">Abspielen</span>
-        </button>
-        {{end}}
-        <button type="button" id="download-btn" class="tbtn tbtn-primary" disabled>
+        <button type="button" id="download-btn" class="tbtn{{if not .Animated}} tbtn-primary{{end}}" disabled>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           PNG herunterladen
         </button>
         {{if .Animated}}
-        <button type="button" id="download-gif-btn" class="tbtn" disabled>
+        <button type="button" id="download-gif-btn" class="tbtn tbtn-primary" disabled>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           GIF herunterladen
+        </button>
+        {{end}}
+        <a href="/{{.Name}}.zip" id="download-src-btn" class="tbtn" download>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Template-Source herunterladen
+        </a>
+        {{if .EditorEnabled}}
+        <button type="button" id="zza-export-btn" class="tbtn" title="Lädt das Template als Paket für den Zugzielanzeiger herunter (ZIP, in der Weboberfläche des ZZA unter Templates einspielen)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Für ZZA exportieren
         </button>
         {{end}}
       </div>
@@ -103,7 +110,6 @@
             <dt>Template</dt><dd>{{.Name}}</dd>
           </dl>
           <div class="dev-actions">
-            <a href="/{{.Name}}.zip" class="btn btn-level2" download>Template als ZIP</a>
             {{if .EditorEnabled}}<a href="/edit/{{.Name}}" class="btn btn-level2">Im Editor öffnen</a>{{end}}
           </div>
         </div>
@@ -125,8 +131,7 @@
     const canvasTop  = $("canvas-top");
     const canvasBot  = $("canvas-bottom");
     const pngBtn     = $("download-btn");
-    const playBtn    = $("play-anim-btn");
-    const playLabel  = $("play-label");
+    const replayBtn  = $("replay-btn");
     const gifBtn     = $("download-gif-btn");
     const copyBtn    = $("copy-url-btn");
 
@@ -148,6 +153,7 @@
     let stillImg  = null;  // decoded still, redrawn on resize
     let gifURL    = null;  // blob URL of the GIF shown in the housing
     let gifImg    = null;  // decoded GIF size probe
+    let gifBlob   = null;  // GIF matching the current data, null while outdated
     let dataGen   = 0;     // bumped on every data change; responses for older data are dropped
     let renderGen = 0;     // bumped per still render; only the newest one updates the preview
     let debounce  = null;  // pending render timer
@@ -263,20 +269,17 @@
       housing.setAttribute("aria-busy", busy ? "true" : "false");
       spinner.hidden = !busy;
     }
-    function updatePlayLabel() {
-      if (playLabel) playLabel.textContent = gifURL ? "Nochmal abspielen" : "Abspielen";
-    }
     function setGifButtonsDisabled(v) {
-      if (playBtn) playBtn.disabled = v;
-      if (gifBtn)  gifBtn.disabled  = v;
+      if (replayBtn) replayBtn.disabled = v;
+      if (gifBtn)    gifBtn.disabled    = v;
     }
 
     // Back to the still image; releases the GIF.
     function showStill() {
       if (animHalves) animHalves.hidden = true;
       if (gifURL) { URL.revokeObjectURL(gifURL); gifURL = null; gifImg = null; }
+      if (replayBtn) replayBtn.hidden = true;
       if (stillImg) halves.hidden = false;
-      updatePlayLabel();
     }
 
     // POSTs the current data; returns a Blob, or null after showing an error.
@@ -308,6 +311,7 @@
     function scheduleRender() {
       dataGen++;
       pngBlob = null;              // the shown still no longer matches the data
+      gifBlob = null;
       pngBtn.disabled = true;
       showStill();
       clearTimeout(debounce);
@@ -333,6 +337,7 @@
         if (!gifURL) halves.hidden = false;
         setBusy(false);
         pngBtn.disabled = false;
+        if (replayBtn) playAnim();   // animated templates play right away
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -343,66 +348,91 @@
       img.src = url;
     }
 
-    function download(blob, ext) {
+    function download(blob, filename) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = templateName + "." + ext;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
-    pngBtn.addEventListener("click", () => { if (pngBlob) download(pngBlob, "png"); });
+    pngBtn.addEventListener("click", () => { if (pngBlob) download(pngBlob, templateName + ".png"); });
 
     // ── Animation ─────────────────────────────────────────────────────────
-    if (playBtn) {
-      playBtn.addEventListener("click", async () => {
-        if (debounce) render();              // start a pending still render now
-        const d = dataGen;
-        setGifButtonsDisabled(true);
-        playLabel.textContent = "Lädt …";
-        const blob = await fetchImage("gif");
-        if (!blob || d !== dataGen) {
-          setGifButtonsDisabled(false);
-          updatePlayLabel();
-          return;
-        }
-        const url = URL.createObjectURL(blob);   // new URL per click restarts the GIF
-        const probe = new Image();
-        probe.onload = () => {
-          setGifButtonsDisabled(false);
-          if (d !== dataGen) { URL.revokeObjectURL(url); updatePlayLabel(); return; }
-          const old = gifURL;
-          gifURL = url;
-          gifImg = probe;
-          $("anim-img-top").src = url;
-          $("anim-img-bottom").src = url;
-          layoutGif();
-          if (old) URL.revokeObjectURL(old);
-          halves.hidden = true;
-          animHalves.hidden = false;
-          updatePlayLabel();
-        };
-        probe.onerror = () => {
-          URL.revokeObjectURL(url);
-          setGifButtonsDisabled(false);
-          updatePlayLabel();
-          showError("Die Animation konnte nicht angezeigt werden.");
-        };
-        probe.src = url;
-      });
+    // Animated templates play automatically after each still render; the
+    // replay button restarts the GIF from the cached blob (a new blob URL
+    // restarts the animation).
+    async function gifForData() {
+      if (gifBlob) return gifBlob;
+      const d = dataGen;
+      const blob = await fetchImage("gif");
+      if (!blob || d !== dataGen) return null;
+      gifBlob = blob;
+      return blob;
     }
+
+    async function playAnim() {
+      if (!animHalves) return;
+      const d = dataGen;
+      setGifButtonsDisabled(true);
+      const blob = await gifForData();
+      if (!blob || d !== dataGen) { setGifButtonsDisabled(false); return; }
+      const url = URL.createObjectURL(blob);
+      const probe = new Image();
+      probe.onload = () => {
+        setGifButtonsDisabled(false);
+        if (d !== dataGen) { URL.revokeObjectURL(url); return; }
+        const old = gifURL;
+        gifURL = url;
+        gifImg = probe;
+        $("anim-img-top").src = url;
+        $("anim-img-bottom").src = url;
+        layoutGif();
+        if (old) URL.revokeObjectURL(old);
+        halves.hidden = true;
+        animHalves.hidden = false;
+        replayBtn.hidden = false;
+      };
+      probe.onerror = () => {
+        URL.revokeObjectURL(url);
+        setGifButtonsDisabled(false);
+        showError("Die Animation konnte nicht angezeigt werden.");
+      };
+      probe.src = url;
+    }
+
+    if (replayBtn) replayBtn.addEventListener("click", playAnim);
 
     if (gifBtn) {
       gifBtn.addEventListener("click", async () => {
         setGifButtonsDisabled(true);
-        const blob = await fetchImage("gif");
+        const blob = await gifForData();
         setGifButtonsDisabled(false);
-        if (blob) download(blob, "gif");
+        if (blob) download(blob, templateName + ".gif");
       });
     }
+
+    {{if .EditorEnabled}}
+    // "Für ZZA exportieren" (desktop only): fetch the package so a 422 (not
+    // ZZA-compatible) shows its reasons under the preview instead of a text page.
+    const exportBtn = $("zza-export-btn");
+    exportBtn.addEventListener("click", async () => {
+      exportBtn.disabled = true;
+      showError("");
+      try {
+        const res = await fetch("/edit/" + templateName + "/zza-export");
+        if (!res.ok) { showError((await res.text()).trim()); return; }
+        download(await res.blob(), templateName + "-zza.zip");
+      } catch (e) {
+        showError("Netzwerkfehler: " + e.message);
+      } finally {
+        exportBtn.disabled = false;
+      }
+    });
+    {{end}}
 
     {{if .HasDefault}}
     setGifButtonsDisabled(false);

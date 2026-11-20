@@ -253,19 +253,27 @@ func TestDetail_AnimatedControls(t *testing.T) {
 	addPlainTemplate(t, srv.templatesDir)
 
 	anim := getPage(srv, "/t")
-	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`, ">Abspielen<", "GIF herunterladen"} {
+	for _, id := range []string{`id="replay-btn"`, `id="download-gif-btn"`, `class="tbtn tbtn-primary" disabled>`, "GIF herunterladen"} {
 		if !strings.Contains(anim, id) {
 			t.Errorf("animated detail page lacks %s", id)
 		}
 	}
 	plain := getPage(srv, "/p")
-	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`} {
+	for _, id := range []string{`id="replay-btn"`, `id="download-gif-btn"`} {
 		if strings.Contains(plain, id) {
 			t.Errorf("plain detail page contains %s", id)
 		}
 	}
-	if !strings.Contains(plain, `id="download-btn"`) {
-		t.Error("plain detail page lost the PNG download button")
+	if !strings.Contains(plain, `id="download-btn" class="tbtn tbtn-primary"`) {
+		t.Error("plain detail page: PNG download must be the primary button")
+	}
+	if strings.Contains(anim, `id="download-btn" class="tbtn tbtn-primary"`) {
+		t.Error("animated detail page: PNG download must not be primary (GIF is)")
+	}
+	for _, page := range []string{anim, plain} {
+		if !strings.Contains(page, `id="download-src-btn"`) {
+			t.Error("detail page lacks the template source download")
+		}
 	}
 }
 
@@ -431,7 +439,7 @@ func TestRender_FrameMode_GIF(t *testing.T) {
 func TestDetail_AnimatedFlag_FrameMode(t *testing.T) {
 	srv, _ := newTimeServer(t)
 	page := getPage(srv, "/f")
-	for _, id := range []string{`id="play-anim-btn"`, `id="download-gif-btn"`} {
+	for _, id := range []string{`id="replay-btn"`, `id="download-gif-btn"`} {
 		if !strings.Contains(page, id) {
 			t.Errorf("detail page lacks %s", id)
 		}

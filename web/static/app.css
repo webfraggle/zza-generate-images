@@ -579,11 +579,33 @@ a.brand:hover { color: var(--brand); }
   transition: background .15s, color .15s;
 }
 .tbtn:last-child { border-right: none; }
+a.tbtn { text-decoration: none; }
+/* Small replay button in the housing corner (animated templates). */
+.replay-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--housing-line);
+  border-radius: 50%;
+  background: var(--housing-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background .15s;
+}
+.replay-btn[hidden] { display: none; }
+.replay-btn:hover:not(:disabled) { background: var(--surface-2); }
+.replay-btn:disabled { cursor: default; opacity: .45; }
 .tbtn:hover:not(:disabled) { background: var(--surface-2); }
 .tbtn-primary { background: var(--brand); color: #fff; }
 .tbtn-primary:hover:not(:disabled) { background: var(--brand-dark); }
 .tbtn:disabled { cursor: default; opacity: .45; }
 .tbtn:focus-visible,
+.replay-btn:focus-visible,
 .btn:focus-visible,
 .btn-copy:focus-visible,
 .fgroup > summary:focus-visible,
@@ -597,6 +619,7 @@ a.brand:hover { color: var(--brand); }
   font-size: .85rem;
   line-height: 1.45;
   color: var(--red);
+  white-space: pre-line;
 }
 .detail-error:not(:empty) { padding: 12px 24px; }
 
@@ -970,7 +993,7 @@ body.editor-page {
   box-shadow: 0 0 0 3px rgba(253,112,20,.09);
 }
 
-.preview-controls { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.preview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .preview-controls select {
   font: inherit; font-size: .8rem; padding: 4px 8px;
   border: 1px solid var(--border); border-radius: var(--radius);
