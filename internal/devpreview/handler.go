@@ -84,19 +84,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wait := time.NewTimer(h.waitTimeout)
-	defer wait.Stop()
-	select {
-	case h.sem <- struct{}{}:
-		defer func() { <-h.sem }()
-	case <-r.Context().Done():
-		http.Error(w, "request cancelled while waiting for a preview slot", http.StatusServiceUnavailable)
-		return
-	case <-wait.C:
-		w.Header().Set("Retry-After", "5")
-		http.Error(w, "all preview slots busy, try again", http.StatusServiceUnavailable)
+	if !h.acquire(w, r) {
 		return
 	}
+	defer h.release()
 
 	pkg, err := devexport.Export(h.templatesDir, name)
 	if err != nil {
@@ -152,6 +143,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(buf.Bytes())
 }
+
+// acquire waits for a free slot in h.sem. On failure it has written a 503 and
+// returns false; on success the caller must call h.release.
+func (h *Handler) acquire(w http.ResponseWriter, r *http.Request) bool {
+	wait := time.NewTimer(h.waitTimeout)
+	defer wait.Stop()
+	select {
+	case h.sem <- struct{}{}:
+		return true
+	case <-r.Context().Done():
+		http.Error(w, "request cancelled while waiting for a preview slot", http.StatusServiceUnavailable)
+		return false
+	case <-wait.C:
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "all preview slots busy, try again", http.StatusServiceUnavailable)
+		return false
+	}
+}
+
+func (h *Handler) release() { <-h.sem }
 
 func orDefault(s, d string) string {
 	if s == "" {

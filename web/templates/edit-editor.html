@@ -77,6 +77,7 @@
         {{if .Animated}}
         <button id="replay-btn" class="btn btn-sm btn-level2" type="button" hidden>Erneut abspielen</button>
         {{end}}
+        <button id="zza-export-btn" class="btn btn-sm btn-level2" type="button" title="Lädt den gespeicherten Stand als Paket für den Zugzielanzeiger herunter (ZIP, in der Weboberfläche des ZZA unter Templates einspielen)">Für ZZA exportieren</button>
       </div>
       <div id="preview-wrap" class="preview-wrap">
         <div id="spinner" class="spinner" hidden></div>
@@ -309,6 +310,35 @@ if (engineSelect) {
     renderPreview();
   });
 }
+
+// "Für ZZA exportieren": fetch the package so a 422 (not ZZA-compatible) shows
+// its reasons in the preview's error box instead of navigating to a text page.
+const exportBtn = document.getElementById('zza-export-btn');
+exportBtn.addEventListener('click', async () => {
+  exportBtn.disabled = true;
+  renderErr.hidden   = true;
+  try {
+    const res = await fetch(`/edit/${TEMPLATE}/zza-export`);
+    if (!res.ok) {
+      renderErr.textContent = (await res.text()).trim();
+      renderErr.hidden = false;
+      return;
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `${TEMPLATE}-zza.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    renderErr.textContent = 'Netzwerkfehler: ' + e.message;
+    renderErr.hidden = false;
+  } finally {
+    exportBtn.disabled = false;
+  }
+});
 
 function schedulePreview() {
   clearTimeout(previewTimer);

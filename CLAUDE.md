@@ -15,7 +15,7 @@ Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/devicer
 
 **Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health`.
 
-**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`).
+**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`), `GET /edit/{template}/zza-export` (ZZA-Paket `<template>-zza.zip` wie `zza export`, Knopf „Für ZZA exportieren“ im Editor und auf der Detailseite; Fehler wie zza-render).
 
 **HTTPS-Redirect:** Alle Server-Routen außer `POST /{template}/render` werden bei `X-Forwarded-Proto: http` per 301 auf `https://` redirected. Render bleibt http für Microcontroller ohne TLS.
 

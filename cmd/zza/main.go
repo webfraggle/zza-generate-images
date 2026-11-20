@@ -109,8 +109,10 @@ func buildHandler(templatesOverride string) (*server.Server, error) {
 		return nil, err
 	}
 	srv.SetEditorEnabled(true)
+	preview := devpreview.New(tdir)
 	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache),
-		server.EditorRoute{Pattern: devpreview.Pattern, Handler: devpreview.New(tdir)})
+		server.EditorRoute{Pattern: devpreview.Pattern, Handler: preview},
+		server.EditorRoute{Pattern: devpreview.ExportPattern, Handler: preview.ExportHandler()})
 	return srv, nil
 }
 

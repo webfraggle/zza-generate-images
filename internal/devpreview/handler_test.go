@@ -67,6 +67,29 @@ func TestRenderGIF(t *testing.T) {
 }
 
 func TestIncompatible422(t *testing.T) {
+	dir := incompatibleTemplate(t)
+	rec := serve(New(dir), "small", "", "{}")
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body)
+	}
+	body := rec.Body.String()
+	for _, w := range []string{"nicht ZZA-kompatibel", "240 × 240", "Latin-1"} {
+		if !strings.Contains(body, w) {
+			t.Errorf("body %q lacks %q", body, w)
+		}
+	}
+	if strings.Count(body, "\n") < 2 {
+		t.Errorf("reasons not one per line: %q", body)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("content-type %q", ct)
+	}
+}
+
+// incompatibleTemplate writes a template "small" (160 × 80 canvas, "€" text)
+// into a temp dir and returns the dir.
+func incompatibleTemplate(t *testing.T) string {
+	t.Helper()
 	dir := t.TempDir()
 	td := filepath.Join(dir, "small")
 	if err := os.MkdirAll(td, 0o755); err != nil {
@@ -84,22 +107,7 @@ func TestIncompatible422(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(td, "template.yaml"), []byte(y), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	rec := serve(New(dir), "small", "", "{}")
-	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("status %d: %s", rec.Code, rec.Body)
-	}
-	body := rec.Body.String()
-	for _, w := range []string{"nicht ZZA-kompatibel", "240 × 240", "Latin-1"} {
-		if !strings.Contains(body, w) {
-			t.Errorf("body %q lacks %q", body, w)
-		}
-	}
-	if strings.Count(body, "\n") < 2 {
-		t.Errorf("reasons not one per line: %q", body)
-	}
-	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
-		t.Errorf("content-type %q", ct)
-	}
+	return dir
 }
 
 func TestRequestErrors(t *testing.T) {
