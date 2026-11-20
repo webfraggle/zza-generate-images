@@ -317,6 +317,16 @@ Abschnitt 11) statt aus dieser Tabelle.
 
 ## 4. Schrift
 
+- **Nur Latin-1-Zeichen (U+0000–U+00FF).** Der Zugzielanzeiger rendert nichts
+  anderes. Das gilt für jeden Textwert, jedes Filter-Argument (`replace(…)`),
+  `meta.name`/`description` und alle Strings in `default.json`. Erlaubt sind ASCII
+  und z. B. äöüß, éàç, °, ½, ·, « ». Nicht erlaubt und so zu ersetzen:
+  Halbgeviert-/Geviertstrich → `-`, typografische Anführungszeichen → `'` oder `"`,
+  Auslassungspunkte → `...`, Aufzählungspunkt `•` → `·` oder ein kleines Bild,
+  Pfeile → `->`, `€` → `EUR`, Emoji → weglassen. `write_file` und `create_template`
+  lehnen alles andere ab und nennen Zeile und Ersatz. YAML-Kommentare sind frei.
+  Ein Zeichen, das es in Latin-1 nicht gibt, aber zum Vorbild gehört (z. B. ein
+  dicker Punkt), wird als Bild eingebaut — so macht es `rhb-105-v1` mit `dot.png`.
 - `size` ist die Schriftgröße in **Pixeln** (72 dpi): `size: 19` ergibt rund 19 px
   Zeilenhöhe. `size` ist eine feste Zahl, kein Ausdruck.
 - `y` ist die **Oberkante** der Textzeile (mit `valign: baseline` die Grundlinie).
@@ -715,6 +725,7 @@ Erst wenn alle Punkte erfüllt sind, ist das Template fertig:
 - [ ] `copy`-Layer stehen am Ende; animierte Teile erscheinen auf beiden Seiten.
 - [ ] Vollflächen, 2–5 kräftige Farben, keine Verläufe, Schatten oder Fotos.
 - [ ] Keine Schrift kleiner als 10 px; Text mindestens 2 px vom Seitenrand.
+- [ ] Nur Latin-1-Zeichen in Werten, Filter-Argumenten und `default.json`.
 - [ ] Alle Zugdaten sind Platzhalter (`{{zug1.…}}`, `{{gleis}}`), nichts fest
       eingetragen, nichts in Bildern.
 - [ ] Alle vier Testdatensätze (a)–(d) mit `render_preview` geprüft: kein Überlauf,

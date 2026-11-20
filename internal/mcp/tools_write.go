@@ -87,14 +87,14 @@ type importImageOut struct {
 func registerWriteTools(s *sdk.Server, e *env) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "create_template",
-		Description: `Creates a new template from the starter (canvas 240x240, mirrored front/back layout). Name: lowercase letters, digits and hyphens, must end in "-105-v1", e.g. "berlin-sbahn-105-v1". Returns a preview image.`,
+		Description: `Creates a new template from the starter (canvas 240x240, mirrored front/back layout). Name: lowercase letters, digits and hyphens, must end in "-105-v1", e.g. "berlin-sbahn-105-v1". Title and description: Latin-1 characters only. Returns a preview image.`,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in createTemplateIn) (*sdk.CallToolResult, createTemplateOut, error) {
 		return e.createTemplate(in)
 	})
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "write_file",
-		Description: "Writes template.yaml, default.json or another .json/.yaml file of a template. template.yaml is validated (YAML, canvas must be 240x240, test render with default.json) and NOT saved if invalid — the error explains why. Pass expected_version from read_template/read_file to avoid overwriting edits made in the editor meanwhile. Returns the new version and warnings (design issues, unknown keys = likely typos). Call render_preview afterwards.",
+		Description: "Writes template.yaml, default.json or another .json/.yaml file of a template. Only Latin-1 characters (U+0000-U+00FF) are allowed in YAML keys/values and in JSON (the ZZA renders Latin-1 only; YAML comments are free): use - instead of en/em dashes, ' and \" instead of typographic quotes, ... instead of an ellipsis. template.yaml is validated (YAML, canvas must be 240x240, test render with default.json) and NOT saved if invalid — the error explains why. Pass expected_version from read_template/read_file to avoid overwriting edits made in the editor meanwhile. Returns the new version and warnings (design issues, unknown keys = likely typos). Call render_preview afterwards.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in writeFileIn) (*sdk.CallToolResult, writeFileOut, error) {
 		out, err := e.writeFile(in)
 		return nil, out, err
@@ -141,6 +141,12 @@ func (e *env) createTemplate(in createTemplateIn) (*sdk.CallToolResult, createTe
 	}
 	if len([]rune(in.Description)) > maxMetaDescLen {
 		return nil, zero, fmt.Errorf("description too long (max %d characters)", maxMetaDescLen)
+	}
+	if err := checkLatin1Text("title", in.Title); err != nil {
+		return nil, zero, err
+	}
+	if err := checkLatin1Text("description", in.Description); err != nil {
+		return nil, zero, err
 	}
 	e.writeMu.Lock()
 	defer e.writeMu.Unlock()
@@ -226,6 +232,14 @@ func (e *env) writeFile(in writeFileIn) (writeFileOut, error) {
 	}
 	if err := checkTemplateCapacity(dir, in.Name, int64(len(content))); err != nil {
 		return zero, err
+	}
+
+	latin1 := checkLatin1JSON
+	if ext == ".yaml" {
+		latin1 = checkLatin1YAML
+	}
+	if err := latin1(content); err != nil {
+		return zero, fmt.Errorf("%s rejected: %v", in.Name, err)
 	}
 
 	warnings := []string{}
