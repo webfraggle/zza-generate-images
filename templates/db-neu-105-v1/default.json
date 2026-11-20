@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 8,
+    "abschnitt": "A-F",
+    "zug1": {
+        "vonnach": "München Hbf",
+        "nr": "ICE 1219",
+        "zeit": "12:48",
+        "via": "Erfurt Hbf - Eisenach - Fulda - Frankfurt(M)Hbf - Mannheim Hbf - Stuttgart Hbf - Ulm Hbf - Augsburg Hbf - München-Pasing",
+        "abw": 0,
+        "hinweis": "Fährt über Ulm Hbf",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Leipzig-Miltitzer Allee",
+        "nr": "S 10",
+        "zeit": "13:58",
+        "via": "Gohlis - Coppiplatz - Leutzsch - Lindenau - Plagwitz",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}
