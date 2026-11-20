@@ -83,9 +83,8 @@ Die Zusage „PNG = Frame 0“ und „bytegleiches GIF ohne `now`“ gelten weit
   - `minute`: jede andere Verwendung von `now` (auch nur Datum);
   - `none`: kein `now`.
   Lässt sich ein Muster nicht statisch lesen (Muster aus einer Variablen), gilt `second`.
-  Die Formatnummer des Pakets bleibt. **Fehlt das Feld** (altes Paket), verhält sich das Gerät wie bisher:
-  eingefrorene Zeit, kein Selbst-Update – aber mit der echten Startzeit statt Zufall. *(mein Vorschlag, damit
-  alte Pakete nicht doppelt schnell laufen)*
+  Die Formatnummer des Pakets bleibt. Fehlt das Feld, gilt `none`. Alte Pakete werden nicht berücksichtigt
+  (User 2026-11-20: es gibt noch keine außerhalb der Entwicklung); sie werden neu exportiert.
 - **Templates**: `umuc-105-v1`, `nederland-105-v1` (`now.second | mul(6)`), `oebb-105-v1`
   (`format('HH:mm:ss')`). Änderung über den zza-MCP (`write_file`).
 - **Doku**: `docs/yaml-template-spec.md` (Abschnitte Frame-Animation, Variablen, Determinismus),
@@ -95,10 +94,10 @@ Die Zusage „PNG = Frame 0“ und „bytegleiches GIF ohne `now`“ gelten weit
 ### Firmware (`DisplayTemplate`, `tpl/TplAdapter`)
 
 Zeitquelle: `tpl::deviceTime()` ersetzt `randomTime()`. Stunde/Minute/Sekunde aus `zzaClock.now()`. Datum und
-Wochentag: im Modus `ntp` nach der Synchronisierung aus `localtime_r` (die Zeitzone setzt `Clock` schon), sonst
-fest 1.1.2026 wie bisher *(mein Vorschlag – die gestellte Uhr hat kein Datum)*. `meta.timezone` des Templates
-gilt auf dem Gerät nicht; es zählt die Zeitzone der Geräte-Uhr. Ohne Internetzeit läuft die Uhr ab 0:00 (so will
-es die Uhr-Spec), das Template zeigt das an.
+Zeitzone bleiben vorerst außen vor (User 2026-11-20): das Datum ist fest 1.1.2026 wie bisher, die Datumsfelder
+und `format` mit Datum funktionieren im Kern unverändert weiter. `meta.timezone` des Templates gilt auf dem
+Gerät nicht; es zählt, was die Geräte-Uhr liefert. Ohne Internetzeit läuft die Uhr ab 0:00 (so will es die
+Uhr-Spec), das Template zeigt das an.
 
 Verhalten je Paket (`clock` aus dem Manifest):
 
@@ -138,7 +137,7 @@ Regeln dazu:
 - Firmware E2E (Uhr im Modus `set`, damit die Tests die Zeit bestimmen): Standbild mit `HH:mm` ändert sich nach
   dem Minutenwechsel und nicht vorher; mit Sekunden jede Sekunde; Faktor 10 läuft entsprechend schneller;
   Uhr stellen wirkt innerhalb eines Takts; Frame-Uhr (`umuc`) zeigt nach `set 11:59:55` nach 10 s Minute 0 der
-  nächsten Stunde; Paket ohne `clock` läuft wie bisher; `mode` ist `live` für Frame-Modus mit Uhr.
+  nächsten Stunde; `mode` ist `live` für Frame-Modus mit Uhr.
 - Manuell: Sekundenzeiger über 5 Minuten ohne Ruckeln/Doppelsekunde; Web-Oberfläche bleibt bedienbar, während
   beide Gleise eine Sekundenuhr zeigen.
 
@@ -146,7 +145,7 @@ Regeln dazu:
 
 Reihenfolge am Server: Templates und Server-Version zusammen aktualisieren (Templates liegen auf der VM als
 Bind Mount). Neue Templates auf altem Server: Sekundenzeiger steht. Alte Templates auf neuem Server: doppelte
-Geschwindigkeit. Geräte brauchen neu exportierte Pakete, um die laufende Uhr zu bekommen.
+Geschwindigkeit. Pakete auf den Geräten werden neu exportiert und eingespielt.
 
 ## Dem Umsetzenden überlassen
 
