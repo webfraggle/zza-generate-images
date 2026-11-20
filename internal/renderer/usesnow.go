@@ -1,7 +1,9 @@
 package renderer
 
 import (
+	"math"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -10,6 +12,7 @@ var (
 	nowSecondRe      = regexp.MustCompile(`(^|[^A-Za-z0-9_.])now\.second([^A-Za-z0-9_]|$)`)
 	formatFilterRe   = regexp.MustCompile(`\bformat\s*\(`)
 	formatLiteralArg = regexp.MustCompile(`^\s*(?:'([^']*)'|"([^"]*)")`)
+	formatSecondArg  = regexp.MustCompile(`^\s*,`)
 )
 
 // Clock levels, ordered: a higher level includes the lower ones.
@@ -29,8 +32,9 @@ func (t *Template) UsesNow() bool {
 
 // ClockGranularity reports how often the template changes with the clock:
 // "second" if any evaluated expression reads now.second or formats with
-// seconds (or with a pattern that is not a string literal), "minute" if it
-// reads the clock otherwise, else "none".
+// seconds (or with a pattern that is not a string literal, or with an offset
+// that is not a numeric literal of whole minutes), "minute" if it reads the
+// clock otherwise, else "none".
 func (t *Template) ClockGranularity() string {
 	switch t.clockLevel() {
 	case clockSecond:
@@ -87,10 +91,47 @@ func exprClock(s string) int {
 			return clockSecond // pattern not known statically
 		case strings.Contains(m[1]+m[2], "ss"):
 			return clockSecond
+		case formatSecondArg.MatchString(arg[len(m[0]):]) && !wholeMinutes(offsetArg(arg[len(m[0]):])):
+			return clockSecond // the offset moves the shown minute off the minute boundary
 		}
 		level = max(level, clockMinute)
 	}
 	return level
+}
+
+// offsetArg returns the second argument of a format call: rest starts at the comma after the
+// pattern, the argument ends at the closing parenthesis of the call (nested calls and quoted
+// strings skipped). Unbalanced input returns the rest after the comma.
+func offsetArg(rest string) string {
+	rest = rest[strings.IndexByte(rest, ',')+1:]
+	depth := 0
+	var quote byte
+	for i := 0; i < len(rest); i++ {
+		c := rest[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '\'' || c == '"':
+			quote = c
+		case c == '(':
+			depth++
+		case c == ')':
+			if depth == 0 {
+				return rest[:i]
+			}
+			depth--
+		}
+	}
+	return rest
+}
+
+// wholeMinutes reports whether arg is a numeric literal that is a multiple of 60 seconds: only
+// then does a format offset keep the shown minute changing on the minute boundary.
+func wholeMinutes(arg string) bool {
+	v, err := strconv.ParseFloat(strings.TrimSpace(arg), 64)
+	return err == nil && !math.IsNaN(v) && !math.IsInf(v, 0) && math.Mod(v, 60) == 0
 }
 
 // interpClock returns the highest clock level of any {{…}} in s. Text

@@ -74,6 +74,12 @@ func TestClockGranularity(t *testing.T) {
 		{"now.second", val("{{now.second | mul(6)}}"), "second"},
 		{"format with seconds", val("{{now | format('HH:mm:ss')}}"), "second"},
 		{"format non-literal pattern", val("{{now | format(muster)}}"), "second"},
+		{"format offset not whole minutes", val("{{now | format('HH:mm', 90)}}"), "second"},
+		{"format offset whole minutes", val("{{now | format('HH:mm', 120)}}"), "minute"},
+		{"format negative whole minutes", val("{{now | format('HH:mm', -3600)}}"), "minute"},
+		{"format offset variable", val("{{now | format('HH:mm', anim.time)}}"), "second"},
+		{"format offset pipeline", val("{{now | format('HH:mm', zug1.vl | mul(60))}}"), "second"},
+		{"format offset fraction", val("{{now | format('HH:mm', 60.5)}}"), "second"},
 		{"now.second in nested if", Layer{Layers: []Layer{{Type: "rect", If: "greaterThan(now.second, 30)"}}}, "second"},
 		{"now.second outside braces", val("now.second"), "none"},
 	}

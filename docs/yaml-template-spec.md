@@ -436,7 +436,7 @@ meta:
 |---|---|---|
 | `none` | kein `now` im Template (auch der Wert bei fehlendem Feld) | Standbild bleibt stehen |
 | `minute` | `now` wird verwendet, aber nicht die Sekunde (auch nur das Datum) | Standbild wird neu gerendert, sobald sich die Minute der Geräte-Uhr ändert |
-| `second` | `now.second` oder ein `format`-Muster mit Sekunden; auch wenn das Muster nicht statisch lesbar ist | Standbild wird jede Sekunde neu gerendert |
+| `second` | `now.second` oder ein `format`-Muster mit Sekunden; auch wenn das Muster nicht statisch lesbar ist oder `format` einen Versatz hat, der keine Zahl aus ganzen Minuten ist (`format('HH:mm', 90)`, `format('HH:mm', anim.time)`) | Standbild wird jede Sekunde neu gerendert |
 
 Im Frame-Modus rendert das Gerät bei `minute`/`second` immer live im Takt von `frame_delay`, `now` ist die Geräte-Uhr je Frame. Bei Split-Flap bleibt die Zeit beim Start eingefroren. Gezeichnet wird nur, was sich ändert.
 

@@ -43,8 +43,10 @@ class Renderer {
   int animBegin(const char* data, size_t len, const zza_time& now, int* frames, int* loop,
                 std::string& err);
 
-  // Renders frame i into rgb888, which must hold frame i-1 (frame 0: anything),
-  // see zza_anim_frame. ZZA_ERR_STATE without a session or for i out of range.
+  // Renders frame i into rgb888, which must hold frame i-1 (frame 0: anything).
+  // now follows the rule of zza_anim_frame (NULL: start time plus the elapsed frame
+  // delays; else the time of this frame; split-flap ignores it).
+  // ZZA_ERR_STATE without a session or for i out of range.
   // Throws std::bad_alloc (the session and caches are dropped then).
   int animFrame(int i, const zza_time* now, uint8_t* rgb888, int* delayCs, zza_rect* dirty, int maxRects, int* nRects,
                 std::string& err);

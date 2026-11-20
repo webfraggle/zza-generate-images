@@ -17,8 +17,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/webfraggle/zza-generate-images/internal/renderer"
 )
 
 const testFont = "../../templates/faltblatt-105-v1/NimbusSanL-Bol.otf"
@@ -710,14 +708,14 @@ func TestManifestClock(t *testing.T) {
 		}
 		return mf.Clock
 	}
-	if got := clockOf("umuc-105-v1"); got != "second" {
-		t.Errorf("umuc-105-v1 clock = %q, want second", got)
-	}
-	tmpl, err := renderer.LoadTemplate("../../templates", "faltblatt-105-v1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, want := clockOf("faltblatt-105-v1"), tmpl.ClockGranularity(); got != want {
-		t.Errorf("faltblatt-105-v1 clock = %q, want %q", got, want)
+	for name, want := range map[string]string{
+		"umuc-105-v1":      "second",
+		"nederland-105-v1": "second",
+		"oebb-105-v1":      "second",
+		"faltblatt-105-v1": "none", // no now: the field is written as "none"
+	} {
+		if got := clockOf(name); got != want {
+			t.Errorf("%s clock = %q, want %q", name, got, want)
+		}
 	}
 }

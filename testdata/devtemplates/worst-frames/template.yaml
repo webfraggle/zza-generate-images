@@ -19,5 +19,7 @@ layers:
   - {type: image, file: dial.png, x: 120, y: 120, width: "{{240 - anim.frame / 2}}", height: "{{240 - anim.frame / 2}}", rotate: "{{anim.frame | mul(-5)}}"}
   # dynamisch skaliertes Vollbild ohne Drehung
   - {type: image, file: dial.png, x: "{{anim.frame - 60}}", y: 0, width: 240, height: "{{240 - anim.frame / 3}}"}
+  # Alte Uhr-Schreibweise mit Absicht (Regression von format(..., sek)): now läuft im Frame-Modus
+  # schon pro Frame mit, als Uhr zählt die Zeit hier doppelt.
   - {type: text, value: "{{name}} {{now | format('HH:mm:ss', anim.time)}}", font: reg, size: 18, color: "#ffffff", x: 120, y: 200, align: center}
   - {type: copy, src_x: 60, src_y: 60, src_width: 120, src_height: 40, x: 0, y: 0}

@@ -10,8 +10,9 @@ import (
 	"time"
 )
 
-// clockTemplate loads a 90×16 template in a temp dir (with the Nimbus font)
-// whose only layer is the given text value. layers is the YAML under `layers:`.
+// clockTemplate loads a 90×16 template in a temp dir (with the Nimbus font):
+// animation is the YAML of the `animation:` block ("" = none), value the text
+// of the only text layer (on a black rect).
 func clockTemplate(t *testing.T, animation, value string) *Template {
 	t.Helper()
 	dir := t.TempDir()

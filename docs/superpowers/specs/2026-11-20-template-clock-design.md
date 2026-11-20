@@ -79,7 +79,9 @@ Die Zusage „PNG = Frame 0“ und „bytegleiches GIF ohne `now`“ gelten weit
   Sekunde → Minute → Stunde → Tag ab.
 - **Export** (`internal/devexport`): `manifest.json` bekommt das Feld `"clock"`: `"none"`, `"minute"` oder
   `"second"`. Bestimmt aus den Ausdrücken, die `UsesNow` schon findet:
-  - `second`: `now.second` oder ein `format`-Muster mit Sekunden;
+  - `second`: `now.second` oder ein `format`-Muster mit Sekunden, oder ein `format` mit Versatz, der kein
+    Zahlen-Literal aus ganzen Minuten ist (`format('HH:mm', 90)`, `format('HH:mm', anim.time)`: die Minute
+    wechselt dann nicht auf der Minutengrenze; `format('HH:mm', 120)` bleibt `minute`);
   - `minute`: jede andere Verwendung von `now` (auch nur Datum);
   - `none`: kein `now`.
   Lässt sich ein Muster nicht statisch lesen (Muster aus einer Variablen), gilt `second`.
@@ -117,17 +119,33 @@ Regeln dazu:
   überspringen. Standbilder lösen an der Änderung der Uhr aus; im Frame-Modus mit `frame_delay` 1 s richtet der
   Adapter den Start so aus, dass Frames nicht auf die Sekundengrenze fallen.
 - **Schnelle Modellbahnuhr.** Bei Faktor > 1 ändert sich die Sekunde öfter als einmal je Echtzeit-Sekunde.
-  Aktualisiert wird höchstens so oft, wie Rendern + Zeichnen mit Reserve erlauben (die 70-%-Regel aus §12.4),
-  mindestens 100 ms Abstand; dazwischen werden Sekunden übersprungen. *(mein Vorschlag)*
-- **Zu langsam.** Dauert ein Update länger als sein Takt, fallen Takte aus (kein Aufholen). Die bestehenden
-  Grenzen bleiben: ein Bild > 1,5 s oder Arbeitsgrenze überschritten → Update-Schleife endet, das letzte Bild
-  bleibt stehen, bis neue Daten kommen.
+  Uhr-Updates belegen höchstens 25 % der Zeit: Abstand zwischen zwei Updates = max(100 ms, 4 × Dauer des letzten
+  Updates aus Rendern + Zeichnen); dazwischen werden Sekunden übersprungen. Für Uhren ersetzt das die
+  70-%-Regel aus §12.4 (Security-Review 2026-11-20).
+- **Zu langsam.** Dauert ein Update länger als sein Takt, fallen Takte aus (kein Aufholen). Grenzen
+  (Security-Review 2026-11-20, ersetzen für Uhren die 1,5-s-Grenze):
+  - Uhr-Update eines Standbilds oder Endbilds > 500 ms (Rendern + Zeichnen) oder Arbeitsgrenze überschritten →
+    keine Uhr-Updates mehr für diese Daten, das Bild bleibt stehen, bis neue Daten kommen (`clockOff`).
+  - Frame der Frame-Animation mit Uhr > 500 ms oder > 50 % seiner Frame-Dauer (Rendern + Zeichnen) → die
+    Animation wird abgebrochen, das Gleis zeigt das Standbild der Uhr, das dann der Regel oben folgt
+    (`umuc-105-v1` mit etwa 200 ms je 1-s-Frame bleibt live).
+  - Kein Speicher für den Vergleich (`zza_render_diff` NOMEM) → ganzes Bild neu; schlägt auch das fehl, zeigt
+    das Gleis wie bei einem fehlgeschlagenen Standbild das eingebaute Layout (die halb gerenderte Leinwand wird
+    nie gezeichnet).
 - **Uhr wird gestellt / NTP synchronisiert.** Die Uhr springt; das nächste Update zeigt die neue Zeit. Kein
   Sonderfall nötig, weil jedes Update die Uhr neu liest.
 - **Zugwechsel.** Keine Zufallszeit mehr. Die Abkürzung „gleiche Daten → nur neu zeichnen“ bleibt.
 - **Zwei Gleise.** Beide dürfen gleichzeitig eine Uhr zeigen; jedes Gleis höchstens ein Bild je `service()` wie
   bisher.
-- `/templateStatus` je Gleis: zusätzlich `"clock":"none|minute|second"`.
+- `/templateStatus` je Gleis: zusätzlich `"clock":"none|minute|second"`, `"clockFull":n` (Uhr-Updates als ganzes
+  Bild seit dem Laden) und `"clockOff":true|false` (Uhr-Updates für diese Daten abgeschaltet).
+
+Bekannte Grenzen:
+
+- GIF der ZZA-Vorschau und GIF des Servers können sich um eine Stunde unterscheiden, wenn innerhalb der
+  Animation eine Sommer-/Winterzeit-Umstellung liegt: der Kern addiert Wanduhr-Sekunden, Go eine absolute Dauer.
+- Das Endbild einer Frame-Animation ohne `loop` mit Uhr folgt der Uhr nicht mehr, wenn der Kern dabei keinen
+  Speicher bekommt (NOMEM beendet die Sitzung; es gibt dafür keinen Rückfall).
 
 ## Tests
 
