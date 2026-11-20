@@ -197,3 +197,35 @@ func testErr(r *Renderer, code int) error { return r.errFor(C.int(code)) }
 
 // testAnimEnd ends the animation of r.
 func testAnimEnd(r *Renderer) { C.zza_anim_end(r.c) }
+
+// testClock returns zza_clock of r (ZZA_CLOCK_*).
+func testClock(r *Renderer) int { return int(C.zza_clock(r.c)) }
+
+// testRenderDiff calls zza_render_diff with data at now on a copy of prev (nil:
+// a black image), asking for up to maxRects rectangles. It returns the ZZA_*
+// code, the buffer after the call and the reported rectangles.
+func testRenderDiff(r *Renderer, data []byte, now time.Time, prev *image.NRGBA, maxRects int) (int, *image.NRGBA, []image.Rectangle) {
+	buf := (*C.uchar)(C.calloc(1, 240*240*3))
+	defer C.free(unsafe.Pointer(buf))
+	if prev != nil {
+		dst := unsafe.Slice((*byte)(unsafe.Pointer(buf)), 240*240*3)
+		for i, j := 0, 0; i < len(dst); i, j = i+3, j+4 {
+			dst[i], dst[i+1], dst[i+2] = prev.Pix[j], prev.Pix[j+1], prev.Pix[j+2]
+		}
+	}
+	var cd *C.char
+	if len(data) > 0 {
+		cd = (*C.char)(C.CBytes(data))
+		defer C.free(unsafe.Pointer(cd))
+	}
+	t := cTime(now)
+	rects := make([]C.zza_rect, max(maxRects, 1))
+	var n C.int
+	code := int(C.zza_render_diff(r.c, cd, C.size_t(len(data)), &t, buf, &rects[0], C.int(maxRects), &n))
+	var out []image.Rectangle
+	for i := 0; i < int(n); i++ {
+		c := rects[i]
+		out = append(out, image.Rect(int(c.x), int(c.y), int(c.x+c.w), int(c.y+c.h)))
+	}
+	return code, toNRGBA(buf), out
+}

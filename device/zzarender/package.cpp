@@ -292,6 +292,7 @@ struct Package::Impl {
   std::unique_ptr<BudgetJsonDoc> tj;
   RegexTable re;
   std::string name;
+  int clock = ZZA_CLOCK_NONE;
 
   explicit Impl(ZzaBudget* b) : budget(b), re(b) {}
 };
@@ -329,6 +330,14 @@ int Package::load(const zza_file* files, int n, std::string& err) {
     JsonArrayConst list = m["files"];
     if (list.isNull()) fail("manifest.json", "files missing");
     d_->name = m["name"] | "";
+    JsonVariantConst clk = m["clock"];
+    if (!clk.isNull()) {
+      const char* c = clk.is<const char*>() ? clk.as<const char*>() : nullptr;
+      if (c && strcmp(c, "none") == 0) d_->clock = ZZA_CLOCK_NONE;
+      else if (c && strcmp(c, "minute") == 0) d_->clock = ZZA_CLOCK_MINUTE;
+      else if (c && strcmp(c, "second") == 0) d_->clock = ZZA_CLOCK_SECOND;
+      else fail("manifest.json", "invalid clock");
+    }
 
     std::vector<std::string> seen;
     for (JsonObjectConst e : list) {
@@ -395,6 +404,8 @@ const RegexSource* Package::regexSource() const { return &d_->re; }
 const RegexProg* Package::regex(const std::string& pattern) const { return d_->re.find(pattern); }
 
 const std::string& Package::name() const { return d_->name; }
+
+int Package::clock() const { return d_->clock; }
 
 JsonVariantConst Package::tmpl() const {
   if (!d_->tj) return JsonVariantConst();

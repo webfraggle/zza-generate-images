@@ -49,6 +49,13 @@ class Renderer {
   int animFrame(int i, const zza_time* now, uint8_t* rgb888, int* delayCs, zza_rect* dirty, int maxRects, int* nRects,
                 std::string& err);
 
+  // Like render, but rgb888 holds the previous image and is updated in place
+  // (see zza_render_diff). ZZA_ERR_STATE while an animation is open. The
+  // comparison buffer is budget memory for the call only; on any error rgb888
+  // is unchanged. Throws std::bad_alloc when the budget is exhausted.
+  int renderDiff(const char* data, size_t len, const zza_time& now, uint8_t* rgb888, zza_rect* dirty, int maxRects,
+                 int* nRects, std::string& err);
+
   // Ends the animation and frees its memory.
   void animEnd();
 

@@ -87,6 +87,8 @@ class Package {
   JsonVariantConst tmpl() const;
   // The template name of the manifest ("name"; "" if absent), seeds animations.
   const std::string& name() const;
+  // The manifest's "clock" as ZZA_CLOCK_* (ZZA_CLOCK_NONE if absent or no package).
+  int clock() const;
 
  private:
   struct Impl;

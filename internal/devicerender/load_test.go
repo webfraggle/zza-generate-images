@@ -517,3 +517,48 @@ func TestLoadPlausibility(t *testing.T) {
 		})
 	}
 }
+
+// TestClockFromManifest: zza_clock reads manifest "clock"; a missing field is
+// none, any other value than none|minute|second is a format error.
+func TestClockFromManifest(t *testing.T) {
+	base := shippedPackages(t)["umuc-105-v1"]
+	if base == nil {
+		t.Skip("umuc-105-v1 not exportable")
+	}
+	withClock := func(v string) *devexport.Package {
+		p := clonePkg(base)
+		var m map[string]any
+		if err := json.Unmarshal(p.Files["manifest.json"], &m); err != nil {
+			t.Fatal(err)
+		}
+		if v == "" {
+			delete(m, "clock")
+		} else {
+			m["clock"] = v
+		}
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Files["manifest.json"] = b
+		return p
+	}
+	for _, tc := range []struct {
+		clock string
+		want  int
+	}{{"", 0}, {"none", 0}, {"minute", 1}, {"second", 2}} {
+		r := loadPkg(t, withClock(tc.clock))
+		if got := testClock(r); got != tc.want {
+			t.Errorf("clock %q: zza_clock = %d, want %d", tc.clock, got, tc.want)
+		}
+	}
+	r := New(32 << 20)
+	defer r.Close()
+	if got := testClock(r); got != 0 {
+		t.Errorf("without package: %d, want 0", got)
+	}
+	err := r.Load(withClock("hourly"))
+	if !errors.Is(err, ErrFormat) || !strings.Contains(err.Error(), "manifest.json: invalid clock") {
+		t.Errorf("clock hourly: %v, want ErrFormat \"manifest.json: invalid clock\"", err)
+	}
+}

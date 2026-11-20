@@ -619,7 +619,7 @@ layers:
 func TestAnimFrameNowParity(t *testing.T) {
 	tmp := t.TempDir()
 	clockFrames(t, tmp, "clock")
-	start := time.Date(2026, 1, 1, 23, 59, 30, 0, time.UTC)
+	start := time.Date(2026, 1, 1, 23, 59, 30, 0, tzBerlin(t)) // the template zone, see the fractional test
 	tmpl, err := renderer.LoadTemplate(tmp, "clock")
 	if err != nil {
 		t.Fatal(err)
@@ -642,6 +642,67 @@ func TestAnimFrameNowParity(t *testing.T) {
 		}
 		if i > 0 && bytes.Equal(c.Frames[i].Pix, c.Frames[i-1].Pix) {
 			t.Errorf("C++ frame %d equals frame %d (clock did not advance)", i, i-1)
+		}
+	}
+}
+
+func tzBerlin(t *testing.T) *time.Location {
+	t.Helper()
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loc
+}
+
+// TestAnimFrameNowParityFractionalDelay: with frame_delay 0.3 the core's rule
+// floor(i*delay_cs/100) matches Go, including the carry into the date.
+func TestAnimFrameNowParityFractionalDelay(t *testing.T) {
+	tmp := t.TempDir()
+	clockFrames(t, tmp, "clock")
+	b, err := os.ReadFile(filepath.Join(tmp, "clock", "template.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := strings.Replace(string(b), "frame_delay: 1", "frame_delay: 0.3", 1)
+	s = strings.Replace(s, "HH:mm:ss", "dd.MM. HH:mm:ss", 1)
+	if err := os.WriteFile(filepath.Join(tmp, "clock", "template.yaml"), []byte(s), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// In the template's zone (Berlin), like fixedNow: Go converts the start time
+	// into it, the core takes wall-clock time as given.
+	start := time.Date(2026, 1, 1, 23, 59, 50, 0, tzBerlin(t))
+	tmpl, err := renderer.LoadTemplate(tmp, "clock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("{}")
+	g, err := renderer.NewWithClock(tmp, func() time.Time { return start }).RenderAnimation(tmpl, map[string]any{}, renderer.AnimationSeed("clock", data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := loadDevice(t, tmp, "clock").RenderAnimation(data, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Frames) != 60 || len(g.Frames) != 60 {
+		t.Fatalf("frames: C++ %d, Go %d", len(c.Frames), len(g.Frames))
+	}
+	for i := range g.Frames {
+		if msg := nearCheck(t, g.Frames[i], c.Frames[i]); msg != "" {
+			t.Errorf("frame %d: %s", i, msg)
+		}
+	}
+	// nearCheck is loose for small text; pin the rule exactly: frame i is the
+	// core's own still image at start + floor(i*30/100) seconds.
+	r := loadDevice(t, tmp, "clock")
+	for i := range c.Frames {
+		want, err := r.Render(data, start.Add(time.Duration(i*30/100)*time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(c.Frames[i].Pix, want.Pix) {
+			t.Errorf("frame %d is not the still image at start + floor(%d*0.3) s", i, i)
 		}
 	}
 }

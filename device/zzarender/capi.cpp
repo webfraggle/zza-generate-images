@@ -84,6 +84,25 @@ int zza_render(zza_renderer* r, const char* data, size_t len, const zza_time* no
   });
 }
 
+int zza_clock(const zza_renderer* r) { return r && r->pkg ? r->pkg->clock() : ZZA_CLOCK_NONE; }
+
+int zza_render_diff(zza_renderer* r, const char* data, size_t len, const zza_time* now, unsigned char* rgb888,
+                    zza_rect* dirty, int max_rects, int* n_rects) {
+  if (!r) return ZZA_ERR_STATE;
+  return guarded(r, [&]() {
+    r->error.clear();
+    if (!r->pkg || !r->rend) {
+      r->error = "no package loaded";
+      return (int)ZZA_ERR_STATE;
+    }
+    if (!now || !rgb888 || (!data && len > 0)) {
+      r->error = "invalid arguments";
+      return (int)ZZA_ERR_STATE;
+    }
+    return r->rend->renderDiff(data, len, *now, rgb888, dirty, max_rects, n_rects, r->error);
+  });
+}
+
 int zza_anim_begin(zza_renderer* r, const char* data, size_t len, const zza_time* now, int* frames, int* loop) {
   if (!r) return ZZA_ERR_STATE;
   return guarded(r, [&]() {

@@ -19,6 +19,19 @@ void          zza_delete(zza_renderer*);
 const char*   zza_version(void); /* "zzarender/1" */
 int           zza_load(zza_renderer*, const zza_file* files, int n);
 int           zza_render(zza_renderer*, const char* data, size_t len, const zza_time* now, unsigned char* rgb888);
+enum { ZZA_CLOCK_NONE = 0, ZZA_CLOCK_MINUTE = 1, ZZA_CLOCK_SECOND = 2 };
+/* How often a still image of the loaded package must be refreshed, from manifest "clock"
+   ("none" | "minute" | "second"). Without a package or without the field: ZZA_CLOCK_NONE.
+   zza_load rejects any other value with ZZA_ERR_FORMAT ("manifest.json: invalid clock"). */
+int           zza_clock(const zza_renderer*);
+/* Like zza_render, but rgb888 must hold the previous image and is updated in place; the changed
+   rectangles are reported as in zza_anim_frame (0 = unchanged; more than max_rects: one enclosing
+   rectangle; nothing reported for max_rects < 1 / dirty NULL; dirty and n_rects may be NULL).
+   ZZA_ERR_STATE while an animation is open (between zza_anim_begin and zza_anim_end). The comparison
+   buffer (172800 bytes) is budget memory only during the call; on any error (also ZZA_ERR_NOMEM)
+   rgb888 stays unchanged. */
+int           zza_render_diff(zza_renderer*, const char* data, size_t len, const zza_time* now,
+                              unsigned char* rgb888, zza_rect* dirty, int max_rects, int* n_rects);
 /* Starts an animation of the loaded package with data (as zza_render; a running animation ends).
    Split-flap: seed SHA-256(manifest name || 0x00 || data[0..len)), schedule like RenderAnimation,
    *frames = frames incl. the final still (= zza_render). Frame mode (meta.animation.frames):

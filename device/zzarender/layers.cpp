@@ -501,4 +501,19 @@ int Renderer::render(const char* data, size_t len, const zza_time& now, uint8_t*
   return ZZA_OK;
 }
 
+int Renderer::renderDiff(const char* data, size_t len, const zza_time& now, uint8_t* rgb888, zza_rect* dirty,
+                         int maxRects, int* nRects, std::string& err) {
+  if (d_->anim) {
+    err = "animation open";
+    return ZZA_ERR_STATE;
+  }
+  ZzaBytes cur{ZzaAlloc<uint8_t>(d_->budget)};
+  cur.resize(rd::kCanvasBytes);
+  int rc = render(data, len, now, cur.data(), err);
+  if (rc != ZZA_OK) return rc;
+  int n = diffFrames(cur.data(), rgb888, dirty, dirty ? maxRects : 0);
+  if (nRects) *nRects = n;
+  return ZZA_OK;
+}
+
 }  // namespace zza

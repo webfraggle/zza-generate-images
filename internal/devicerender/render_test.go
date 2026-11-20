@@ -665,3 +665,133 @@ func TestRenderLimitsLikeGo(t *testing.T) {
 		t.Error("4096-rune cap had no effect on the wrapped text")
 	}
 }
+
+// diffClockTemplate writes a still template with a seconds clock into dir/name.
+func diffClockTemplate(t *testing.T, dir, name string) {
+	t.Helper()
+	copyTemplate(t, covRoot, "cov-frames", dir, name)
+	yaml := `meta:
+  name: "Uhr"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#102030", x: 0, y: 0, width: 240, height: 240}
+  - {type: text, value: "{{now | format('HH:mm:ss')}}", font: reg, size: 16, color: "#ffffff", x: 8, y: 100}
+`
+	if err := os.WriteFile(filepath.Join(dir, name, "template.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func inRects(p image.Point, rects []image.Rectangle) bool {
+	for _, r := range rects {
+		if p.In(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRenderDiff: a diff against the image of time A gives Render(B), reports
+// every changed pixel inside its rectangles and nothing for the same time.
+func TestRenderDiff(t *testing.T) {
+	tmp := t.TempDir()
+	diffClockTemplate(t, tmp, "clock")
+	r := loadDevice(t, tmp, "clock")
+	data := []byte("{}")
+	a := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	b := a.Add(time.Second)
+	imgA, err := r.Render(data, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantB, err := r.Render(data, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, got, rects := testRenderDiff(r, data, b, imgA, 16)
+	if code != 0 {
+		t.Fatalf("code %d", code)
+	}
+	if !bytes.Equal(got.Pix, wantB.Pix) {
+		t.Error("buffer after diff differs from Render(B)")
+	}
+	if len(rects) == 0 {
+		t.Fatal("no rectangle for a changed clock")
+	}
+	for y := 0; y < 240; y++ {
+		for x := 0; x < 240; x++ {
+			o := imgA.PixOffset(x, y)
+			if !bytes.Equal(imgA.Pix[o:o+3], wantB.Pix[o:o+3]) && !inRects(image.Pt(x, y), rects) {
+				t.Fatalf("pixel (%d,%d) changed outside %v", x, y, rects)
+			}
+		}
+	}
+	code, same, rects := testRenderDiff(r, data, b, wantB, 16)
+	if code != 0 || len(rects) != 0 || !bytes.Equal(same.Pix, wantB.Pix) {
+		t.Errorf("same time: code %d, %d rects", code, len(rects))
+	}
+	// Fewer rectangles than needed: one enclosing rectangle, still complete.
+	code, got, rects = testRenderDiff(r, data, b, imgA, 1)
+	if code != 0 || len(rects) != 1 || !bytes.Equal(got.Pix, wantB.Pix) {
+		t.Errorf("maxRects 1: code %d, %d rects", code, len(rects))
+	}
+}
+
+// TestRenderDiffNoMem: a budget that fits Render but not the comparison buffer
+// gives ErrNoMem and leaves the buffer untouched.
+func TestRenderDiffNoMem(t *testing.T) {
+	tmp := t.TempDir()
+	diffClockTemplate(t, tmp, "clock")
+	p, err := devexport.Export(tmp, "clock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("{}")
+	a := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	probe := loadPkg(t, p)
+	if _, err := probe.Render(data, a); err != nil {
+		t.Fatal(err)
+	}
+	r := New(probe.MemPeak())
+	defer r.Close()
+	if err := r.Load(p); err != nil {
+		t.Fatal(err)
+	}
+	imgA, err := r.Render(data, a)
+	if err != nil {
+		t.Fatalf("Render with the peak budget: %v", err)
+	}
+	used := r.MemUsed()
+	code, got, _ := testRenderDiff(r, data, a.Add(time.Second), imgA, 16)
+	if code != noMemCode {
+		t.Fatalf("code %d, want ZZA_ERR_NOMEM", code)
+	}
+	if !bytes.Equal(got.Pix, imgA.Pix) {
+		t.Error("buffer changed after ErrNoMem")
+	}
+	if r.MemUsed() != used {
+		t.Errorf("MemUsed %d after failure, want %d", r.MemUsed(), used)
+	}
+}
+
+// TestRenderDiffDuringAnimation: ZZA_ERR_STATE between anim_begin and anim_end.
+func TestRenderDiffDuringAnimation(t *testing.T) {
+	r := loadDevice(t, covRoot, "cov-frames")
+	data := readDefault(t, covRoot, "cov-frames")
+	now := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	if code, _ := testAnimBegin(r, data, toZza(now)); code != 0 {
+		t.Fatalf("anim begin: %d", code)
+	}
+	if code, _, _ := testRenderDiff(r, data, now, nil, 16); code != errStateCode {
+		t.Errorf("during animation: code %d, want ZZA_ERR_STATE", code)
+	}
+	testAnimEnd(r)
+	if code, _, _ := testRenderDiff(r, data, now, nil, 16); code != 0 {
+		t.Errorf("after anim end: code %d", code)
+	}
+}
