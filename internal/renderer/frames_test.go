@@ -191,21 +191,29 @@ func TestRenderAnimation_FrameMode_StringVars(t *testing.T) {
 	}
 }
 
-func TestRenderAnimation_FrameMode_NowFrozen(t *testing.T) {
+func TestRenderAnimation_FrameMode_NowAdvancesFromOneClockRead(t *testing.T) {
 	r := New("/tmp")
-	cur := fixedNow
-	r.nowFunc = func() time.Time { cur = cur.Add(time.Second); return cur.Add(-time.Second) }
+	reads := 0
+	r.nowFunc = func() time.Time { reads++; return fixedNow } // 09:15:30
 	l := rectLayer(0, 0, 1, 1, "")
 	l.Color = StringOrCond{cond: &condMap{
 		branches: []condBranch{{ifExpr: "equals(now.second, '30')", then: "#ff0000"}},
 		els:      "#00ff00",
 	}}
 	tmpl := makeTemplate(1, 1, []Layer{l})
-	tmpl.Meta.Animation = AnimationMeta{Frames: 4}
+	tmpl.Meta.Animation = AnimationMeta{Frames: 4} // default delay 1 s
+	green := color.NRGBA{0, 255, 0, 255}
 	for f, img := range mustAnimate(t, r, tmpl, nil, nil).Frames {
-		if got := img.NRGBAAt(0, 0); got != red {
-			t.Errorf("frame %d = %v, want red", f, got)
+		want := green
+		if f == 0 {
+			want = red
 		}
+		if got := img.NRGBAAt(0, 0); got != want {
+			t.Errorf("frame %d = %v, want %v", f, got, want)
+		}
+	}
+	if reads != 1 {
+		t.Errorf("clock read %d times, want once", reads)
 	}
 }
 

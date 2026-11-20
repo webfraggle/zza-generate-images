@@ -74,6 +74,13 @@ func (e *Evaluator) withOwnIntVars() *Evaluator {
 	return &c
 }
 
+// withNow returns a copy of e with a different `now` (everything else shared).
+func (e *Evaluator) withNow(t time.Time) *Evaluator {
+	c := *e
+	c.now = t
+	return &c
+}
+
 // withAnim returns a copy of e (data and now are shared) with the animation
 // variables set: {{anim.*}} in strings and anim.frame / anim.frames in
 // coordinate expressions.

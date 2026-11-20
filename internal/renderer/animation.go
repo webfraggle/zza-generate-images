@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/draw"
 	"math"
+	"time"
 
 	xdraw "golang.org/x/image/draw"
 )
@@ -133,7 +134,8 @@ func AnimationSeed(templateName string, body []byte) []byte {
 // module starts flipping in frame 0 and comes to rest on its target value
 // after a seeded number of flips. The last frame equals Render's output.
 // A template without splitflap layers yields exactly one frame.
-// Equal inputs give identical frames; {{now.*}} is frozen for all frames.
+// Equal inputs give identical frames; {{now.*}} advances per frame in frame
+// mode and is frozen at the start in splitflap mode.
 func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, seed []byte) (*Animation, error) {
 	fps, duration, err := tmpl.Meta.Animation.resolve()
 	if err != nil {
@@ -197,8 +199,11 @@ func (r *Renderer) RenderAnimation(tmpl *Template, data map[string]interface{}, 
 	return &Animation{Frames: frames, FPS: fps, Loop: tmpl.Meta.Animation.Loop}, nil
 }
 
-// renderFrameMode renders the frames of a frame-mode template. now is frozen
-// for all frames; every frame runs the whole layer list.
+// renderFrameMode renders the frames of a frame-mode template. {{now.*}}
+// runs with the frames: the start is the renderer clock in the template's
+// time zone, truncated to the second; frame f shows
+// start + f × frame_delay (f·delay centiseconds). Every frame runs the whole
+// layer list.
 func (r *Renderer) renderFrameMode(tmpl *Template, data map[string]interface{}) (*Animation, error) {
 	a := tmpl.Meta.Animation
 	c := tmpl.Meta.Canvas
@@ -207,11 +212,13 @@ func (r *Renderer) renderFrameMode(tmpl *Template, data map[string]interface{}) 
 			a.Frames, c.Width, c.Height, maxAnimPixels)
 	}
 	delay := tmpl.animDelayCS()
-	root := r.newEvaluator(tmpl, data) // one `now` for all frames
+	start := r.clock().In(tmpl.location()).Truncate(time.Second) // clock read once
+	root := newEvaluatorAt(data, start)
 	imgCache := make(map[string]image.Image)
 	frames := make([]*image.NRGBA, 0, a.Frames)
 	for f := 0; f < a.Frames; f++ {
-		rc := newRenderCtx(tmpl, root.withAnim(f, a.Frames, delay)) // fresh maxLayers counter
+		now := start.Add(time.Duration(f*delay) * 10 * time.Millisecond)
+		rc := newRenderCtx(tmpl, root.withNow(now).withAnim(f, a.Frames, delay)) // fresh maxLayers counter
 		rc.imgCache = imgCache
 		img, err := r.renderFrame(rc)
 		if err != nil {
