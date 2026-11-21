@@ -35,15 +35,16 @@ Spec: `docs/superpowers/specs/2026-11-20-template-clock-design.md`. Alle Punkte 
 - [ ] Modus `ntp` ohne Internet: Uhr läuft ab 0:00, Template zeigt das. Nach WLAN/Internet springt die Anzeige auf die echte Zeit.
 - [ ] Faktor 4: der Sekundenzeiger läuft viermal so schnell.
 - [ ] Faktor 100: es wird höchstens alle 100 ms gezeichnet, Sekunden werden übersprungen; Weboberfläche und Taster bleiben bedienbar.
-  Grenzen (Spec „Schnelle Modellbahnuhr“, „Zu langsam“): Uhr-Updates belegen höchstens 25 % der Zeit (Abstand ≥ 100 ms und ≥ 4 × letzte Update-Dauer); drei Uhr-Updates in Folge > 500 ms (oder eines > 1,5 s) halten das Bild an (`clockOff: true` bis zu neuen Zugdaten), einzelne Ausreißer nicht; drei Uhr-Frames in Folge > 500 ms oder > 50 % ihrer Frame-Dauer brechen die Animation ab, das Gleis zeigt das Standbild der Uhr (`mode: "still"`).
+  Grenzen (Spec „Lastgrenzen: drosseln statt zurückfallen“): gemessen werden Eigenkosten (Rechenzeit + geschätzte Zeichenzeit, ohne Wartezeiten); nach einem Standbild-Update Abstand ≥ max(100 ms, 4 × Eigenkosten), nach einem Uhr-Frame Pause 4 × Eigenkosten; Last ruckelt nur (Sekunden werden übersprungen, `throttled` zählt). Nur drei Bilder in Folge über 1,5 s setzen aus (`clockOff: true` bzw. Uhr-Standbild), `retryMs` zeigt den Neuversuch nach 60 s; Speichern der Gleis-Einstellungen setzt sofort zurück.
+- [ ] Last während der Uhr-Animation: `umuc-105-v1` auf Gleis A, währenddessen ein Paket auf Gleis B installieren, Screenshots holen, Gleis-B-Einstellungen speichern. Gleis A bleibt Animation (`mode: "live"`, `clockOff: false`, `retryMs: 0`); automatisch: API-TPL-028.
 - [ ] Faktor 0,1: die Uhr läuft zehnmal langsamer, kein Flackern.
 
 ## 4. Beide Gleise (MAN-TPL-006, QUAD)
 
 - [ ] Gleis A `umuc-105-v1`, Gleis B `oebb-105-v1` (oder `nederland-105-v1`), Uhr `set`, Faktor 1. Beide Uhren laufen gleichmäßig.
-- [ ] Messwerte (QUAD): umuc-Frame etwa 190–200 ms (unter 50 % der 1-s-Frame-Dauer, bleibt live), Standbild-Update 65–192 ms (unter 500 ms): ______ ms / ______ ms.
+- [ ] Messwerte (QUAD, `lastFrameUs` = Eigenkosten): umuc-Frame etwa 100 ms (Pause 4 × 100 ms passt in den 1-s-Takt, bleibt live), Standbild-Update etwa 25–60 ms: ______ ms / ______ ms.
 - [ ] Während beider Uhren: Weboberfläche bedienen, Taster (BTN 0 kurz und lang), Zugwechsel auf beiden Gleisen. Alles reagiert flüssig, kein Flackern, keine Farbblöcke.
-- [ ] `/templateStatus` je Gleis: `clock`, `clockFull` (bleibt 0) und `clockOff: false`.
+- [ ] `/templateStatus` je Gleis: `clock`, `clockFull` (bleibt 0), `clockOff: false` und `retryMs: 0`.
 
 ## 5. DUAL
 

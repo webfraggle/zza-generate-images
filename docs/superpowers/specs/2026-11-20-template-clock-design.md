@@ -118,40 +118,56 @@ Regeln dazu:
 - **Takt an der Uhr ausrichten.** Bei Faktor 1 darf ein Sekundenzeiger keine Sekunde doppelt zeigen oder
   überspringen. Standbilder lösen an der Änderung der Uhr aus; im Frame-Modus mit `frame_delay` 1 s richtet der
   Adapter den Start so aus, dass Frames nicht auf die Sekundengrenze fallen.
-- **Schnelle Modellbahnuhr.** Bei Faktor > 1 ändert sich die Sekunde öfter als einmal je Echtzeit-Sekunde.
-  Uhr-Updates belegen höchstens 25 % der Zeit: Abstand zwischen zwei Updates = max(100 ms, 4 × Dauer des letzten
-  Updates aus Rendern + Zeichnen); dazwischen werden Sekunden übersprungen. Für Uhren ersetzt das die
-  70-%-Regel aus §12.4 (Security-Review 2026-11-20). Ein einzelner Ausreißer verzögert nur das nächste Update.
-- **Zu langsam.** Dauert ein Update länger als sein Takt, fallen Takte aus (kein Aufholen). Grenzen
-  (Security-Review 2026-11-20). Die Kosten sind Wanduhr-Zeit und enthalten Verdrängung (Webserver, WLAN, das
-  andere Gleis; auf dem QUAD gemessen: e2e-clock-sec sonst ≈ 56 ms mit Ausreißern bis 528 ms), deshalb zählen
-  die 500-ms- und 50-%-Grenzen erst bei **drei Updates bzw. Frames in Folge**; eines innerhalb der Grenze setzt
-  die Zählung zurück (Gerätelauf 2026-11-20). Sofort wirken weiter: ein Bild > 1,5 s, die Arbeitsgrenze und
-  Fehler des Kerns.
-  - Drei Uhr-Updates eines Standbilds oder Endbilds in Folge > 500 ms (Rendern + Zeichnen), eines > 1,5 s oder
-    Arbeitsgrenze überschritten → keine Uhr-Updates mehr für diese Daten, das Bild bleibt stehen, bis neue
-    Daten kommen (`clockOff`).
-  - Drei Frames der Frame-Animation mit Uhr in Folge > 500 ms oder > 50 % ihrer Frame-Dauer (Rendern +
-    Zeichnen), oder einer > 1,5 s → die
-    Animation wird abgebrochen, das Gleis zeigt das Standbild der Uhr, das dann der Regel oben folgt
-    (`umuc-105-v1` mit etwa 200 ms je 1-s-Frame bleibt live).
-  - Kein Speicher für den Vergleich (`zza_render_diff` NOMEM) → ganzes Bild neu; schlägt auch das fehl, zeigt
-    das Gleis wie bei einem fehlgeschlagenen Standbild das eingebaute Layout (die halb gerenderte Leinwand wird
-    nie gezeichnet).
+- **Lastgrenzen: drosseln statt zurückfallen** (Nutzerentscheidung 2026-11-21, ersetzt die Fassungen der
+  Security-Review 2026-11-20 und des Gerätelaufs 2026-11-20: „500 ms / 50 % des Takts, drei in Folge → Rückfall“).
+  Das Template sichtbar zu halten ist wichtiger als ruckelfreier Lauf: zu lange Renderzeit lässt es ruckeln bzw.
+  den Sekundenzeiger Sekunden überspringen; das eingebaute Layout gibt es aus Kostengründen nicht.
+  - **Eigenkosten** statt Wanduhr-Zeit: Rechenzeit des Kern-Aufrufs (`zza_render_diff`/`zza_render`/
+    `zza_anim_frame`), höchstens 2 × Rechenaufwand (`zza_work_used`) × gelernte Zeit je Arbeitsschritt (der
+    Aufruf selbst wird auf dem Gerät verdrängt: ~68 ms Rechenzeit maßen bis 1,2 s), plus geschätzte Zeichenzeit
+    (gelernte ns je Pixel × gezeichnete Pixel). Wartezeiten
+    (Gleis-Mutex, Webserver, Flash-Schreiben, das andere Gleis) gehen nicht ein; Zeichen-Messungen mit mehr als
+    dem 4-Fachen der Schätzung lernt die Schätzung nicht. (Gerätelauf 2026-11-20: e2e-clock-sec Wanduhr ≈ 56 ms
+    mit Ausreißern bis 775 ms bei gleichbleibender Rechenzeit ≈ 36 ms.)
+  - **Atempause:** nach einem Standbild-Update folgt das nächste frühestens nach max(100 ms, 4 × Eigenkosten)
+    (höchstens 25 % der Zeit); nach einem Uhr-Frame bekommt die Schleife eine Pause von 4 × Eigenkosten (ohne
+    Untergrenze, schnelle billige Animationen behalten ihr Tempo). Ein in die Pause fallender Frame wartet; der
+    feste Takt (`tpl::Player`, `fixedRate`) lässt die verpassten Takte aus, kein Aufholen, kein Stau. Der
+    Frame-Index zählt um eins weiter (lückenlose Frames, die Dirty-Rechtecke bleiben gültig), `now` ist die
+    Geräte-Uhr beim Zeichnen; bei Faktor > 1 werden ohnehin Sekunden übersprungen. `throttled` zählt, wie oft
+    ein Update/Frame auf die Pause warten musste.
+  - **Harte Grenze nur für krankhafte Eigenkosten:** mehr als 1,5 s, dreimal in Folge (`tpl::CostStreak`) →
+    eine Uhr-Animation zeigt das Uhr-Standbild, ein Standbild setzt seine Updates aus (`clockOff`, das Bild
+    bleibt stehen; nach 60 s neuer Versuch, wirkt wie ein Minutentakt). Die Arbeitsgrenze je Kern-Aufruf und je
+    Animationsdurchlauf bleibt (deterministisch, keine Wanduhr-Zeit).
+  - **Kein Rückfall ist endgültig:** jeder Laufzeit-Rückfall (Uhr-Standbild, `clockOff`, eingebautes Layout nach
+    Render- oder Speicherfehler, auch nach fehlgeschlagenem Vollbild-Fallback) wird nach 60 s erneut versucht,
+    höchstens ein Versuch (ein Laden/Rendern) je 60 s; `retryMs` zeigt die Restzeit. Speichern der
+    Gleis-Einstellungen und Installieren des Pakets setzen sofort zurück. Dauerhaft beim eingebauten Layout bleibt
+    nur ein Paket, das sich nicht laden lässt (fehlt oder fehlerhaft), bis es neu installiert wird.
+  - Kein Speicher für den Vergleich (`zza_render_diff` NOMEM) → ganzes Bild neu; jedes Update versucht den
+    Vergleich erneut. Schlägt auch das ganze Bild fehl, zeigt das Gleis wie bei einem fehlgeschlagenen Standbild
+    das eingebaute Layout (die genullte Leinwand wird nie gezeichnet) und versucht es nach 60 s erneut.
 - **Uhr wird gestellt / NTP synchronisiert.** Die Uhr springt; das nächste Update zeigt die neue Zeit. Kein
   Sonderfall nötig, weil jedes Update die Uhr neu liest.
 - **Zugwechsel.** Keine Zufallszeit mehr. Die Abkürzung „gleiche Daten → nur neu zeichnen“ bleibt.
 - **Zwei Gleise.** Beide dürfen gleichzeitig eine Uhr zeigen; jedes Gleis höchstens ein Bild je `service()` wie
   bisher.
 - `/templateStatus` je Gleis: zusätzlich `"clock":"none|minute|second"`, `"clockFull":n` (Uhr-Updates als ganzes
-  Bild seit dem Laden) und `"clockOff":true|false` (Uhr-Updates für diese Daten abgeschaltet).
+  Bild seit dem Laden), `"clockOff":true|false` (Uhr-Updates ausgesetzt), `"throttled":n` (auf die Lastpause
+  wartende Updates/Frames des Bildes) und `"retryMs":n` (Restzeit bis zum Neuversuch, 0 = keiner).
 
 Bekannte Grenzen:
 
 - GIF der ZZA-Vorschau und GIF des Servers können sich um eine Stunde unterscheiden, wenn innerhalb der
   Animation eine Sommer-/Winterzeit-Umstellung liegt: der Kern addiert Wanduhr-Sekunden, Go eine absolute Dauer.
-- Das Endbild einer Frame-Animation ohne `loop` mit Uhr folgt der Uhr nicht mehr, wenn der Kern dabei keinen
-  Speicher bekommt (NOMEM beendet die Sitzung; es gibt dafür keinen Rückfall).
+- Das Endbild einer Frame-Animation ohne `loop` mit Uhr steht, wenn der Kern dabei keinen Speicher bekommt (NOMEM
+  beendet die Sitzung); der Neuversuch nach 60 s zeigt das Template neu, spielt die Animation also noch einmal ab.
+- Während Flash-Schreibvorgängen (Paket-Installation, Einstellungen) steht die Rechenzeit selbst still (Cache aus):
+  die Eigenkosten einzelner Updates steigen dann, die Uhr wird gedrosselt; erst drei Bilder über 1,5 s in Folge
+  setzen aus (und kommen nach 60 s zurück).
+- Rückfälle von Animationen ohne Uhr (Faltblatt zu langsam oder ohne Speicher → Endbild) werden nicht erneut
+  versucht: das Endbild ist das Bild, das ohnehin stehen bliebe.
 
 ## Tests
 
