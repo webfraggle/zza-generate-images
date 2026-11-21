@@ -125,7 +125,12 @@ Regeln dazu:
   - **Eigenkosten** statt Wanduhr-Zeit: Rechenzeit des Kern-Aufrufs (`zza_render_diff`/`zza_render`/
     `zza_anim_frame`), höchstens 2 × Rechenaufwand (`zza_work_used`) × gelernte Zeit je Arbeitsschritt (der
     Aufruf selbst wird auf dem Gerät verdrängt: ~68 ms Rechenzeit maßen bis 1,2 s), plus geschätzte Zeichenzeit
-    (gelernte ns je Pixel × gezeichnete Pixel). Wartezeiten
+    (gelernte ns je Pixel × gezeichnete Pixel). Die echte CPU-Zeit des Tasks steht nicht zur Verfügung
+    (FreeRTOS-Laufzeitstatistik ist im Arduino-ESP32-SDK nicht einkompiliert). Der Schätzer (`tpl::RenderCost`,
+    je Gleis, beim Laden zurückgesetzt) lernt nur aus erfolgreichen Uhr-Aufrufen (Standbild, Uhr-Frames,
+    Uhr-Updates; ein Abbruch an der Arbeitsgrenze bucht die ganze Grenze auf einmal und würde ihn vergiften),
+    folgt kleineren Werten schnell (½) und größeren langsam (1/16); ein Wert über dem 4-Fachen gilt als
+    verdrängt, drei solche in Folge sind die echten Kosten (neu angelernt auf ihr Minimum, Review fix 2+3 C1). Wartezeiten
     (Gleis-Mutex, Webserver, Flash-Schreiben, das andere Gleis) gehen nicht ein; Zeichen-Messungen mit mehr als
     dem 4-Fachen der Schätzung lernt die Schätzung nicht. (Gerätelauf 2026-11-20: e2e-clock-sec Wanduhr ≈ 56 ms
     mit Ausreißern bis 775 ms bei gleichbleibender Rechenzeit ≈ 36 ms.)
@@ -135,16 +140,22 @@ Regeln dazu:
     feste Takt (`tpl::Player`, `fixedRate`) lässt die verpassten Takte aus, kein Aufholen, kein Stau. Der
     Frame-Index zählt um eins weiter (lückenlose Frames, die Dirty-Rechtecke bleiben gültig), `now` ist die
     Geräte-Uhr beim Zeichnen; bei Faktor > 1 werden ohnehin Sekunden übersprungen. `throttled` zählt, wie oft
-    ein Update/Frame auf die Pause warten musste.
+    ein Update/Frame auf die Pause warten musste (der 100-ms-Mindestabstand zählt nicht). Auch die erste Pause
+    nach Standbild bzw. Frame 0 nutzt die Eigenkosten.
   - **Harte Grenze nur für krankhafte Eigenkosten:** mehr als 1,5 s, dreimal in Folge (`tpl::CostStreak`) →
     eine Uhr-Animation zeigt das Uhr-Standbild, ein Standbild setzt seine Updates aus (`clockOff`, das Bild
-    bleibt stehen; nach 60 s neuer Versuch, wirkt wie ein Minutentakt). Die Arbeitsgrenze je Kern-Aufruf und je
-    Animationsdurchlauf bleibt (deterministisch, keine Wanduhr-Zeit).
+    bleibt stehen; nach 60 s neuer Versuch, wirkt wie ein Minutentakt). Die Arbeitsgrenze je Kern-Aufruf bleibt
+    (der Kern bricht ab). Die Regel „Durchlauf > 2 × `TPL_WORK_LIMIT`“ gilt nur noch für Animationen ohne Uhr;
+    Uhr-Animationen rendern live und werden durch die Pause geschützt (Review I4).
   - **Kein Rückfall ist endgültig:** jeder Laufzeit-Rückfall (Uhr-Standbild, `clockOff`, eingebautes Layout nach
-    Render- oder Speicherfehler, auch nach fehlgeschlagenem Vollbild-Fallback) wird nach 60 s erneut versucht,
-    höchstens ein Versuch (ein Laden/Rendern) je 60 s; `retryMs` zeigt die Restzeit. Speichern der
-    Gleis-Einstellungen und Installieren des Pakets setzen sofort zurück. Dauerhaft beim eingebauten Layout bleibt
-    nur ein Paket, das sich nicht laden lässt (fehlt oder fehlerhaft), bis es neu installiert wird.
+    Render- oder Speicherfehler, auch nach fehlgeschlagenem Vollbild-Fallback) wird von selbst erneut versucht;
+    `retryMs` zeigt die Restzeit. Vorübergehende Ursachen (zu wenig Speicher, Kostenserie) nach 60 s;
+    deterministische (Arbeitsgrenze, andere Renderfehler derselben Daten) mit wachsender Pause 60 s → doppelt →
+    höchstens 15 min (Review I3). Neue Zugdaten, ein neues Paket (Installation) und geänderte
+    Template-Einstellungen des Gleises (Template oder Modus über `/saveConfig`) versuchen es sofort und setzen die
+    Pause zurück; unverändert gespeicherte Einstellungen lassen Zustand und Timer stehen (Review I2). Dauerhaft
+    beim eingebauten Layout bleibt nur ein Paket, das sich nicht laden lässt (fehlt oder fehlerhaft), bis es neu
+    installiert wird.
   - Kein Speicher für den Vergleich (`zza_render_diff` NOMEM) → ganzes Bild neu; jedes Update versucht den
     Vergleich erneut. Schlägt auch das ganze Bild fehl, zeigt das Gleis wie bei einem fehlgeschlagenen Standbild
     das eingebaute Layout (die genullte Leinwand wird nie gezeichnet) und versucht es nach 60 s erneut.
