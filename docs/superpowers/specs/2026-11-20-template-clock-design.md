@@ -130,7 +130,9 @@ Regeln dazu:
     je Gleis, beim Laden zurückgesetzt) lernt nur aus erfolgreichen Uhr-Aufrufen (Standbild, Uhr-Frames,
     Uhr-Updates; ein Abbruch an der Arbeitsgrenze bucht die ganze Grenze auf einmal und würde ihn vergiften),
     folgt kleineren Werten schnell (½) und größeren langsam (1/16); ein Wert über dem 4-Fachen gilt als
-    verdrängt, drei solche in Folge sind die echten Kosten (neu angelernt auf ihr Minimum, Review fix 2+3 C1). Wartezeiten
+    verdrängt, drei solche unter den letzten acht sind die echten Kosten (neu angelernt auf ihr Minimum, auch
+    wenn billige und teure Aufrufe abwechseln; Review fix 2+3 C1, Re-Review R1). Gezählt werden nie weniger als
+    ein Viertel der gemessenen Zeit, so ist die Pause mindestens so lang wie die echte Rechenzeit. Wartezeiten
     (Gleis-Mutex, Webserver, Flash-Schreiben, das andere Gleis) gehen nicht ein; Zeichen-Messungen mit mehr als
     dem 4-Fachen der Schätzung lernt die Schätzung nicht. (Gerätelauf 2026-11-20: e2e-clock-sec Wanduhr ≈ 56 ms
     mit Ausreißern bis 775 ms bei gleichbleibender Rechenzeit ≈ 36 ms.)
@@ -151,7 +153,8 @@ Regeln dazu:
     Render- oder Speicherfehler, auch nach fehlgeschlagenem Vollbild-Fallback) wird von selbst erneut versucht;
     `retryMs` zeigt die Restzeit. Vorübergehende Ursachen (zu wenig Speicher, Kostenserie) nach 60 s;
     deterministische (Arbeitsgrenze, andere Renderfehler derselben Daten) mit wachsender Pause 60 s → doppelt →
-    höchstens 15 min (Review I3). Neue Zugdaten, ein neues Paket (Installation) und geänderte
+    höchstens 15 min (Review I3); ein gelungenes Bild (Standbild, ganzer Animationsdurchlauf) setzt die Pause
+    zurück (Re-Review D1). Neue Zugdaten, ein neues Paket (Installation) und geänderte
     Template-Einstellungen des Gleises (Template oder Modus über `/saveConfig`) versuchen es sofort und setzen die
     Pause zurück; unverändert gespeicherte Einstellungen lassen Zustand und Timer stehen (Review I2). Dauerhaft
     beim eingebauten Layout bleibt nur ein Paket, das sich nicht laden lässt (fehlt oder fehlerhaft), bis es neu
