@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 2,
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Heiligenstadt",
+        "nr": "U4",
+        "zeit": "10:15",
+        "via": "",
+        "abw": 0,
+        "hinweis": "Bitte nicht in den Gleisbereich steigen",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Heiligenstadt",
+        "nr": "U4",
+        "zeit": "10:20",
+        "via": "",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Spittelau",
+        "nr": "U4",
+        "zeit": "10:27",
+        "via": "",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

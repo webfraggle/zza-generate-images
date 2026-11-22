@@ -1,0 +1,137 @@
+<h2>Node-Editor — Design-Übersicht</h2>
+<p class="subtitle">Alle Entscheidungen zusammengefasst</p>
+
+<div class="section">
+  <h3>Layout</h3>
+  <div class="mockup">
+    <div class="mockup-header">edit-editor.html — 3-Spalten-Layout (unverändert)</div>
+    <div class="mockup-body" style="padding:12px">
+      <div style="display:flex;gap:8px;height:420px;font-size:12px">
+
+        <!-- Left: file list -->
+        <div style="width:140px;background:#1a1a2e;border-radius:6px;border:1px solid #333;padding:8px">
+          <div style="color:#7c6af7;font-size:10px;margin-bottom:8px">DATEIEN</div>
+          <div style="color:#ccc;padding:3px 0;border-bottom:1px solid #222">template.yaml</div>
+          <div style="color:#888;padding:3px 0;border-bottom:1px solid #222">background.png</div>
+          <div style="color:#888;padding:3px 0;border-bottom:1px solid #222">Roboto-Bold.ttf</div>
+        </div>
+
+        <!-- Middle: tab + editor -->
+        <div style="flex:1;background:#1a1a2e;border-radius:6px;border:1px solid #333;display:flex;flex-direction:column">
+          <!-- Tab bar -->
+          <div style="display:flex;border-bottom:1px solid #333;padding:0 8px">
+            <div style="padding:8px 14px;color:#ccc;border-bottom:2px solid transparent;cursor:pointer;font-size:11px">YAML</div>
+            <div style="padding:8px 14px;color:#7c6af7;border-bottom:2px solid #7c6af7;font-size:11px;font-weight:bold">Nodes ✦</div>
+            <div style="margin-left:auto;padding:8px;color:#444;font-size:10px">template.yaml</div>
+          </div>
+          <!-- Node canvas -->
+          <div style="flex:1;position:relative;overflow:hidden;background:#111122">
+            <!-- Simulated nodes -->
+            <svg width="100%" height="100%" style="position:absolute">
+              <!-- image: background -->
+              <rect x="120" y="20" width="140" height="44" rx="6" fill="#2d2d4e" stroke="#7c6af7" stroke-width="1.5"/>
+              <text x="128" y="37" fill="#888" font-size="9" font-family="monospace">IMAGE</text>
+              <text x="128" y="52" fill="#fff" font-size="11" font-family="monospace">background.png</text>
+
+              <!-- arrow -->
+              <line x1="190" y1="64" x2="190" y2="84" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3,2"/>
+              <polygon points="190,84 186,77 194,77" fill="#7c6af7"/>
+
+              <!-- if node -->
+              <rect x="100" y="84" width="180" height="50" rx="6" fill="#2d2d4e" stroke="#f7a76a" stroke-width="1.5"/>
+              <text x="108" y="100" fill="#f7a76a" font-size="9" font-family="monospace">IF</text>
+              <text x="108" y="114" fill="#ccc" font-size="10" font-family="monospace">startsWith(nr, 'ICN')</text>
+              <text x="108" y="127" fill="#555" font-size="9" font-family="monospace">elif / else →</text>
+
+              <!-- branches -->
+              <line x1="150" y1="134" x2="130" y2="160" stroke="#6af7a7" stroke-width="1.5"/>
+              <line x1="230" y1="134" x2="250" y2="160" stroke="#888" stroke-width="1.5"/>
+
+              <rect x="70" y="160" width="120" height="38" rx="6" fill="#2d2d4e" stroke="#6af7a7" stroke-width="1"/>
+              <text x="78" y="175" fill="#6af7a7" font-size="9" font-family="monospace">IMAGE (true)</text>
+              <text x="78" y="189" fill="#ccc" font-size="10" font-family="monospace">icn.png</text>
+
+              <rect x="210" y="160" width="100" height="38" rx="6" fill="#2d2d4e" stroke="#888" stroke-width="1"/>
+              <text x="218" y="175" fill="#888" font-size="9" font-family="monospace">TEXT (else)</text>
+              <text x="218" y="189" fill="#ccc" font-size="10" font-family="monospace">{{zug1.nr}}</text>
+
+              <!-- merge -->
+              <line x1="130" y1="198" x2="180" y2="228" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3,2"/>
+              <line x1="260" y1="198" x2="210" y2="228" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3,2"/>
+              <rect x="140" y="228" width="100" height="38" rx="6" fill="#2d2d4e" stroke="#7c6af7" stroke-width="1.5"/>
+              <text x="148" y="243" fill="#888" font-size="9" font-family="monospace">TEXT</text>
+              <text x="148" y="257" fill="#fff" font-size="10" font-family="monospace">{{zug1.zeit}}</text>
+
+              <!-- loop -->
+              <line x1="190" y1="266" x2="190" y2="286" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="3,2"/>
+              <rect x="100" y="286" width="180" height="44" rx="6" fill="#2d2d4e" stroke="#f76a8f" stroke-width="1.5"/>
+              <text x="108" y="303" fill="#f76a8f" font-size="9" font-family="monospace">LOOP  split: "|"</text>
+              <text x="108" y="318" fill="#ccc" font-size="10" font-family="monospace">{{zug1.via}}  var: item</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Right: JSON + preview -->
+        <div style="width:160px;background:#1a1a2e;border-radius:6px;border:1px solid #333;display:flex;flex-direction:column;padding:8px;gap:8px">
+          <div>
+            <div style="color:#7c6af7;font-size:10px;margin-bottom:4px">TEST-JSON</div>
+            <div style="background:#111;border-radius:4px;padding:6px;color:#888;font-size:9px;font-family:monospace;height:120px;overflow:hidden">{"zug1":{"zeit":"15:53","vonnach":"Wien","nr":"ICN 512"...}</div>
+          </div>
+          <div style="flex:1">
+            <div style="color:#7c6af7;font-size:10px;margin-bottom:4px">VORSCHAU</div>
+            <div style="background:#000;border-radius:4px;height:120px;display:flex;align-items:center;justify-content:center;color:#444;font-size:10px">PNG</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Entscheidungen</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:6px;color:#888;width:35%">Tab-Umschalter</td>
+      <td style="padding:6px;color:#fff">YAML ↔ Nodes in der mittleren Spalte</td>
+    </tr>
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:6px;color:#888">Nodes → YAML</td>
+      <td style="padding:6px;color:#fff">Immer, beim Speichern generiert</td>
+    </tr>
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:6px;color:#888">YAML → Nodes</td>
+      <td style="padding:6px;color:#fff">Best-effort; bei Fehler → Node-Tab gesperrt mit Hinweis</td>
+    </tr>
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:6px;color:#888">Library</td>
+      <td style="padding:6px;color:#fff">Rete.js v2 via esm.sh (kein Build-Step)</td>
+    </tr>
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:6px;color:#888">Topologie</td>
+      <td style="padding:6px;color:#fff">Lineare Kette; if/elif/else = Äste mit Merge; loop = eingerückter Sub-Chain</td>
+    </tr>
+    <tr style="border-bottom:1px solid #333">
+      <td style="padding:6px;color:#888">Node-Editing</td>
+      <td style="padding:6px;color:#fff">Inline-Inputs direkt im Node (HTML)</td>
+    </tr>
+    <tr>
+      <td style="padding:6px;color:#888">Rechte Spalte</td>
+      <td style="padding:6px;color:#fff">Unverändert (JSON + Preview)</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <h3>Node-Typen</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px">
+    <span style="background:#2d2d4e;border:1px solid #7c6af7;padding:4px 10px;border-radius:4px;color:#fff">image</span>
+    <span style="background:#2d2d4e;border:1px solid #7c6af7;padding:4px 10px;border-radius:4px;color:#fff">rect</span>
+    <span style="background:#2d2d4e;border:1px solid #7c6af7;padding:4px 10px;border-radius:4px;color:#fff">text</span>
+    <span style="background:#2d2d4e;border:1px solid #7c6af7;padding:4px 10px;border-radius:4px;color:#fff">copy</span>
+    <span style="background:#2d2d4e;border:1px solid #f76a8f;padding:4px 10px;border-radius:4px;color:#fff">loop</span>
+    <span style="background:#2d2d4e;border:1px solid #f7a76a;padding:4px 10px;border-radius:4px;color:#fff">if</span>
+    <span style="background:#2d2d4e;border:1px solid #f7a76a;padding:4px 10px;border-radius:4px;color:#fff">elif</span>
+    <span style="background:#2d2d4e;border:1px solid #888;padding:4px 10px;border-radius:4px;color:#fff">else</span>
+    <span style="background:#2d2d4e;border:1px solid #6af7a7;padding:4px 10px;border-radius:4px;color:#fff">merge</span>
+  </div>
+</div>

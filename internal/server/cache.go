@@ -16,7 +16,8 @@ import (
 	"time"
 )
 
-// Cache is a file-based PNG cache. Cache keys are SHA-256 hashes of
+// Cache is a file-based cache: rendered images (PNG and GIF) and, in a second
+// instance with its own folder, ZZA packages. Cache keys are SHA-256 hashes of
 // (template name + request body). A background goroutine evicts stale
 // and oversized entries periodically.
 type Cache struct {
@@ -49,11 +50,18 @@ func (c *Cache) Key(templateName string, body []byte) string {
 }
 
 // Get returns the cached PNG bytes for key, or (nil, false) on miss.
+func (c *Cache) Get(key string) ([]byte, bool) { return c.GetExt(key, "png") }
+
+// GetExt returns the cached bytes for key with file extension ext
+// (e.g. "png", "gif"), or (nil, false) on miss or invalid ext.
 // RLock prevents reads from racing with cleanup deletions.
-func (c *Cache) Get(key string) ([]byte, bool) {
+func (c *Cache) GetExt(key, ext string) ([]byte, bool) {
+	if !validExt(ext) {
+		return nil, false
+	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	path := c.filePath(key)
+	path := c.filePath(key, ext)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, false
@@ -61,14 +69,39 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 	return data, true
 }
 
-// Set writes data to the cache under key.
+// Set writes PNG data to the cache under key.
+func (c *Cache) Set(key string, data []byte) error { return c.SetExt(key, "png", data) }
+
+// SetExt writes data to the cache under key with file extension ext.
 // Lock serialises writes with concurrent cleanup.
-func (c *Cache) Set(key string, data []byte) error {
+func (c *Cache) SetExt(key, ext string, data []byte) error {
+	if !validExt(ext) {
+		return fmt.Errorf("cache: invalid extension %q", ext)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	path := c.filePath(key)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	path := c.filePath(key, ext)
+	// Write to a temporary file and rename it into place: a full disk or a
+	// kill mid-write must not leave a truncated file that later reads as a hit.
+	tmp, err := os.CreateTemp(c.dir, ".tmp-*")
+	if err != nil {
 		return fmt.Errorf("cache: writing %q: %w", path, err)
+	}
+	tmpName := tmp.Name()
+	_, werr := tmp.Write(data)
+	cerr := tmp.Close()
+	if werr == nil {
+		werr = cerr
+	}
+	if werr == nil {
+		werr = os.Chmod(tmpName, 0o644)
+	}
+	if werr == nil {
+		werr = os.Rename(tmpName, path)
+	}
+	if werr != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("cache: writing %q: %w", path, werr)
 	}
 	return nil
 }
@@ -120,6 +153,11 @@ func (c *Cache) cleanup() error {
 			return nil // skip unreadable entries
 		}
 		if d.IsDir() {
+			// The cache is flat. Subfolders belong to other caches with their
+			// own limits (the zza package cache) and are left alone.
+			if filepath.Clean(path) != absDir {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		// Guard against symlinks that escape the cache directory.
@@ -179,8 +217,15 @@ func (c *Cache) Stats() CacheStats {
 	defer c.mu.RUnlock()
 	var totalBytes int64
 	var count int
-	_ = filepath.WalkDir(c.dir, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	root := filepath.Clean(c.dir)
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path != root {
+				return filepath.SkipDir // other caches' subfolders are not counted
+			}
 			return nil
 		}
 		if info, infoErr := d.Info(); infoErr == nil {
@@ -192,7 +237,7 @@ func (c *Cache) Stats() CacheStats {
 	return CacheStats{FileCount: count, TotalBytes: totalBytes, Dir: c.dir}
 }
 
-// Flush removes all cached PNG files from the cache directory.
+// Flush removes all cached files from the cache directory.
 func (c *Cache) Flush() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -208,7 +253,20 @@ func (c *Cache) Flush() error {
 	return nil
 }
 
-func (c *Cache) filePath(key string) string {
-	// key is a 64-char hex string — safe to use directly as filename.
-	return filepath.Join(c.dir, key+".png")
+func (c *Cache) filePath(key, ext string) string {
+	// key is a 64-char hex string and ext passed validExt — safe as filename.
+	return filepath.Join(c.dir, key+"."+ext)
+}
+
+// validExt reports whether ext is a short lower-case alphanumeric extension.
+func validExt(ext string) bool {
+	if ext == "" || len(ext) > 8 {
+		return false
+	}
+	for _, r := range ext {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }

@@ -1,0 +1,230 @@
+meta:
+  name: "Wiener Linien 1.05\""
+  description: "U-Bahn Wien, 240×240px, 1.05 Zoll, LED-Countdown in Bernstein, Gleis-Feld außen"
+  author: "christoph"
+  version: "1.0"
+  instructions: |
+    Zwei Abfahrten (zug1, zug2) mit Linie, Ziel und Countdown in Minuten,
+    darunter eine Textzeile mit zug1.hinweis (höchstens zwei Zeilen).
+    Countdown wie in der Umuc-Vorlage relativ zu Zug 1 (Zug 1 = 2 Min.),
+    eine Verspätung (abw) wird aufaddiert.
+    Linienfarben für U1–U6; andere Linien bekommen ein graues Feld
+    (es wird nur das erste Wort von nr gezeigt, z.B. "ICE").
+    Lange Ziele werden wie auf der echten LED-Tafel vor der Minutenspalte abgeschnitten.
+  canvas:
+    width: 240
+    height: 240
+
+fonts:
+  - id: bold
+    file: Roboto-Bold.ttf
+  - id: led
+    file: LLPIXEL3.ttf
+
+# Obere Hälfte: rotes Gleis-Feld links (x 0–47), schwarze LED-Tafel rechts
+# (x 48–239). Zwei copy-Layer am Ende setzen die Blöcke vertauscht nach unten.
+# Ziele werden einzeilig gesetzt und per Parken-und-Zurückkopieren an der
+# Minutenspalte (ab x 204) abgeschnitten; die Parkfläche in der unteren Hälfte
+# wird von den End-copy-Layern überschrieben.
+
+layers:
+  # ---------- Obere Hälfte = Seite A ----------
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 240
+    color: "#000000"
+
+  - type: rect                     # Gleis-Feld außen, Wiener-Linien-Rot
+    x: 0
+    y: 0
+    width: 48
+    height: 120
+    color: "#e3000f"
+
+  - type: text
+    value: "Gleis"
+    x: 24
+    y: 32
+    font: bold
+    size: 11
+    color: "#ffffff"
+    align: center
+
+  - type: text
+    value: "{{gleis}}"
+    x: 24
+    y: 46
+    font: bold
+    size: 32
+    color: "#ffffff"
+    align: center
+
+  # --- Linien-Felder ---
+  - type: rect
+    if: "not(isEmpty(zug1.nr))"
+    x: 53
+    y: 12
+    width: 24
+    height: 18
+    color:
+      if: "equals(zug1.nr, 'U1')"
+      then: "#e3000f"
+      elif: "equals(zug1.nr, 'U2')"
+      then: "#a762a3"
+      elif: "equals(zug1.nr, 'U3')"
+      then: "#ee7d00"
+      elif: "equals(zug1.nr, 'U4')"
+      then: "#319f49"
+      elif: "equals(zug1.nr, 'U5')"
+      then: "#00959c"
+      elif: "equals(zug1.nr, 'U6')"
+      then: "#9e6a2b"
+      else: "#6e6e6e"
+
+  - type: text
+    value: "{{zug1.nr | trim | before(' ')}}"
+    x: 53
+    y: 12
+    width: 24
+    height: 18
+    align: center
+    valign: middle
+    font: bold
+    size: 13
+    scale_x: 0.8
+    color: "#ffffff"
+
+  - type: rect
+    if: "not(isEmpty(zug2.nr))"
+    x: 53
+    y: 54
+    width: 24
+    height: 18
+    color:
+      if: "equals(zug2.nr, 'U1')"
+      then: "#e3000f"
+      elif: "equals(zug2.nr, 'U2')"
+      then: "#a762a3"
+      elif: "equals(zug2.nr, 'U3')"
+      then: "#ee7d00"
+      elif: "equals(zug2.nr, 'U4')"
+      then: "#319f49"
+      elif: "equals(zug2.nr, 'U5')"
+      then: "#00959c"
+      elif: "equals(zug2.nr, 'U6')"
+      then: "#9e6a2b"
+      else: "#6e6e6e"
+
+  - type: text
+    value: "{{zug2.nr | trim | before(' ')}}"
+    x: 53
+    y: 54
+    width: 24
+    height: 18
+    align: center
+    valign: middle
+    font: bold
+    size: 13
+    scale_x: 0.8
+    color: "#ffffff"
+
+  # --- Ziele, an der Minutenspalte abgeschnitten ---
+  - type: copy                     # parken: Minutenspalte noch leer
+    src_x: 204
+    src_y: 0
+    src_width: 36
+    src_height: 88
+    x: 0
+    y: 120
+
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: 81
+    y: 4
+    font: led
+    size: 36
+    scale_x: 0.45
+    color: "#ffa800"
+
+  - type: text
+    value: "{{zug2.vonnach}}"
+    x: 81
+    y: 46
+    font: led
+    size: 36
+    scale_x: 0.45
+    color: "#ffa800"
+
+  - type: copy                     # zurück: schneidet Überlauf ab
+    src_x: 0
+    src_y: 120
+    src_width: 36
+    src_height: 88
+    x: 204
+    y: 0
+
+  # --- Countdown in Minuten ---
+  - type: text
+    value:
+      if: "greaterThan(zug1.abw, 0)"
+      then: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | add(2) | add(zug1.abw)}}"
+      else: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | add(2)}}"
+    x: 236
+    y: 4
+    font: led
+    size: 36
+    scale_x: 0.5
+    align: right
+    color: "#ffa800"
+
+  - type: text
+    value:
+      if: "greaterThan(zug2.abw, 0)"
+      then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2) | add(zug2.abw)}}"
+      else: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2)}}"
+    x: 236
+    y: 46
+    font: led
+    size: 36
+    scale_x: 0.5
+    align: right
+    color: "#ffa800"
+
+  # --- Hinweis-Zeile (höchstens 2 Zeilen, Rest läuft in die untere Hälfte
+  #     und wird von den End-copy-Layern überdeckt) ---
+  - type: rect
+    x: 52
+    y: 89
+    width: 184
+    height: 1
+    color: "#5a3b00"
+
+  - type: text
+    value: "{{zug1.hinweis}}"
+    x: 54
+    y: 87
+    max_width: 182
+    font: led
+    size: 18
+    scale_x: 0.5
+    line_height: 0.6
+    color: "#ffa800"
+
+  # ---------- Untere Hälfte = Seite B, Blöcke vertauscht ----------
+  - type: copy                     # LED-Tafel nach links unten
+    src_x: 48
+    src_y: 0
+    src_width: 192
+    src_height: 120
+    x: 0
+    y: 120
+
+  - type: copy                     # Gleis-Feld nach rechts unten
+    src_x: 0
+    src_y: 0
+    src_width: 48
+    src_height: 120
+    x: 192
+    y: 120

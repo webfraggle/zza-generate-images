@@ -1,0 +1,117 @@
+<h2>Node-Editor — Light Mode</h2>
+<p class="subtitle">Passend zum bestehenden Design (brand: #FD7014, teal: #037F8C, surface: #FFFFFF)</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">edit-editor — Node-Tab aktiv</div>
+    <div class="mockup-body" style="padding:12px;background:#f0ede8">
+      <div style="display:flex;gap:8px;height:440px;font-size:12px">
+
+        <!-- Left: file list -->
+        <div style="width:140px;background:#fff;border-radius:5px;border:1px solid #ddd8d2;padding:8px">
+          <div style="color:#9a938c;font-size:10px;margin-bottom:8px;font-family:'IBM Plex Mono',monospace">DATEIEN</div>
+          <div style="color:#111;padding:4px 0;border-bottom:1px solid #f0ede8;font-family:'IBM Plex Mono',monospace">template.yaml</div>
+          <div style="color:#9a938c;padding:4px 0;border-bottom:1px solid #f0ede8;font-family:'IBM Plex Mono',monospace">background.png</div>
+          <div style="color:#9a938c;padding:4px 0;font-family:'IBM Plex Mono',monospace">Roboto-Bold.ttf</div>
+        </div>
+
+        <!-- Middle: tab + node canvas -->
+        <div style="flex:1;background:#fff;border-radius:5px;border:1px solid #ddd8d2;display:flex;flex-direction:column">
+          <!-- Tab bar -->
+          <div style="display:flex;border-bottom:1px solid #ddd8d2;padding:0 8px;background:#fff">
+            <div style="padding:8px 14px;color:#9a938c;font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace">YAML</div>
+            <div style="padding:8px 14px;color:#fd7014;border-bottom:2px solid #fd7014;font-size:11px;font-weight:bold;font-family:'IBM Plex Mono',monospace">NODES</div>
+            <div style="margin-left:auto;display:flex;gap:6px;align-items:center;padding-right:4px">
+              <button style="background:#fd7014;color:#fff;border:none;border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer">Speichern</button>
+            </div>
+          </div>
+          <!-- Node canvas -->
+          <div style="flex:1;position:relative;overflow:hidden;background:#f8f6f3">
+            <svg width="100%" height="100%" style="position:absolute">
+
+              <!-- image: background -->
+              <rect x="110" y="16" width="150" height="46" rx="5" fill="#fff" stroke="#ddd8d2" stroke-width="1.5"/>
+              <text x="118" y="33" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">IMAGE</text>
+              <rect x="110" y="16" width="6" height="46" rx="3" fill="#037f8c"/>
+              <text x="124" y="47" fill="#111" font-size="11" font-family="IBM Plex Mono,monospace">background.png</text>
+
+              <!-- arrow -->
+              <line x1="185" y1="62" x2="185" y2="82" stroke="#b8b0a8" stroke-width="1.5" stroke-dasharray="4,2"/>
+              <polygon points="185,82 181,75 189,75" fill="#b8b0a8"/>
+
+              <!-- if node -->
+              <rect x="90" y="82" width="190" height="50" rx="5" fill="#fff" stroke="#fd7014" stroke-width="1.5"/>
+              <rect x="90" y="82" width="6" height="50" rx="3" fill="#fd7014"/>
+              <text x="104" y="99" fill="#fd7014" font-size="9" font-family="IBM Plex Mono,monospace">IF</text>
+              <text x="104" y="114" fill="#111" font-size="11" font-family="IBM Plex Mono,monospace">startsWith(nr, 'ICN')</text>
+              <text x="104" y="126" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">+ elif  + else</text>
+
+              <!-- branches -->
+              <path d="M 155 132 Q 120 155 105 168" fill="none" stroke="#1a7a3a" stroke-width="1.5"/>
+              <polygon points="105,168 101,161 109,161" fill="#1a7a3a"/>
+              <path d="M 215 132 Q 255 155 265 168" fill="none" stroke="#9a938c" stroke-width="1.5"/>
+              <polygon points="265,168 261,161 269,161" fill="#9a938c"/>
+
+              <!-- true branch -->
+              <rect x="50" y="168" width="120" height="40" rx="5" fill="#fff" stroke="#1a7a3a" stroke-width="1.5"/>
+              <rect x="50" y="168" width="6" height="40" rx="3" fill="#1a7a3a"/>
+              <text x="64" y="184" fill="#1a7a3a" font-size="9" font-family="IBM Plex Mono,monospace">IMAGE  true</text>
+              <text x="64" y="199" fill="#111" font-size="11" font-family="IBM Plex Mono,monospace">icn.png</text>
+
+              <!-- else branch -->
+              <rect x="220" y="168" width="110" height="40" rx="5" fill="#fff" stroke="#9a938c" stroke-width="1.5"/>
+              <rect x="220" y="168" width="6" height="40" rx="3" fill="#9a938c"/>
+              <text x="234" y="184" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">TEXT  else</text>
+              <text x="234" y="199" fill="#111" font-size="11" font-family="IBM Plex Mono,monospace">{{zug1.nr}}</text>
+
+              <!-- merge lines -->
+              <path d="M 110 208 Q 160 235 170 248" fill="none" stroke="#b8b0a8" stroke-width="1.5" stroke-dasharray="3,2"/>
+              <path d="M 275 208 Q 230 235 210 248" fill="none" stroke="#b8b0a8" stroke-width="1.5" stroke-dasharray="3,2"/>
+
+              <!-- text: zeit -->
+              <rect x="110" y="248" width="150" height="46" rx="5" fill="#fff" stroke="#ddd8d2" stroke-width="1.5"/>
+              <rect x="110" y="248" width="6" height="46" rx="3" fill="#037f8c"/>
+              <text x="124" y="265" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">TEXT</text>
+              <text x="124" y="283" fill="#111" font-size="11" font-family="IBM Plex Mono,monospace">{{zug1.zeit}}</text>
+
+              <!-- arrow -->
+              <line x1="185" y1="294" x2="185" y2="314" stroke="#b8b0a8" stroke-width="1.5" stroke-dasharray="4,2"/>
+              <polygon points="185,314 181,307 189,307" fill="#b8b0a8"/>
+
+              <!-- loop node -->
+              <rect x="90" y="314" width="190" height="50" rx="5" fill="#fff" stroke="#c83232" stroke-width="1.5"/>
+              <rect x="90" y="314" width="6" height="50" rx="3" fill="#c83232"/>
+              <text x="104" y="331" fill="#c83232" font-size="9" font-family="IBM Plex Mono,monospace">LOOP  split: "|"</text>
+              <text x="104" y="346" fill="#111" font-size="11" font-family="IBM Plex Mono,monospace">{{zug1.via}}  var: item</text>
+              <text x="104" y="358" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">max: 6</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Right: JSON + preview -->
+        <div style="width:160px;background:#fff;border-radius:5px;border:1px solid #ddd8d2;display:flex;flex-direction:column;padding:8px;gap:8px">
+          <div>
+            <div style="color:#9a938c;font-size:10px;margin-bottom:4px;font-family:'IBM Plex Mono',monospace">TEST-JSON</div>
+            <div style="background:#f8f6f3;border:1px solid #ddd8d2;border-radius:4px;padding:6px;color:#9a938c;font-size:9px;font-family:monospace;height:130px;overflow:hidden">{"zug1":{"zeit":"15:53","vonnach":"Wien","nr":"ICN 512","via":"Hütteldorf|Penzing"}}</div>
+          </div>
+          <div style="flex:1">
+            <div style="color:#9a938c;font-size:10px;margin-bottom:4px;font-family:'IBM Plex Mono',monospace">VORSCHAU</div>
+            <div style="background:#f8f6f3;border:1px solid #ddd8d2;border-radius:4px;height:130px;display:flex;align-items:center;justify-content:center;color:#b8b0a8;font-size:10px">PNG</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="font-size:12px">
+  <h3>Farbkodierung der Node-Typen</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:8px">
+    <span style="background:#fff;border-left:4px solid #037f8c;border:1px solid #ddd8d2;border-left:4px solid #037f8c;padding:4px 10px;border-radius:5px;color:#111">image / rect / text / copy</span>
+    <span style="background:#fff;border-left:4px solid #fd7014;border:1px solid #ddd8d2;border-left:4px solid #fd7014;padding:4px 10px;border-radius:5px;color:#111">if / elif</span>
+    <span style="background:#fff;border-left:4px solid #9a938c;border:1px solid #ddd8d2;border-left:4px solid #9a938c;padding:4px 10px;border-radius:5px;color:#111">else</span>
+    <span style="background:#fff;border-left:4px solid #c83232;border:1px solid #ddd8d2;border-left:4px solid #c83232;padding:4px 10px;border-radius:5px;color:#111">loop</span>
+    <span style="background:#fff;border-left:4px solid #b8b0a8;border:1px solid #ddd8d2;border-left:4px solid #b8b0a8;padding:4px 10px;border-radius:5px;color:#111">merge</span>
+  </div>
+</div>

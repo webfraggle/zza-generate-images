@@ -1,0 +1,70 @@
+meta:
+  name: "Neues Template"
+  description: "Das ist das Default Template"
+  author: "Christoph Ketzler"
+  version: "1.0"
+  canvas:
+    width: 240
+    height: 240
+fonts:
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - type: image
+    file: bg.png
+    x: 0
+    y: 0
+   
+  - type: text
+    value: "{{zug1.zeit}}"
+    x: 53
+    y: 10
+    font: regular
+    size: 16
+    color: "#000000"
+    align: left
+  - type: text
+    value: "{{gleis}}"
+    x: 10
+    y: 24
+    font: regular
+    size: 18.5
+    color: "#000000"
+    align: left
+  - type: rect                                                                                                                                                                                                 
+    x: 0                                                                                                                                                                                                       
+    y: 0
+    width: 100                                                                                                                                                                                                 
+    height: 50                                              
+    color:
+      if:   equals(status, 'delayed')                                                                                                                                                                          
+      then: '#FF0000'
+      elif: equals(status, 'cancelled')                                                                                                                                                                        
+      then: '#888888'                                       
+      else: '#00FF00'
+  - type: loop
+    value: "{{zug1.via}}"
+    split_by: "-"
+    var: "via_item"
+    y: 30
+    max_items: 5
+    layers:
+      - type: text
+        value: "{{via_item | trim | upper}}"
+        x: "{{(i-1) * 2 + 5}}"
+        y: "{{i * 20 + 10}}"
+        font: regular
+        size: 9
+        color: "#AAAAAA"  
+
+  # --- Obere Hälfte auf untere Hälfte spiegeln ---
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120
+
+

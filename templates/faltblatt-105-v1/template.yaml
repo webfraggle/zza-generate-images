@@ -1,8 +1,8 @@
 meta:
   name: "Faltblatt 1.05\""
-  description: "Faltblatt-Abfahrtstafel, 240×240px, 1.05 Zoll"
+  description: "Faltblatt-Abfahrtstafel, 240×240px, 1.05 Zoll, mit Split-Flap-Animation"
   author: "christoph"
-  version: "1.0"
+  version: "2.0"
   canvas:
     width: 240
     height: 240
@@ -11,98 +11,197 @@ fonts:
   - id: bold
     file: NimbusSanL-Bol.otf
 
+# Aufbau wie legacy/faltblatt-105-v1/index.php: Die obere Bildhälfte wird
+# gezeichnet und per copy in die untere Hälfte umarrangiert.
+# Schriftgrößen = Legacy-Größe × 16/9; y-Werte mit valign: baseline sind
+# Grundlinien. Jede Klappe (splitflap) deckt das ganze Blatt aus bg.png ab,
+# split_y liegt auf dem Scharnierstrich aus fg.png. Kind-Koordinaten sind
+# relativ zur linken oberen Ecke des Moduls.
+
 layers:
-  # Hintergrund
+  # Hintergrund mit den leeren Klappen
   - type: image
     file: bg.png
     x: 0
     y: 0
 
-  # Overlay (Rahmen/Vordergrund)
-  - type: image
-    file: fg.png
-    x: 0
-    y: 0
-
-  # Gleis — groß links
+  # Gleis — festes Schild, klappt nicht
   - type: text
     value: "Gleis"
     x: 27
     y: 34
-    font: bold
-    size: 16
-    color: "#000000"
+    valign: baseline
     align: center
+    scale_x: 0.5
+    font: bold
+    size: 21.33
+    color: "#000000"
 
   - type: text
     value: "{{gleis}}"
     x: 27
     y: 90
-    font: bold
-    size: 44
-    color: "#000000"
+    valign: baseline
     align: center
-
-  # Zugtyp-Icon (wenn bekannt)
-  - type: image
-    if: "startsWith(zug1.nr, 'RB')"
-    file: rb.png
-    x: 55
-    y: 53
-
-  - type: image
-    if: "startsWith(zug1.nr, 'IC')"
-    file: ic.png
-    x: 55
-    y: 53
-
-  - type: image
-    if: "startsWith(zug1.nr, 'RE')"
-    file: re.png
-    x: 55
-    y: 53
-
-  # Abfahrtszeit
-  - type: text
-    value: "{{zug1.zeit}}"
-    x: 119
-    y: 37
+    scale_x: 0.5
     font: bold
-    size: 17
-    color: "#3a3c3b"
-    align: right
+    size: 58.67
+    color: "#000000"
 
-  - type: text
-    value: "Abfahrt"
-    x: 57
-    y: 35
-    font: bold
-    size: 14
-    color: "#3a3c3b"
-    align: left
+  # Klappe „Abfahrt" + Stunde
+  - type: splitflap
+    x: 53
+    y: 15
+    width: 69
+    height: 28
+    split_y: 14
+    value: "{{zug1.zeit | before(':')}}"
+    reel: ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11",
+           "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"]
+    var: hour
+    flip_frames: 3
+    max_flips: 8
+    layers:
+      - type: text
+        value: "Abfahrt"
+        x: 4
+        y: 20
+        valign: baseline
+        scale_x: 0.5
+        font: bold
+        size: 18.67
+        color: "#3a3c3b"
+      - type: text
+        value: "{{hour}}"
+        x: 66
+        y: 22
+        valign: baseline
+        align: right
+        font: bold
+        size: 22.22
+        color: "#3a3c3b"
 
-  # Ziel (GROSSBUCHSTABEN)
-  - type: text
-    value: "{{zug1.vonnach | upper}}"
-    x: 54
-    y: 88
-    font: bold
-    size: 8
-    color: "#3a3c3b"
-    align: left
-    max_width: 182
+  # Klappe Minute
+  - type: splitflap
+    x: 123
+    y: 15
+    width: 20
+    height: 28
+    split_y: 14
+    value: "{{zug1.zeit | after(':')}}"
+    reel: ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"]
+    var: minute
+    flip_frames: 3
+    max_flips: 8
+    layers:
+      - type: text
+        value: "{{minute}}"
+        x: 10
+        y: 17
+        valign: baseline
+        align: center
+        font: bold
+        size: 15.11
+        color: "#3a3c3b"
 
-  # Via-Stationen
-  - type: text
-    if: "not(isEmpty(zug1.via))"
+  # Klappe Zugart (Logo); ice vor ic, Groß/Kleinschreibung egal
+  - type: splitflap
+    x: 53
+    y: 48
+    width: 90
+    height: 28
+    split_y: 15
+    value: "{{zug1.nr | lower}}"
+    reel: ["rb", "re", "ic", "ice", ""]
+    var: nr
+    flip_frames: 3
+    max_flips: 8
+    layers:
+      - if: "startsWith(nr, 'ice')"
+        layers:
+          - type: image
+            file: ice.png
+            x: 2
+            y: 5
+      - elif: "startsWith(nr, 'ic')"
+        layers:
+          - type: image
+            file: ic.png
+            x: 2
+            y: 5
+      - elif: "startsWith(nr, 'rb')"
+        layers:
+          - type: image
+            file: rb.png
+            x: 2
+            y: 5
+      - elif: "startsWith(nr, 're')"
+        layers:
+          - type: image
+            file: re.png
+            x: 2
+            y: 5
+
+  # Klappe Via: Stationen, die nicht mehr passen, entfallen
+  - type: splitflap
+    x: 144
+    y: 48
+    width: 90
+    height: 28
+    split_y: 15
     value: "{{zug1.via}}"
-    x: 147
-    y: 68
-    font: bold
-    size: 7
-    color: "#3a3c3b"
-    align: left
-    max_width: 87
+    reel: ["Fulda - Bad Hersfeld - Bebra", "Offenbach - Darmstadt", "Hanau - Aschaffenburg - Würzburg", ""]
+    var: via
+    flip_frames: 3
+    max_flips: 8
+    layers:
+      - type: text
+        value: "{{via}}"
+        x: 3
+        y: 20
+        valign: baseline
+        scale_x: 0.5
+        max_width: 87
+        fit_items:
+          split_by: "-"
+          gap: 2
+        font: bold
+        size: 16.89
+        color: "#3a3c3b"
+
+  # Zielzeile: 13 Zeichenklappen
+  - type: splitflap
+    x: 54
+    y: 82
+    width: 11
+    height: 30
+    split_y: 14
+    cells: 13
+    pitch: 14
+    split: chars
+    value: "{{zug1.vonnach | upper}}"
+    reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ-."
+    var: ch
+    flip_frames: 2
+    min_flips: 8
+    max_flips: 16
+    layers:
+      - type: text
+        value: "{{ch}}"
+        x: 5
+        y: 23
+        valign: baseline
+        align: center
+        scale_x: 0.5
+        font: bold
+        size: 21.33
+        color: "#3a3c3b"
+
+  # Overlay (Rahmen, Scharniere, Schattierung) über allen Klappen
+  - type: image
+    file: fg.png
+    x: 0
+    y: 0
 
   # Obere Hälfte auf untere Hälfte spiegeln
   # PHP: imagecopy($bg,$bg,0,120,0,0,240,120)

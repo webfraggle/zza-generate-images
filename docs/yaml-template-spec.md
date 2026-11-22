@@ -43,10 +43,31 @@ meta:
   canvas:
     width: 160    # Breite in Pixeln
     height: 80    # Höhe in Pixeln
+    colors: 32    # optional — Farbpalette reduzieren (2–256); weglassen = volle Farbe
+  timezone: "Europe/Berlin"  # optional — IANA-Zeitzone für {{now.*}}; Standard Europe/Berlin
+  animation:      # optional — nur relevant für GIF-Ausgabe
+    fps: 20       # Splitflap-Modus: Frames pro Sekunde; Standard 20, erlaubt 5–25
+    duration: 2.5 # Splitflap-Modus: maximale Laufzeit in Sekunden; Standard 2.5, erlaubt 0.5–5
+    # Frame-Modus (statt fps/duration): frames, frame_delay, loop — siehe unten
 ```
 
 - `display` (optional) — Bezeichnung des Ziel-Displays, z.B. `"0.96 Zoll OLED"`. Wird auf der Vorschau-Seite angezeigt.
 - `instructions` (optional) — Freitext-Anleitung für Nutzer des Templates. Wird auf der Vorschau-Seite angezeigt. Mehrzeilig möglich mit YAML Block-Scalar (`|`).
+- `canvas.colors` (optional) — Reduziert die Ausgabe auf eine Indexed-PNG mit maximal N Farben (2–256) via Median-Cut-Algorithmus. Verringert die Dateigröße bei einfachen Grafiken erheblich. Weglassen oder `0` = volle 32-Bit-Farbe. Bei GIF-Ausgabe ist es die Zahl der echten Farben der globalen Palette (höchstens 255); der transparente Eintrag kommt zusätzlich dazu, siehe [GIF-Ausgabe](#gif-ausgabe).
+- `timezone` (optional) — IANA-Zeitzone (`Europe/Berlin`, `UTC`, `America/New_York`, …), in der `{{now.*}}` und `format(…)` ausgewertet werden. Standard: `Europe/Berlin` (nicht die Zeitzone des Servers). Ungültige Namen sind ein Template-Fehler (`invalid meta.timezone`): höchstens 64 Zeichen, nur Buchstaben, Ziffern, `_`, `+`, `-` und `/` als Trenner, `Local` ist nicht erlaubt. Die Zeitzonen-Datenbank ist in die Binärdatei eingebettet.
+- `animation` (optional) — Einstellungen für GIF-Ausgabe. Es gibt zwei Modi, die sich gegenseitig ausschließen:
+
+| Feld | Typ | Modus | Standard | Erlaubt |
+|---|---|---|---|---|
+| `fps` | int | Splitflap | 20 | 5–25 |
+| `duration` | float (s) | Splitflap | 2.5 | 0.5–5 |
+| `frames` | int | Frame | 0 = aus | 2–125 |
+| `frame_delay` | float (s) | Frame | 1 | 0.02–10, Vielfaches von 0.01 |
+| `loop` | bool | beide | `false` | GIF endlos wiederholen; `false` = einmal abspielen |
+
+  - **Frame-Modus** (`frames` gesetzt): Das Template wird `frames`-mal gerendert, jedes Frame dauert `frame_delay` Sekunden, siehe [Frame-Animation](#frame-animation). Gilt als Template-Fehler (HTTP 422 beim Rendern), wenn `frames` außerhalb 2–125 liegt, wenn zusätzlich `fps` oder `duration` gesetzt sind, wenn das Template einen `splitflap`-Layer enthält, wenn `frame_delay` außerhalb 0.02–10 liegt oder kein Vielfaches von 0.01 ist oder wenn `frames × frame_delay` 120 s überschreitet. Außerdem müssen `frames × Breite × Höhe` höchstens 32.000.000 Pixel ergeben.
+  - **Splitflap-Modus** (`frames` nicht gesetzt, Template enthält `splitflap`): `fps` 5–25 und `duration` 0.5–5, siehe [`type: splitflap`](#type-splitflap). Die **maximal möglichen** Bilder (`duration × fps`, höchstens 125) × Breite × Höhe dürfen höchstens 32.000.000 Pixel ergeben. Geprüft wird diese Obergrenze vor dem Rendern, nicht die tatsächliche Frame-Zahl. Ein gesetztes `frame_delay` ohne `frames` ist ein Fehler.
+  - **Nicht animiert** (weder `frames` noch `splitflap`): `?format=gif` liefert ein GIF mit einem Frame, `loop` wird ignoriert. Werte außerhalb von `fps`/`duration` sind trotzdem ein Template-Fehler, `frame_delay` ohne `frames` ebenfalls.
 
 ---
 
@@ -79,17 +100,18 @@ der letzte ganz oben. Jeder Layer hat einen `type`.
 | `text`   | Text ausgeben        |
 | `copy`   | Bereich kopieren (z.B. obere Hälfte auf untere Hälfte spiegeln) |
 | `loop`   | Sub-Layer über gesplitteten String iterieren |
+| `splitflap` | Faltblatt-Klappen (Einzelzeichen-Raster oder ganze Tafeln), animierbar als GIF |
 
 ---
 
 ### Koordinaten-Ausdrücke
 
-Die Felder `x`, `y`, `width`, `height` und `size` akzeptieren neben ganzzahligen Werten auch **arithmetische Ausdrücke** in `{{...}}`-Syntax:
+Die Felder `x`, `y`, `width`, `height` und `max_width` akzeptieren neben ganzzahligen Werten auch **arithmetische Ausdrücke** in `{{...}}`-Syntax:
 
 ```yaml
 x: "{{i * 20 + 10}}"      # Abstand 20, Start bei 10
 y: "{{loop.index * 12}}"  # 12px pro Element
-size: "{{14}}"            # auch konstante Ausdrücke erlaubt
+width: "{{12 * 3}}"       # auch konstante Ausdrücke erlaubt
 ```
 
 **Unterstützte Operatoren:** `+`, `-`, `*`, `/` (Ganzzahldivision), Klammern
@@ -101,8 +123,11 @@ size: "{{14}}"            # auch konstante Ausdrücke erlaubt
 | `i`            | Loop-Index, 0-basiert (Kurzform)          | `type: loop`  |
 | `loop.index`   | Loop-Index, 0-basiert (Langform)          | `type: loop`  |
 | `loop.y`       | Absolutes Y des aktuellen Elements        | `type: loop`  |
+| `<id>.width`, `<id>.end` | Breite bzw. Ende eines vorherigen Text-Layers mit `id` (siehe `type: text`) | folgende Layer |
 
 Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Rendern.
+
+> **`size` ist kein Ausdrucksfeld.** Die Schriftgröße ist eine feste Zahl (Kommazahlen erlaubt, z.B. `21.33`); `{{…}}` wird dort nicht ausgewertet.
 
 ---
 
@@ -118,9 +143,9 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   rotate: 0     # optional — Drehwinkel in Grad (Uhrzeigersinn)
 ```
 
-**Rotation** wird verwendet für analoge Uhren. Der Winkel kann über einen Ausdruck berechnet werden.
+**Rotation** wird verwendet für analoge Uhren. Der Winkel kann über einen Ausdruck berechnet werden und darf größer als 360° sein.
 
-> **Hinweis:** Wenn `rotate` gesetzt ist, sind `x` und `y` die **Mittelpunkt-Koordinaten** des Bildes auf dem Canvas (nicht die obere linke Ecke). Das Bild wird um seine eigene Mitte gedreht und dann so platziert, dass sein Mittelpunkt auf `(x, y)` liegt.
+> **Hinweis:** Wenn `rotate` gesetzt ist, sind `x` und `y` die **Mittelpunkt-Koordinaten** des Bildes auf dem Canvas (nicht die obere linke Ecke). Das Bild wird um seine eigene Mitte gedreht und dann so platziert, dass sein Mittelpunkt auf `(x, y)` liegt. Die Drehachse liegt für jeden Winkel exakt auf `x`/`y` (kein Zittern bei dünnen Zeigern).
 
 ```yaml
 # Minutenzeiger: 360° / 60 Minuten = 6° pro Minute
@@ -136,7 +161,14 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   file: clock-hour.png
   x: 120
   y: 120
-  rotate: "{{now.hour12 | mul(30)}}"
+  rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"   # inkl. Minutenanteil
+
+# Sekundenzeiger (läuft im GIF, siehe Frame-Animation)
+- type: image
+  file: clock-seconds.png
+  x: 120
+  y: 120
+  rotate: "{{now.second | mul(6)}}"
 ```
 
 ---
@@ -165,12 +197,49 @@ Außerhalb eines Loops sind `i` und `loop.*` nicht definiert → Fehler beim Ren
   size: 14            # Schriftgröße in Punkten
   color: "#FFFFFF"
   align: left         # left | center | right
-  valign: top         # top | middle | bottom — benötigt height
+  valign: top         # top | middle | bottom — benötigt height; baseline — y ist die Grundlinie
   width: 80           # optional — Boxbreite für Ausrichtung + Zeilenumbruch
   height: 20          # optional — Boxhöhe für vertikale Ausrichtung
   max_width: 80       # optional — nur Zeilenumbruch (alternativ zu width)
   line_height: 1.5    # optional — Zeilenabstand als Multiplikator (Standard: 1.0)
+  scale_x: 0.5        # optional — horizontale Skalierung der Schrift (Standard: 1)
+  scale_y: 1.2        # optional — vertikale Skalierung der Schrift (Standard: 1)
+  id: zeit            # optional — stellt zeit.width / zeit.end für folgende Layer bereit
+  advance: 3          # optional — Pixel, die zu zeit.end addiert werden (0–240, Standard: 0)
+  fit_items:          # optional — einzeilige Element-Einpassung (Elemente entfallen nur mit max_width)
+    split_by: "-"
+    gap: 2
 ```
+
+**Längenbegrenzung** — Der Text eines Layers wird nach dem Einsetzen der Variablen auf 4096 Zeichen gekürzt; umbrochene Zeilen unterhalb der Leinwand werden nicht gezeichnet. Sichtbar ändert sich dadurch nichts, aber sehr lange Eingaben bleiben billig.
+
+**`valign: baseline`** — `y` ist die Grundlinie der ersten Zeile (so rechnet das Legacy-PHP), nicht die Oberkante. `height` wird dabei nicht gebraucht.
+
+**`scale_x`** — Skaliert die Schrift horizontal (`0.5` = halbe Breite, `1` oder weglassen = unverändert). Erlaubt sind `0.05` bis `8`; andere Werte (auch negative, `.inf`, `.nan`) lehnt das Laden des Templates ab. Text, der skaliert weit über die Leinwand hinausragt, wird nur im sichtbaren Bereich gezeichnet. Ausrichtung, `width`, `max_width` und Zeilenumbruch rechnen mit der skalierten Breite. Das Legacy-Theme staucht fast alle Texte mit `xFactor 0.5`; das entspricht `scale_x: 0.5`.
+
+**`scale_y`** — Streckt die Schrift vertikal (`2` = doppelte Höhe, `1` oder weglassen = unverändert, Ausgabe dann byteidentisch zu vorher). Gleiche Grenzen und Validierung wie `scale_x` (`0.05` bis `8`). Verankert ist die Streckung an `y`: bei `valign: top` an der Oberkante der Textbox, bei `valign: baseline` an der Grundlinie. Zeilenhöhe und `valign: middle`/`bottom` rechnen mit der gestreckten Höhe. Das entspricht dem Legacy-`yFactor`.
+
+**`id` und `advance`** — Mit `id` (`[a-z][a-z0-9_]{0,31}`, im ganzen Template eindeutig) stehen allen **folgenden** Layern in Koordinaten-Ausdrücken zwei Variablen bereit:
+
+- `{{zeit.width}}` — gezeichnete Breite der breitesten Zeile in Pixeln (inkl. `scale_x`); leerer Text → 0.
+- `{{zeit.end}}` — `x + width + advance`, wenn `width > 0`; bei leerem Text nur `x` (ein leerer Text schiebt nichts weiter).
+
+```yaml
+- type: text
+  id: zeit
+  advance: 3
+  value: "{{zug1.zeit}}"
+  x: 0
+- type: text
+  value: "{{zug1.vonnach}}"
+  x: "{{zeit.end}}"   # beginnt 3 px hinter der Zeit
+```
+
+`id` ist nur bei `type: text` mit `align: left` erlaubt und nicht zusammen mit `fit_items`; `advance` braucht eine `id`. Doppelte `id`, ungültige Namen oder `advance` außerhalb 0–240 lehnt das Laden ab. IDs auf oberster Ebene gelten auch in Loops; IDs innerhalb eines Loops nur in der jeweiligen Iteration. Ein per `if` übersprungener Layer setzt nichts — für bedingtes Anschließen einen bedingten `value` mit leerem `else` verwenden. Unbekannte Variablen machen den ganzen Ausdruck 0.
+
+**`fit_items`** — Setzt den Wert einzeilig und linksbündig in Elemente: Der Wert wird an `split_by` geteilt (Elemente werden getrimmt, leere entfallen) und die Elemente werden mit `gap` Pixeln Abstand nebeneinander gesetzt. Ein Element wird nur gezeichnet, wenn `xpos + Breite < max_width` gilt; `xpos` rückt auch für ausgelassene Elemente um `Breite + gap` weiter — wie die Via-Schleife im Legacy-PHP. Ohne `max_width` (oder mit `0`) wird nichts weggelassen. Zeilenumbruch und `align` gelten in diesem Modus nicht.
+
+**Portierung von Legacy-PHP-Themes:** Schriftgröße = Legacy-Wert × 16/9 (z.B. Legacy 12 → `size: 21.33`); Legacy-`y` eines Textes ist die Grundlinie (`valign: baseline`); Legacy-`xFactor 0.5` ist `scale_x: 0.5`; Legacy-`yFactor` ist `scale_y`; das fortlaufende `$x += $w + 3` wird mit `id` und `advance` nachgebaut.
 
 ---
 
@@ -214,6 +283,196 @@ Positionierung über Ausdrücke: `y: "{{i * 12 + 30}}"`.
 **Wenn `value` leer ist**, wird der Loop nicht ausgeführt (kein Fehler).
 
 ---
+
+### type: splitflap
+
+Eine oder mehrere **Klappen** (Module) einer mechanischen Faltblattanzeige. Ein Modul ist ein Rechteck mit horizontaler Teilung (Scharnier); sein Inhalt wird durch Kind-Layer gezeichnet, die den aktuellen Wert über eine Variable bekommen (ähnlich `loop`). Im PNG-Render und im letzten GIF-Frame zeigt jedes Modul seinen Zielwert — ein `splitflap`-Layer ist also auch ohne Animation nutzbar (z.B. als Einzelzeichen-Raster).
+
+```yaml
+# Zielzeile: 13 Einzelklappen
+- type: splitflap
+  x: 54              # linke obere Ecke des ersten Moduls
+  y: 82
+  width: 11          # Modulgröße = ganzes Blatt
+  height: 30
+  split_y: 14        # Scharnier, relativ zum Modul (Standard: height / 2)
+  cells: 13          # Module nebeneinander (Standard 1, max. 64)
+  pitch: 14          # Abstand Modul zu Modul in x (Standard: width)
+  split: chars       # ein Zeichen (Rune) pro Modul; weglassen = ganzer Wert in einem Modul
+  value: "{{zug1.vonnach | upper}}"
+  reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ-."   # Vorrat, durch den ein Modul blättert
+  var: ch            # Variable für die Kind-Layer
+  flip_frames: 2     # Animation: Frames pro Umklappen (1–6, Standard 2)
+  min_flips: 8       # Animation: mindestens so viele Umklappschritte (Standard 4)
+  max_flips: 16      # Animation: höchstens so viele (Standard: so viele, wie in duration passen)
+  layers:            # Kind-Layer; Koordinaten relativ zur linken oberen Ecke des Moduls
+    - type: text
+      value: "{{ch}}"
+      x: 5
+      y: 23
+      valign: baseline
+      align: center
+      scale_x: 0.5
+      font: bold
+      size: 21.33
+      color: "#3a3c3b"
+
+# Zugart: eine ganze Tafel, blättert durch die anderen Zugarten
+- type: splitflap
+  x: 53
+  y: 48
+  width: 90
+  height: 28
+  split_y: 15
+  value: "{{zug1.nr | lower}}"
+  reel: ["rb", "re", "ic", "ice", ""]
+  var: nr
+  flip_frames: 3
+  max_flips: 8
+  layers:
+    - if: "startsWith(nr, 'ice')"      # ice vor ic prüfen
+      layers:
+        - type: image
+          file: ice.png
+          x: 2
+          y: 5
+    - elif: "startsWith(nr, 'ic')"
+      layers:
+        - type: image
+          file: ic.png
+          x: 2
+          y: 5
+    # … rb, re
+```
+
+Beide Beispiele stammen aus `templates/faltblatt-105-v1/template.yaml` (dort stehen alle Layer vollständig).
+
+| Feld | Beschreibung |
+|---|---|
+| `x`, `y`, `width`, `height` | Rechteck des **ersten** Moduls (Ausdrücke erlaubt). Das Modul deckt das ganze Blatt ab, wie es im Hintergrundbild gezeichnet ist. `width`/`height` müssen positiv sein; das Modul muss komplett im Canvas liegen |
+| `split_y` | Scharnierlinie relativ zum Modul, `1` bis `height-1`; Standard `height / 2`. Auf den Scharnierstrich des Overlays legen |
+| `cells` | Anzahl Module nebeneinander; Standard 1, max. 64 |
+| `pitch` | x-Abstand von Modul zu Modul; Standard `width` |
+| `split` | `chars` = ein Zeichen pro Modul; fehlt = ganzer Wert in einem Modul. **`cells > 1` verlangt `split: chars`**. Überzählige Zeichen werden abgeschnitten, fehlende Module bekommen den Wert `""` |
+| `value` | Zielwert (Variablen, Filter und Bedingungen wie bei `text`) |
+| `reel` | Vorrat, durch den ein Modul beim Animieren blättert: String (ein Eintrag pro Zeichen) oder YAML-Liste (ein Eintrag pro Listenelement, z.B. `["00", "01", …]`). Max. 64 Einträge pro Layer. Ohne `reel` blättert das Modul durch leere Klappen |
+| `var` | Name der Variable, unter der die Kind-Layer den aktuellen Wert sehen (in Werten **und** Bedingungen) |
+| `flip_frames` | Animation: Frames pro Umklappen, 1–6, Standard 2 |
+| `min_flips`, `max_flips` | Animation: Spanne der Umklappschritte pro Modul (siehe unten) |
+| `layers` | Kind-Layer: `text`, `image`, `rect` und Block-Nodes (`if`/`elif`/`else`). **Nicht** erlaubt: `loop`, `copy`, verschachtelte `splitflap` (auch nicht in nicht-genommenen Zweigen) |
+
+**Regeln**
+
+- **Blatt-Hintergrund = Leinwand-Schnappschuss.** An der Stelle des Layers in der Zeichenreihenfolge wird der Leinwandinhalt unter dem Modulrechteck **einmal pro Wert** als Blatt-Hintergrund genommen; jeder Wert wird darauf gezeichnet. Layer, die **vor** dem `splitflap`-Layer stehen, bilden also das Blatt (z.B. das Hintergrundbild mit den leeren Klappen). Ein Blatt ist deckend; beim Umklappen scheint nichts vom Nachbarwert durch.
+- Ein `splitflap` darf deshalb nicht auf etwas liegen, das sich selbst pro Frame ändert (z.B. auf einem anderen `splitflap`-Modul oder einem `now`-abhängigen Layer). Module dürfen sich außerdem **nicht überlappen** (Template-Fehler).
+- **Overlays** (Scharniere, Rahmen, Schattierung) gehören **nach** die `splitflap`-Layer. `copy`-Layer danach folgen der Animation automatisch.
+- Kind-Koordinaten sind relativ zum Modul; gezeichnet wird auf das Modulrechteck geclippt. Feste Beschriftung auf einer Klappe (z.B. „Abfahrt" neben der Stunde) ist ein konstanter Kind-Layer und klappt mit.
+- `splitflap` darf in Block-Nodes stehen, nicht in `loop`.
+- Der Zielwert muss **nicht** im `reel` stehen; er wird am Ende trotzdem angezeigt. Bei `split: chars` werden Zeichen außerhalb des `reel` genau so gezeichnet, wie sie sind.
+- Limits: max. 64 Module pro Template (Summe aller `splitflap`-Layer), max. 64 `reel`-Einträge pro Layer, max. 125 Frames pro Animation, `meta.animation.fps` 5–25, `meta.animation.duration` 0.5–5 s, maximal mögliche Frames (`duration × fps`, höchstens 125) × Breite × Höhe ≤ 32.000.000 Pixel (Obergrenze, vorab geprüft). Überschreitungen sind Template-Fehler (HTTP 422 beim Rendern).
+
+**Animationsmodell (nur GIF)**
+
+- Ein Umklappen von Wert A auf Wert B dauert `flip_frames` Frames: erst fällt die obere Hälfte (obere Hälfte von A, gestaucht und abgedunkelt, über der oberen Hälfte von B), dann klappt die untere Hälfte von B nach unten über A. Solange ein Modul läuft, folgt Umklappen auf Umklappen ohne Ruheframe.
+- Jedes Modul durchläuft `k` Schritte entlang seines `reel` (zyklisch) und endet auf dem Zielwert. Liegt der Zielwert im `reel`, wird die Startposition so gewählt, dass der Lauf dort ankommt; sonst folgt er als letzter Schritt auf `reel`-Einträge. `k` wird pro Modul pseudozufällig aus `[min_flips, max_flips]` gezogen; die Grenzen werden auf das begrenzt, was in `duration` passt. Die Module stoppen deshalb zu unterschiedlichen Zeiten.
+- **Deterministisch:** Der Zufall ist ein Hash aus Template-Name, Request-Body, Layer- und Modulnummer. Gleiches Template + gleicher Request-Body ⇒ **bytegleiches GIF**. Beim Split-Flap-GIF wird der Zeitpunkt für `{{now.*}}` einmal beim Start eingefroren, im Frame-Modus läuft `now` mit (siehe [Bedeutung von `now`](#bedeutung-von-now)); die Zusage gilt daher nur für Templates ohne `now`.
+- **Start und Ende:** Frame 0 zeigt bereits alle Module in Bewegung, denn das Display zeigt vorher das Standbild des alten Zugs. Das letzte Frame ist das Standbild und entspricht dem PNG-Render derselben Daten (bis auf die GIF-Palettierung). Das GIF spielt **einmal** (keine Loop-Extension) und bleibt auf dem letzten Frame stehen.
+- Alle übrigen Layer (auch `copy`) werden pro Frame normal gerendert.
+- Ein Template ohne `splitflap`-Layer und ohne `meta.animation.frames` ergibt bei `?format=gif` ein GIF mit einem einzigen Frame.
+
+#### GIF-Ausgabe
+
+Für Firmware-Autoren: Das GIF hat **eine globale Farbtabelle** (keine lokalen Tabellen) mit `min(canvas.colors, 255)` echten Farben (Standard 255) **plus** einem zusätzlichen transparenten Index (`canvas.colors: 32` ergibt also 33 Einträge). Frame 0 ist vollständig; alle weiteren Frames sind **Delta-Frames** über das Rechteck der geänderten Pixel, mit Disposal „do not dispose" (Frames werden aufeinander komponiert). Unveränderte Pixel innerhalb eines Delta-Rechtecks sind transparent. Aufeinanderfolgende identische Frames werden zu einem zusammengefasst (Verzögerung addiert). Verzögerung: jedes Frame vor dem letzten dauert `round(100/fps)` Hundertstelsekunden (bei 20 fps 5 cs), das letzte Frame 100 cs (1 s). Ist das letzte Frame identisch mit dem vorletzten, werden beide zusammengefasst und die Standzeit ist entsprechend länger als 1 s.
+
+**Delay und Loop je Modus:**
+
+| | Splitflap | Frame-Modus |
+|---|---|---|
+| Delay je Frame | `round(100/fps)` cs | `frame_delay` (in cs) |
+| letztes Frame | 100 cs (Halte-Frame) | wie alle anderen (kein Halten) |
+| Wiederholung | `loop: true` = endlos, sonst einmal | `loop: true` = endlos, sonst einmal |
+
+Palette und Delta-Frames sind in beiden Modi gleich. Im Frame-Modus werden aufeinanderfolgende identische Frames ebenfalls zusammengefasst (Verzögerung addiert).
+
+**Cache:** Templates, deren Ausgabe von der Zeit abhängt (irgendein `{{…}}` enthält `now` oder den Filter `format(…)`, auch in `if`/`elif`), werden vom Server nicht gecacht. Die Antwort trägt `X-Cache: BYPASS` und `Cache-Control: no-store`. Das gilt für PNG und GIF. Ausnahme: `GET /{template}/preview?format=gif` liefert für solche Templates 10 Sekunden lang das zuletzt gerenderte GIF aus dem Speicher (`X-Cache: PREVIEW`, ebenfalls `no-store`); `POST /{template}/render` ist davon nicht betroffen.
+
+---
+
+## Frame-Animation
+
+Jedes Template kann ohne `splitflap` als Frame-Animation gerendert werden, z.B. für einen laufenden Sekundenzeiger. Aktiviert wird sie durch `meta.animation.frames` (Felder und Grenzen: siehe [meta](#1-meta)).
+
+```yaml
+meta:
+  timezone: "Europe/Berlin"
+  animation:
+    frames: 60        # eine Minute …
+    frame_delay: 1    # … in Sekundenschritten
+    loop: true        # danach von vorn
+```
+
+**Ablauf:** Bei `?format=gif` wird die komplette Layer-Liste `frames`-mal durchlaufen, jedes Frame mit eigener `anim.frame`. `copy`-Layer übernehmen den Zustand des jeweiligen Frames. Es gibt keinen zusätzlichen Halte-Frame am Ende. Gleiche aufeinanderfolgende Frames werden zusammengefasst (Verzögerung addiert).
+
+**`now` läuft mit:** Die Startzeit wird einmal pro Render gelesen (auf die Sekunde abgeschnitten). Frame *i* rendert mit Startzeit + *i* × `frame_delay`, das Datum läuft über Mitternacht mit. Stunden-, Minuten- und Sekundenzeiger bewegen sich im GIF also von allein; ein Versatz über `anim.frame` oder `anim.time` ist für eine Uhr nicht nötig (siehe [Bedeutung von `now`](#bedeutung-von-now)).
+
+**Achtung, doppelte Geschwindigkeit:** Wer zu `now` noch `anim.frame` oder `anim.time` addiert (`now.second | add(anim.frame)`, `format('HH:mm:ss', anim.time)`), zählt die Zeit doppelt: die Uhr läuft doppelt so schnell. Ältere Templates mit dieser Schreibweise müssen angepasst werden.
+
+**PNG = Frame 0:** `?format=png` (und Vorschau) rendert das Template mit `anim.frame = 0`, also pixelgleich zu Frame 0 des GIFs.
+
+### Bedeutung von `now`
+
+| Fall | `now` |
+|---|---|
+| PNG, Vorschau-Standbild | Zeitpunkt des Renderns (= Frame 0 des GIF, wie bisher) |
+| GIF im Frame-Modus | Start + `anim.frame` × `frame_delay`, je Frame neu (Datum läuft über Mitternacht mit) |
+| GIF mit Split-Flap | eingefroren beim Start (wie bisher, 0,5–5 s) |
+| Gerät | Uhr des Geräts beim Rendern des Bildes |
+
+`anim.frame`, `anim.frames`, `anim.time` und `format('…', sek)` bleiben unverändert erhalten. Für Uhren braucht man den Versatz nicht mehr: `now.second`, `now.minute` und `format('HH:mm:ss')` genügen. Die Zusagen „PNG = Frame 0“ und „bytegleiches GIF ohne `now`“ gelten weiter.
+
+**Auf dem Gerät** zeigt jedes Bild die Zeit der Geräte-Uhr in dem Moment, in dem es gerendert wird. Das Datum ist dort fest der 1.1.2026 (Donnerstag); `meta.timezone` gilt nicht, es zählt, was die Geräte-Uhr liefert. Ein ZZA-Paket trägt im `manifest.json` das Feld `clock`:
+
+| `clock` | Wann | Verhalten auf dem Gerät |
+|---|---|---|
+| `none` | kein `now` im Template (auch der Wert bei fehlendem Feld) | Standbild bleibt stehen |
+| `minute` | `now` wird verwendet, aber nicht die Sekunde (auch nur das Datum) | Standbild wird neu gerendert, sobald sich die Minute der Geräte-Uhr ändert |
+| `second` | `now.second` oder ein `format`-Muster mit Sekunden; auch wenn das Muster nicht statisch lesbar ist oder `format` einen Versatz hat, der keine Zahl aus ganzen Minuten ist (`format('HH:mm', 90)`, `format('HH:mm', anim.time)`) | Standbild wird jede Sekunde neu gerendert |
+
+Im Frame-Modus rendert das Gerät bei `minute`/`second` immer live im Takt von `frame_delay`, `now` ist die Geräte-Uhr je Frame. Bei Split-Flap bleibt die Zeit beim Start eingefroren. Gezeichnet wird nur, was sich ändert.
+
+### Animationsvariablen
+
+| Variable | GIF im Frame-Modus | PNG, Splitflap-GIF, nicht animiert |
+|---|---|---|
+| `anim.frame` | 0 … `frames`−1 | 0 |
+| `anim.frames` | `frames` | `frames` im Frame-Modus (PNG), sonst 1 |
+| `anim.time` | `frame × frame_delay` in Sekunden (`0`, `1`, `0.3`, …) | 0 |
+
+`anim.*` gibt es in allen interpolierten Feldern (`value`, `color`, `rotate`, …), in Bedingungen und in `loop`-Layern. `anim.frame` und `anim.frames` sind zusätzlich in Koordinaten-Ausdrücken nutzbar (`x: "{{anim.frame * 2}}"`). `anim` ist reserviert wie `now`: ein gleichnamiges JSON-Feld ist nicht erreichbar.
+
+### Beispiel: laufender Sekundenzeiger
+
+```yaml
+meta:
+  canvas: { width: 240, height: 240 }
+  animation:
+    frames: 60
+    frame_delay: 1
+    loop: true
+
+layers:
+  - type: image
+    file: zifferblatt.png
+    x: 0
+    y: 0
+  - type: image          # Drehpunkt = Bildmitte, bei 0° nach oben
+    file: clock-seconds.png
+    x: 120
+    y: 120
+    rotate: "{{now.second | mul(6)}}"
+```
+
+Nach 60 Frames steht der Zeiger wieder auf der Startposition, die Endlosschleife springt nicht.
 
 ### type: copy
 
@@ -264,11 +523,23 @@ Variablen aus dem JSON-Input werden mit `{{` und `}}` eingebettet.
 {{now.weekday}}      Wochentag          z.B. "Dienstag"
 ```
 
+`now` wird in der Zeitzone `meta.timezone` ausgewertet (Standard `Europe/Berlin`). Ob `now` pro Render feststeht oder je Frame weiterläuft, steht in der Tabelle unter [Bedeutung von `now`](#bedeutung-von-now).
+
+```
+{{anim.frame}}       Frame-Nummer       0 … frames−1 (sonst 0)
+{{anim.frames}}      Anzahl Frames      z.B. 60 (sonst 1)
+{{anim.time}}        Sekunden seit Start  z.B. 12 (sonst 0)
+```
+
 Datum/Zeit lässt sich auch formatieren:
 ```yaml
 value: "{{now | format('HH:mm')}}"     # → "15:51"
 value: "{{now | format('dd.MM.yyyy')}}" # → "24.03.2026"
+value: "{{now | format('HH:mm:ss')}}"  # laufende Uhr: now läuft im GIF und auf dem Gerät von selbst
+value: "{{now | format('HH:mm', 90)}}"  # mit Versatz in Sekunden (hier: 90 s später)
 ```
+
+Kein `anim.frame`/`anim.time` als Versatz für eine Uhr: `now` läuft selbst mit, ein zusätzlicher Versatz zählt die Zeit doppelt (Uhr läuft doppelt so schnell).
 
 Format-Tokens: `HH` (Stunde 00–23), `hh` (Stunde 01–12), `mm` (Minute), `ss` (Sekunde), `dd` (Tag), `MM` (Monat), `yyyy` (Jahr), `EE` (Wochentag kurz), `EEEE` (Wochentag lang)
 
@@ -298,19 +569,49 @@ value: "{{zug1.hinweis | strip('*') | upper}}"      # Kombination: erst strip, d
 | `suffix('x')`               | Hängt Zeichen/Text `x` an den Wert an                    |
 | `trim`                      | Entfernt führende und nachfolgende Leerzeichen            |
 | `format('pattern')`         | Datum/Zeit formatieren (nur für `now`-Variablen)          |
+| `format('pattern', sek)`    | wie oben, mit Versatz in Sekunden auf `now` (Zahl, Variable oder Pipeline, z. B. `anim.time`); nicht numerisch → kein Versatz |
+| `clock`                     | Minuten → `HH:MM`, modulo 1440 (`963` → `16:03`, `1445` → `00:05`); keine Zahl → `""` |
+| `replace('a','b')`          | Ersetzt alle `a` durch `b`; leeres `a` → unverändert; würde das Ergebnis 64 KiB überschreiten, bleibt der Wert unverändert |
+| `match('re', n)`            | Erster Treffer des RE2-Ausdrucks, Gruppe `n` (0 = ganzer Treffer, `n` muss eine ganze Zahl sein); Eingabewert > 64 KiB → `""`; kein Treffer, ungültiger Ausdruck, Ausdruck > 100 Zeichen (Zeichen, nicht Bytes) oder `n` außerhalb → `""` (Ausdrücke werden gecacht, höchstens 256) |
 | `mul(x)`                    | Multipliziert Zahlenwert mit x                            |
 | `div(x)`                    | Dividiert Zahlenwert durch x                              |
 | `add(x)`                    | Addiert x zum Zahlenwert                                  |
 | `sub(x)`                    | Subtrahiert x vom Zahlenwert                              |
+| `mod(x)`                    | Modulo, Vorzeichen des Teilers (`-3 \| mod(1440)` → 1437); `mod(0)` → 0 |
+| `minutes`                   | `"H:MM"`/`"HH:MM"` → Minuten seit Mitternacht (`10:15` → 615); sonst `""` |
 | `round`                     | Rundet auf ganze Zahl                                     |
+| `before('x')`               | Teil vor dem ersten Vorkommen von `x`; ohne `x` im Wert der ganze Wert |
+| `after('x')`                | Teil nach dem ersten Vorkommen von `x`; ohne `x` im Wert leer (`""`)  |
+
+**`before` / `after`** teilen einen Wert an einem Trenner, z.B. Stunde und Minute aus `13:30`:
+```yaml
+value: "{{zug1.zeit | before(':')}}"   # 13:30 → 13
+value: "{{zug1.zeit | after(':')}}"    # 13:30 → 30
+```
+Enthält der Wert den Trenner nicht (z.B. `1330`), liefert `before` den ganzen Wert und `after` einen leeren String.
+
+**Grammatik:** `{{ operand | filter | filter(arg, …) }}`. `|` und `,` trennen nur auf oberster Ebene, also außerhalb von Anführungszeichen und Klammern (`stripAll('|')` ist damit möglich). Leerzeichen um `|` sind optional.
+
+**Argumente der Mathe-Filter** (`add`, `sub`, `mul`, `div`, `mod`):
+
+| Argument | Bedeutung |
+|---|---|
+| `'6'`, `"6"` oder `6`, `-0.5` | Literal |
+| alles andere, z.B. `anim.frame` oder `zug1.zeit \| minutes` | wird als Variable bzw. Pipeline ausgewertet (höchstens 4 Ebenen tief); ist das Ergebnis keine Zahl, ist das Gesamtergebnis `""` |
+
+Ist der Wert links keine Zahl, bleibt er unverändert; ein leerer Wert (z.B. eine leere Zeit) pflanzt sich so durch die ganze Kette fort und ergibt eine leere Ausgabe. Text-Filter (`strip`, `prefix`, …) akzeptieren nur Literale als Argument.
 
 **Mathe-Filter Beispiele** (typisch für analoge Uhren):
 ```yaml
-rotate: "{{now.minute | mul(6)}}"           # Minutenzeiger: 0–354°
-rotate: "{{now.hour12 | mul(30)}}"          # Stundenzeiger grob: 0–330°
-rotate: "{{now.second | mul(6)}}"           # Sekundenzeiger: 0–354°
-value:  "{{now.hour | mul(30) | round}}"    # Winkel als Zahl ausgeben
+rotate: "{{now.minute | mul(6)}}"                                    # Minutenzeiger: 0–354°
+rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"        # Stundenzeiger mit Minutenanteil (10:15 → 307.5°)
+rotate: "{{now.second | mul(6)}}"                                   # Sekundenzeiger, läuft im GIF und auf dem Gerät
+value:  "{{now.hour | mul(30) | round}}"                             # Winkel als Zahl ausgeben
+# Minuten bis zur Abfahrt relativ zu Zug 1 (+5 wie im Original); über Mitternacht positiv:
+value:  "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"   # 10:15/10:18 → 8
 ```
+
+**`minutes`:** Nach dem Entfernen von Leerraum muss der Wert mit `Ziffern:Ziffern` beginnen (ein- oder zweistellig, Rest egal): `10:15 Uhr` → 615, `10:5` → 605. Keine Bereichsprüfung. Passt das Muster nicht (`""`, `ca. 10`, `1015`), ist das Ergebnis `""`.
 
 ---
 
@@ -441,6 +742,8 @@ layers:                          # äußere layers-Liste des Templates
 
 ## Verfügbare Bedingungsfunktionen
 
+Das **erste Argument** darf auch eine Filter-Pipeline sein: `greaterThan(zug1.zeit | minutes, 600)`. Das zweite Argument bleibt ein Literal.
+
 | Funktion                        | Beschreibung                              |
 |---------------------------------|-------------------------------------------|
 | `startsWith(feld, 'zeichen')`   | Beginnt der Wert mit diesem Zeichen?      |
@@ -449,6 +752,12 @@ layers:                          # äußere layers-Liste des Templates
 | `isEmpty(feld)`                 | Ist der Wert leer?                        |
 | `equals(feld, 'wert')`          | Ist der Wert gleich diesem String?        |
 | `greaterThan(feld, zahl)`       | Ist der Zahlenwert größer als X?          |
+| `not(bedingung)`                | Kehrt die Bedingung um                    |
+| `and(b1, b2, …)`                | Alle Bedingungen wahr? (ohne Argumente: falsch) |
+| `or(b1, b2, …)`                 | Mindestens eine Bedingung wahr? (ohne Argumente: falsch) |
+
+`not`, `and` und `or` lassen sich verschachteln, z. B.
+`and(isEmpty(zug1.nr | trim), not(isEmpty(zug1.hinweis)))`.
 
 ---
 
@@ -553,6 +862,23 @@ layers:
 
 ---
 
+## ZZA-kompatibel
+
+Ein Template läuft auch direkt auf dem Controller (ZZA), wenn es kompatibel ist. `zza export -t <name> -o <name>-zza.zip` prüft das und schreibt das Paket; die ZZA-Vorschau im Desktop-Editor zeigt das Ergebnis des Geräte-Renderers. Sonst meldet der Export „nicht ZZA-kompatibel: …“ mit allen Gründen.
+
+Bedingungen:
+
+- **Canvas 240 × 240.** Andere Größen werden abgelehnt. `canvas.colors` gilt nur für die GIF-Ausgabe und wird ignoriert.
+- **Konstanten nur Latin-1** (U+0000–U+00FF). Das gilt auch für die festen Textteile außerhalb von `{{…}}` in interpolierten Texten. Zeichen, die erst zur Laufzeit aus den Zugdaten kommen, sind ausgenommen: Das Gerät zeichnet alles über U+00FF als `?`.
+- **Konstante `match`-Muster.** Das Muster einer `match(…)`-Funktion muss ein Literal in Anführungszeichen sein, kein `{{…}}` und keine Variable, denn das Gerät kann zur Laufzeit keine Regex kompilieren. Ungültige Muster (nach Go-`regexp`) werden abgelehnt.
+- **Regex-Größe:** Das kompilierte Muster darf höchstens 2 000 Instruktionen und 8 000 Runes umfassen („Regex-Muster zu groß für das Gerät“).
+- **Paket höchstens 3 MB.** Gerätespeicher ist begrenzt; viele und große Bilder oder viele Schriftgrößen überschreiten das schnell.
+- Weitere Renderer-Limits (Layer-Anzahl, Rekursionstiefe, Textlänge nach Interpolation, Animationsgrenzen) gelten wie im Server, teils mit festen Gerätegrenzen.
+
+Glyphenkanten: Das Gerät setzt Glyphen auf ganze Pixel. Die Server-Vorschau kann deshalb an Textkanten leicht abweichen, vor allem bei mehrfach übereinander gezeichnetem Text. Die ZZA-Vorschau entspricht dem Gerät.
+
+---
+
 ## Entschiedene Punkte
 
 | Thema | Entscheidung |
@@ -561,9 +887,12 @@ layers:
 | `elif`/`else` auf Layer-Ebene | `elif: "bedingung"` / `else: true` als Layer-Felder; bilden exklusive Kette |
 | Rotation: Koordinaten | `x`/`y` bei gesetztem `rotate` = Mittelpunkt des Bildes auf dem Canvas; kein `pivot_x`/`pivot_y` |
 | Rotation: Richtung | Uhrzeigersinn (positiver Winkel = CW) |
+| Rotation: Drehachse | Liegt für jeden Winkel exakt auf `x`/`y` |
+| Frame-Animation | `meta.animation.frames`/`frame_delay`/`loop`; `anim.*`-Variablen; `now` läuft im Frame-Modus mit; nicht mit `splitflap` kombinierbar |
+| Zeitzone | `meta.timezone`, Standard `Europe/Berlin` |
 | Filter kombinierbar | Ja — `\|`-Verkettung, links nach rechts |
 | `strip` auf Textbereiche | Ja — `stripBetween('a', 'b')` löscht alles inkl. Begrenzungszeichen |
 | Repeat/Loop | `type: loop` mit `split_by` — kein `step_y`, kein relatives Y; Positionierung via `{{i * step + base}}`-Ausdrücke |
-| Koordinaten-Ausdrücke | `x`, `y`, `width`, `height`, `size` unterstützen `{{...}}`-Arithmetik; `i` als Kurzform für `loop.index` |
+| Koordinaten-Ausdrücke | `x`, `y`, `width`, `height`, `max_width` unterstützen (`size` nicht) `{{...}}`-Arithmetik; `i` als Kurzform für `loop.index` |
 | Leere Felder | Werden leer dargestellt — kein Fehler. Sonderbehandlung via `if isEmpty(...)` |
 | `line_height` | Float-Multiplikator relativ zur natürlichen Schrifthöhe; `0` und `1` = unverändert |

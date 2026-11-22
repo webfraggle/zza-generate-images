@@ -1,0 +1,76 @@
+meta:
+  name: "Abdeckung Text"
+  description: "Funktionsabdeckung des Gerätekerns: Text-Layer"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # align mit und ohne width
+  - {type: rect, color: "#202830", x: 60, y: 0, width: 120, height: 36}
+  - {type: text, value: "links", font: reg, size: 10, color: "#ffffff", x: 60, y: 0}
+  - {type: text, value: "Mitte", font: reg, size: 10, color: "#ffffff", x: 60, y: 0, width: 120, align: center}
+  - {type: text, value: "rechts", font: reg, size: 10, color: "#ffffff", x: 60, y: 0, width: 120, align: right}
+  - {type: text, value: "{{ziel}}", font: reg, size: 10, color: "#ffd000", x: 120, y: 12, align: center}
+  - {type: text, value: "{{ziel}}", font: reg, size: 10, color: "#00d0ff", x: 236, y: 24, align: right}
+
+  # valign mit height; baseline mit und ohne height
+  - {type: rect, color: "#203020", x: 0, y: 40, width: 80, height: 40}
+  - {type: text, value: "oben", font: reg, size: 9, color: "#ffffff", x: 0, y: 40, height: 40, valign: top}
+  - {type: text, value: "mitte", font: reg, size: 9, color: "#ffffff", x: 26, y: 40, height: 40, valign: middle}
+  - {type: text, value: "unten", font: reg, size: 9, color: "#ffffff", x: 52, y: 40, height: 40, valign: bottom}
+  - {type: text, value: "Basis", font: reg, size: 12, color: "#ff8080", x: 84, y: 52, valign: baseline}
+  - {type: text, value: "Basis H", font: reg, size: 12, color: "#ff8080", x: 84, y: 72, height: 30, valign: baseline}
+  - {type: text, value: "{{ziel}} {{ziel}}", font: reg, size: 9, color: "#ffffff", x: 0, y: 40, height: 10, valign: bottom, max_width: 78}
+
+  # max_width: Leerzeichen, Bindestrich, erzwungen; line_height
+  - {type: text, value: "{{via}}", font: reg, size: 11, color: "#ffffff", x: 130, y: 40, max_width: 106}
+  - {type: text, value: "Sennhof-Kyburg-Winterthur-Seen", font: reg, size: 11, color: "#c0ffc0", x: 130, y: 84, max_width: 60}
+  - {type: text, value: "Donaudampfschifffahrtsgesellschaft", font: reg, size: 11, color: "#c0c0ff", x: 4, y: 84, max_width: 50, line_height: 0.8}
+  - {type: text, value: "{{via}}", font: reg, size: 9, color: "#ffffc0", x: 60, y: 84, width: 66, line_height: 1.4}
+
+  # scale_x, scale_y, beides (auch mit line_height)
+  - {type: text, value: "Breit {{zug}}", font: reg, size: 12, scale_x: 1.4, color: "#ffffff", x: 4, y: 140}
+  - {type: text, value: "Schmal {{zug}}", font: reg, size: 12, scale_x: 0.6, color: "#ffffff", x: 100, y: 140}
+  - {type: text, value: "Hoch", font: reg, size: 10, scale_y: 1.7, color: "#ffffff", x: 160, y: 136}
+  - {type: text, value: "Beides {{ziel}}", font: reg, size: 11, scale_x: 0.8, scale_y: 1.3, line_height: 1.2, max_width: 70, color: "#ffc0ff", x: 190, y: 120}
+  - {type: text, value: "Mitte {{zug}}", font: reg, size: 10, scale_x: 1.2, color: "#ffffff", x: 120, y: 158, align: center}
+
+  # fit_items
+  - type: text
+    value: "{{linien}}"
+    font: reg
+    size: 10
+    color: "#80ff80"
+    x: 4
+    y: 172
+    max_width: 120
+    fit_items: {split_by: "|", gap: 5}
+  - type: text
+    value: "{{linien}}"
+    font: reg
+    size: 10
+    scale_x: 0.8
+    color: "#80ffff"
+    x: 130
+    y: 168
+    valign: baseline
+    max_width: 100
+    fit_items: {split_by: "|", gap: 3}
+
+  # id/advance und Folge-Koordinaten
+  - {type: text, id: zn, advance: 4, value: "{{zug}}", font: reg, size: 12, color: "#ffffff", x: 4, y: 186}
+  - {type: text, id: zl, value: "{{ziel}}", font: reg, size: 12, color: "#ffff00", x: "{{zn.end}}", y: 186}
+  - {type: rect, color: "#ff0000", x: 4, y: 202, width: "{{zn.width + zl.width}}", height: 2}
+  - {type: text, value: ">", font: reg, size: 12, color: "#ffffff", x: "{{zl.end + 2}}", y: 186}
+
+  # außerhalb der Leinwand
+  - {type: text, value: "Links raus", font: reg, size: 12, color: "#ffffff", x: -30, y: 206}
+  - {type: text, value: "Rechts raus", font: reg, size: 12, color: "#ffffff", x: 200, y: 206}
+  - {type: text, value: "Unten raus", font: reg, size: 14, color: "#ffffff", x: 80, y: 232}
+  - {type: text, value: "Oben raus", font: reg, size: 14, color: "#ffffff", x: 150, y: -6}
+
+  # Kerning-Paare
+  - {type: text, value: "AVATAR Wa To Ty LT P.", font: reg, size: 13, color: "#e0e0e0", x: 4, y: 218}

@@ -1,0 +1,107 @@
+<h2>Drei Arten von if-Bedingungen</h2>
+<p class="subtitle">Wie werden sie im Node-Editor unterschieden?</p>
+
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+
+  <!-- Typ 1: Layer-Sichtbarkeit -->
+  <div class="mockup" style="min-width:260px;flex:1">
+    <div class="mockup-header">① Layer-Sichtbarkeit</div>
+    <div class="mockup-body" style="padding:12px;background:#f8f6f3">
+      <p style="font-size:11px;color:#9a938c;margin:0 0 8px 0">YAML: <code>if:</code> direkt auf dem Layer</p>
+      <pre style="font-size:10px;background:#fff;border:1px solid #ddd8d2;padding:8px;border-radius:4px;margin:0 0 12px 0">- type: rect
+  if: "greaterThan(zug1.abw, 0)"
+  x: 0
+  y: 60
+  color: "#FF0000"</pre>
+      <svg width="220" height="60" font-family="IBM Plex Mono,monospace">
+        <rect x="10" y="8" width="200" height="44" rx="5" fill="#fff" stroke="#ddd8d2" stroke-width="1.5"/>
+        <rect x="10" y="8" width="5" height="44" rx="3" fill="#037f8c"/>
+        <!-- visibility badge oben rechts -->
+        <rect x="152" y="4" width="54" height="16" rx="3" fill="#fd7014"/>
+        <text x="179" y="15" text-anchor="middle" fill="#fff" font-size="9" font-family="IBM Plex Mono,monospace" font-weight="bold">WENN</text>
+        <text x="24" y="26" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">RECT</text>
+        <text x="24" y="42" fill="#111" font-size="10" font-family="IBM Plex Mono,monospace">greaterThan(abw, 0)</text>
+      </svg>
+      <p style="font-size:11px;color:#9a938c;margin:8px 0 0 0">→ Steuert ob der <strong>gesamte Node</strong> gerendert wird. Sichtbar als Badge oben rechts am Node.</p>
+    </div>
+  </div>
+
+  <!-- Typ 2: Eigenschafts-Bedingung -->
+  <div class="mockup" style="min-width:260px;flex:1">
+    <div class="mockup-header">② Bedingte Eigenschaft</div>
+    <div class="mockup-body" style="padding:12px;background:#f8f6f3">
+      <p style="font-size:11px;color:#9a938c;margin:0 0 8px 0">YAML: <code>if/then/else</code> auf einem Feld</p>
+      <pre style="font-size:10px;background:#fff;border:1px solid #ddd8d2;padding:8px;border-radius:4px;margin:0 0 12px 0">color:
+  if: "greaterThan(zug1.abw, 0)"
+  then: "#FF4444"
+  else: "#FFFFFF"</pre>
+      <svg width="220" height="80" font-family="IBM Plex Mono,monospace">
+        <rect x="10" y="8" width="200" height="64" rx="5" fill="#fff" stroke="#ddd8d2" stroke-width="1.5"/>
+        <rect x="10" y="8" width="5" height="64" rx="3" fill="#037f8c"/>
+        <text x="24" y="26" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">TEXT</text>
+        <text x="24" y="40" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">color</text>
+        <!-- if/then/else inline im Feld -->
+        <rect x="60" y="31" width="30" height="16" rx="3" fill="#fd7014" opacity="0.2" stroke="#fd7014"/>
+        <text x="75" y="42" text-anchor="middle" fill="#fd7014" font-size="8" font-family="IBM Plex Mono,monospace">wenn</text>
+        <rect x="93" y="31" width="30" height="16" rx="3" fill="#1a7a3a" opacity="0.2" stroke="#1a7a3a"/>
+        <text x="108" y="42" text-anchor="middle" fill="#1a7a3a" font-size="8" font-family="IBM Plex Mono,monospace">#F44</text>
+        <rect x="126" y="31" width="30" height="16" rx="3" fill="#9a938c" opacity="0.2" stroke="#9a938c"/>
+        <text x="141" y="42" text-anchor="middle" fill="#9a938c" font-size="8" font-family="IBM Plex Mono,monospace">#FFF</text>
+        <text x="24" y="62" fill="#9a938c" font-size="9" font-family="IBM Plex Mono,monospace">greaterThan(abw, 0)</text>
+      </svg>
+      <p style="font-size:11px;color:#9a938c;margin:8px 0 0 0">→ Steuert den <strong>Wert eines einzelnen Feldes</strong>. Sichtbar als kompakte wenn/dann/sonst-Chips direkt neben dem Feld.</p>
+    </div>
+  </div>
+
+  <!-- Typ 3: Block-Level -->
+  <div class="mockup" style="min-width:260px;flex:1">
+    <div class="mockup-header">③ Block-Bedingung</div>
+    <div class="mockup-body" style="padding:12px;background:#f8f6f3">
+      <p style="font-size:11px;color:#9a938c;margin:0 0 8px 0">YAML: Block-Node ohne <code>type:</code></p>
+      <pre style="font-size:10px;background:#fff;border:1px solid #ddd8d2;padding:8px;border-radius:4px;margin:0 0 12px 0">- if: "startsWith(nr,'ICN')"
+  layers:
+    - type: image
+      file: icn.png
+    - type: text
+      value: "ICN Express"</pre>
+      <svg width="220" height="110" font-family="IBM Plex Mono,monospace">
+        <!-- Block container -->
+        <rect x="10" y="8" width="200" height="94" rx="5" fill="#fff3ec" stroke="#fd7014" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="20" y="24" fill="#fd7014" font-size="9" font-family="IBM Plex Mono,monospace" font-weight="bold">BLOCK  startsWith(nr,'ICN')</text>
+        <!-- sub nodes -->
+        <rect x="20" y="30" width="80" height="30" rx="4" fill="#fff" stroke="#ddd8d2" stroke-width="1"/>
+        <rect x="20" y="30" width="4" height="30" rx="2" fill="#037f8c"/>
+        <text x="30" y="44" fill="#9a938c" font-size="8" font-family="IBM Plex Mono,monospace">IMAGE</text>
+        <text x="30" y="56" fill="#111" font-size="9" font-family="IBM Plex Mono,monospace">icn.png</text>
+        <rect x="110" y="30" width="90" height="30" rx="4" fill="#fff" stroke="#ddd8d2" stroke-width="1"/>
+        <rect x="110" y="30" width="4" height="30" rx="2" fill="#037f8c"/>
+        <text x="120" y="44" fill="#9a938c" font-size="8" font-family="IBM Plex Mono,monospace">TEXT</text>
+        <text x="120" y="56" fill="#111" font-size="9" font-family="IBM Plex Mono,monospace">ICN Express</text>
+        <line x1="100" y1="45" x2="110" y2="45" stroke="#b8b0a8" stroke-width="1" stroke-dasharray="3,2"/>
+        <polygon points="110,45 106,42 106,48" fill="#b8b0a8"/>
+        <!-- elif label -->
+        <text x="20" y="90" fill="#fd7014" font-size="8" font-family="IBM Plex Mono,monospace">+ ELIF / + ELSE Block anhängen</text>
+      </svg>
+      <p style="font-size:11px;color:#9a938c;margin:8px 0 0 0">→ Gruppencontainer mit <strong>eigener Sub-Kette</strong>. Gestrichelter oranger Rahmen. elif/else-Blöcke darunter anhängbar.</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:16px;padding:12px;background:#fff;border:1px solid #ddd8d2;border-radius:5px;font-size:12px">
+  <strong>Zusammenfassung der Unterschiede:</strong>
+  <table style="width:100%;border-collapse:collapse;margin-top:8px">
+    <tr style="border-bottom:1px solid #f0ede8">
+      <td style="padding:4px 8px;color:#9a938c">①  Layer-WENN</td>
+      <td style="padding:4px 8px">Badge oben rechts am Node — ein Textfeld für die Bedingung</td>
+    </tr>
+    <tr style="border-bottom:1px solid #f0ede8">
+      <td style="padding:4px 8px;color:#9a938c">②  Feld-WENN</td>
+      <td style="padding:4px 8px">Mini-Chips neben dem Feld innerhalb des Nodes — wenn/dann/sonst</td>
+    </tr>
+    <tr>
+      <td style="padding:4px 8px;color:#9a938c">③  Block-WENN</td>
+      <td style="padding:4px 8px">Gestrichelter Container-Node mit Sub-Kette — elif/else als weitere Container</td>
+    </tr>
+  </table>
+</div>

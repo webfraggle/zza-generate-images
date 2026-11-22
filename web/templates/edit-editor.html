@@ -34,9 +34,29 @@
   <div class="editor-code-col">
     <div class="code-toolbar">
       <span id="active-file" class="pane-label">template.yaml</span>
+      <div class="tab-switcher tab-switcher--hidden" id="tab-switcher">
+        <button class="tab-btn tab-btn--active" id="tab-yaml" data-tab="yaml">YAML</button>
+        <button class="tab-btn" id="tab-nodes" data-tab="nodes">NODES</button>
+      </div>
       <button id="btn-save" class="btn btn-primary btn-sm">Speichern</button>
     </div>
+    <div id="external-change" class="external-change" hidden>
+      <span>Datei wurde extern geändert.</span>
+      <button id="ext-reload" class="btn btn-sm btn-primary" type="button">Neu laden</button>
+      <button id="ext-ignore" class="btn btn-sm btn-level2" type="button">Ignorieren</button>
+    </div>
     <div id="cm-host" class="cm-host"></div>
+    <div id="node-canvas-wrap" class="node-canvas-wrap" hidden>
+      <div id="node-canvas" class="node-canvas">
+        <div id="nc-viewport" class="nc-viewport">
+          <svg id="nc-svg" class="nc-svg"></svg>
+        </div>
+      </div>
+      <div id="node-lock" class="node-lock" hidden>
+        <p>Diese YAML enthält Features die im Node-Editor nicht darstellbar sind.</p>
+        <p id="node-lock-reason" class="node-lock-reason"></p>
+      </div>
+    </div>
     <p id="save-status" class="save-status" hidden></p>
   </div>
 
@@ -48,9 +68,26 @@
     </div>
     <div class="right-section preview-section">
       <span class="pane-label">Vorschau</span>
+      <div class="preview-controls">
+        {{if .Animated}}
+        <select id="preview-mode" aria-label="Vorschau-Modus">
+          <option value="still" selected>Standbild</option>
+          <option value="anim">Animation</option>
+        </select>
+        {{end}}
+        <select id="preview-engine" aria-label="Vorschau-Engine" title="Server: Go-Renderer; ZZA: Renderer-Kern des Controllers">
+          <option value="server" selected>Server</option>
+          <option value="zza">ZZA</option>
+        </select>
+        {{if .Animated}}
+        <button id="replay-btn" class="btn btn-sm btn-level2" type="button" hidden>Erneut abspielen</button>
+        {{end}}
+        <button id="zza-export-btn" class="btn btn-sm btn-level2" type="button" title="Lädt den gespeicherten Stand als Paket für den Zugzielanzeiger herunter (ZIP, in der Weboberfläche des ZZA unter Templates einspielen)">Für ZZA exportieren</button>
+      </div>
       <div id="preview-wrap" class="preview-wrap">
         <div id="spinner" class="spinner" hidden></div>
         <img id="preview-img" alt="" hidden>
+        <span id="preview-size" class="preview-size" hidden></span>
         <span id="no-preview" class="no-preview">—</span>
         <pre id="render-error" class="render-error-box" hidden></pre>
       </div>
@@ -59,6 +96,17 @@
 
 </div><!-- .editor-3col -->
 
+<dialog id="conflict-dialog">
+  <p>Die Datei wurde außerhalb des Editors geändert (z. B. von der KI).</p>
+  <div class="dialog-actions">
+    <button id="conflict-reload" class="btn btn-sm btn-level2" type="button">Neu laden</button>
+    <button id="conflict-overwrite" class="btn btn-sm btn-danger" type="button">Überschreiben</button>
+    <button id="conflict-cancel" class="btn btn-sm btn-level2" type="button">Abbrechen</button>
+  </div>
+</dialog>
+
+{{if .NativeSave}}<script>window.ZZA_NATIVE_SAVE = true;</script>{{end}}
+<script src="/static/save.js"></script>
 <script type="module">
 // ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
 // EditorView constructor accepts doc+extensions directly — no EditorState needed.
@@ -68,15 +116,33 @@ import { yaml }             from 'https://esm.sh/@codemirror/lang-yaml@6.1.1?dep
 import { json as jsonLang } from 'https://esm.sh/@codemirror/lang-json@6.0.1?deps=codemirror@6.0.1';
 import { indentationMarkers } from 'https://esm.sh/@replit/codemirror-indentation-markers@6.5.3?deps=codemirror@6.0.1';
 import { indentMore, indentLess } from 'https://esm.sh/@codemirror/commands@6.10.3?deps=codemirror@6.0.1';
+import { initCanvas, loadGraph, getGraph, setFileList, setFontIds, setTestJson } from '/static/node-editor.js';
+import { graphToLayers } from '/static/node-serializer.js';
+import { layersToGraph } from '/static/node-parser.js';
+import jsYaml from 'https://esm.sh/js-yaml@4.1.0';
+import { decide, normalizeEtag, nextDelay } from '/static/editor-sync.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const TOKEN    = '{{.Token}}';
 const TEMPLATE = '{{.TemplateName}}';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentFile  = 'template.yaml';
 let cmView       = null;
 let prevBlobUrl  = null; // for revoking old preview blob URLs
+let activeTab    = 'yaml';   // 'yaml' | 'nodes'
+let nodeCanvasInitialized = false;
+// True only while the node canvas holds a graph parsed from the current YAML.
+// When the YAML could not be shown as nodes (syntax error or unsupported
+// layers), leaving the NODES tab must keep the YAML text untouched.
+let nodeGraphValid = false;
+// Layers of the graph as loaded (JSON). Leaving the NODES tab only rewrites the
+// YAML when the layers differ, so comments and formatting survive a mere visit.
+let nodeLayersAtLoad = null;
+// Sync with external changes (e.g. the AI writing files via MCP).
+let currentVersion = '';   // ETag of the open file as loaded/saved by this editor
+let loadedContent  = '';   // text of the open file as loaded/saved (dirty baseline)
+let jsonLoaded     = '';   // text of default.json as loaded into the test-JSON box
+let eventsSince    = null; // next `since` for the long-poll; null = no baseline yet
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const fileList    = document.getElementById('file-list');
@@ -90,12 +156,33 @@ const previewImg  = document.getElementById('preview-img');
 const noPreview   = document.getElementById('no-preview');
 const renderErr   = document.getElementById('render-error');
 
+const previewSize = document.getElementById('preview-size');
+
+const externalBar    = document.getElementById('external-change');
+const conflictDialog = document.getElementById('conflict-dialog');
+
 const uploadInput = document.getElementById('file-upload');
 const uploadStatus= document.getElementById('upload-status');
 
+const tabSwitcher    = document.getElementById('tab-switcher');
+const tabYaml        = document.getElementById('tab-yaml');
+const tabNodes       = document.getElementById('tab-nodes');
+const nodeCanvasWrap = document.getElementById('node-canvas-wrap');
+const nodeCanvas     = document.getElementById('node-canvas');
+const ncViewport     = document.getElementById('nc-viewport');
+const ncSvg          = document.getElementById('nc-svg');
+const nodeLock       = document.getElementById('node-lock');
+const nodeLockReason = document.getElementById('node-lock-reason');
+
+function formatSize(bytes) {
+  return bytes < 1024
+    ? bytes + ' Bytes'
+    : (bytes / 1024).toFixed(3).replace('.', ',') + ' KB';
+}
+
 // ── File list ─────────────────────────────────────────────────────────────────
 async function loadFiles() {
-  const res = await fetch(`/edit/${TOKEN}/files`);
+  const res = await fetch(`/edit/${TEMPLATE}/files`);
   if (!res.ok) {
     fileList.innerHTML = '<li class="file-item" style="color:var(--red)">Fehler beim Laden</li>';
     return;
@@ -127,14 +214,36 @@ async function loadFiles() {
 }
 
 // ── Open file in editor ───────────────────────────────────────────────────────
-async function openFile(name) {
-  const res = await fetch(`/edit/${TOKEN}/file/${encodeURIComponent(name)}`);
-  if (!res.ok) { showSaveStatus('Datei konnte nicht geladen werden.', true); return; }
-  const content = await res.text();
+async function fetchFile(name) {
+  const res = await fetch(`/edit/${TEMPLATE}/file/${encodeURIComponent(name)}`);
+  if (!res.ok) return { ok: false, status: res.status };
+  return { ok: true, content: await res.text(), version: normalizeEtag(res.headers.get('ETag')) };
+}
 
+async function openFile(name) {
+  const f = await fetchFile(name);
+  if (!f.ok) { showSaveStatus('Datei konnte nicht geladen werden.', true); return; }
+  applyLoadedFile(name, f);
+}
+
+function applyLoadedFile(name, { content, version }) {
   currentFile = name;
+  currentVersion = version;
+  loadedContent = content;
+  externalBar.hidden = true;
   activeLabel.textContent = name;
   hideSaveStatus();
+
+  // Show tab switcher only for template.yaml
+  tabSwitcher.classList.toggle('tab-switcher--hidden', name !== 'template.yaml');
+  // Switch back to YAML tab when opening a non-yaml file
+  if (name !== 'template.yaml' && activeTab === 'nodes') {
+    activeTab = 'yaml';
+    tabYaml.classList.add('tab-btn--active');
+    tabNodes.classList.remove('tab-btn--active');
+    cmHost.hidden = false;
+    nodeCanvasWrap.hidden = true;
+  }
 
   // Update active highlight in list.
   document.querySelectorAll('.file-item').forEach(li =>
@@ -149,10 +258,20 @@ async function openFile(name) {
     extensions: [basicSetup, lang, indentationMarkers()],
     parent: cmHost,
   });
+  // The NODES view shows a graph parsed from the old YAML: rebuild it.
+  if (activeTab === 'nodes' && name === 'template.yaml') switchToNodes();
 }
 
+function dirty() {
+  if (!cmView) return false;
+  if (activeTab === 'nodes' && nodeGraphValid && currentFile === 'template.yaml'
+      && JSON.stringify(graphToLayers(getGraph())) !== nodeLayersAtLoad) return true;
+  return cmView.state.doc.toString() !== loadedContent;
+}
+function jsonDirty() { return jsonInput.value !== jsonLoaded; }
+
 // ── Save ──────────────────────────────────────────────────────────────────────
-btnSave.addEventListener('click', saveFile);
+btnSave.addEventListener('click', () => saveFile());
 
 document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -160,6 +279,18 @@ document.addEventListener('keydown', e => {
     saveFile();
   }
 });
+
+document.getElementById('conflict-reload').addEventListener('click', () => {
+  conflictDialog.close();
+  openFile(currentFile);
+});
+document.getElementById('conflict-overwrite').addEventListener('click', () => {
+  conflictDialog.close();
+  saveFile(true);
+});
+document.getElementById('conflict-cancel').addEventListener('click', () => conflictDialog.close());
+document.getElementById('ext-reload').addEventListener('click', () => openFile(currentFile));
+document.getElementById('ext-ignore').addEventListener('click', () => { externalBar.hidden = true; });
 
 // Tab/Shift-Tab: alle markierten Zeilen ein- bzw. ausrücken.
 // indentMore/indentLess arbeiten korrekt auf Mehrfach-Selektion.
@@ -170,15 +301,29 @@ cmHost.addEventListener('keydown', e => {
   }
 });
 
-async function saveFile() {
+async function saveFile(force = false) {
   if (!cmView) return;
+  // If NODES tab is active, serialize graph → YAML before saving
+  if (activeTab === 'nodes') {
+    switchToYaml();
+  }
   const content = cmView.state.doc.toString();
-  const res = await fetch(`/edit/${TOKEN}/save`, {
+  const headers = { 'Content-Type': 'application/json' };
+  if (!force) headers['If-Match'] = `"${currentVersion}"`;
+  const res = await fetch(`/edit/${TEMPLATE}/save`, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body:    JSON.stringify({ filename: currentFile, content }),
   });
+  if (res.status === 409) {
+    if (!conflictDialog.open) conflictDialog.showModal();
+    return;
+  }
   if (res.ok) {
+    currentVersion = normalizeEtag(res.headers.get('ETag'));
+    loadedContent = content;
+    if (activeTab === 'nodes' && nodeGraphValid) nodeLayersAtLoad = JSON.stringify(graphToLayers(getGraph()));
+    externalBar.hidden = true;
     showSaveStatus('Gespeichert ✓', false);
     setTimeout(hideSaveStatus, 2500);
     schedulePreview(); // re-render after every save (YAML or JSON)
@@ -197,7 +342,65 @@ function hideSaveStatus() { saveStatus.hidden = true; }
 // ── Preview ───────────────────────────────────────────────────────────────────
 let previewTimer = null;
 
-jsonInput.addEventListener('input', schedulePreview);
+jsonInput.addEventListener('input', () => {
+  setTestJson(jsonInput.value);
+  schedulePreview();
+});
+
+// Preview mode ("still" | "anim"), kept in memory only. The controls exist
+// only for animated templates (splitflap or frame mode).
+let previewMode = 'still';
+const modeSelect = document.getElementById('preview-mode');
+const replayBtn  = document.getElementById('replay-btn');
+if (modeSelect) {
+  modeSelect.addEventListener('change', () => {
+    previewMode = modeSelect.value;
+    replayBtn.hidden = previewMode !== 'anim';
+    renderPreview();
+  });
+  // A fresh fetch yields a fresh blob URL, which restarts the GIF.
+  replayBtn.addEventListener('click', () => renderPreview());
+}
+
+// Preview engine ("server" | "zza"), remembered per template. localStorage may
+// be unavailable or throw (private mode, blocked data): then the default holds.
+let previewEngine = 'server';
+const engineKey    = 'zza-preview-engine:' + TEMPLATE;
+const engineSelect = document.getElementById('preview-engine');
+try {
+  if (localStorage.getItem(engineKey) === 'zza') previewEngine = 'zza';
+} catch (e) { /* default stays */ }
+if (engineSelect) {
+  engineSelect.value = previewEngine;
+  engineSelect.addEventListener('change', () => {
+    previewEngine = engineSelect.value === 'zza' ? 'zza' : 'server';
+    try { localStorage.setItem(engineKey, previewEngine); } catch (e) { /* ignore */ }
+    renderPreview();
+  });
+}
+
+// "Für ZZA exportieren": fetch the package so a 422 (not ZZA-compatible) shows
+// its reasons in the preview's error box instead of navigating to a text page.
+const exportBtn = document.getElementById('zza-export-btn');
+exportBtn.addEventListener('click', async () => {
+  exportBtn.disabled = true;
+  renderErr.hidden   = true;
+  try {
+    const res = await fetch(`/edit/${TEMPLATE}/zza-export`);
+    if (!res.ok) {
+      renderErr.textContent = (await res.text()).trim();
+      renderErr.hidden = false;
+      return;
+    }
+    // Browser download, or the native "save as" dialog in the desktop app.
+    await window.zzaSave(await res.blob(), `${TEMPLATE}-zza.zip`);
+  } catch (e) {
+    renderErr.textContent = 'Fehler: ' + e.message;
+    renderErr.hidden = false;
+  } finally {
+    exportBtn.disabled = false;
+  }
+});
 
 function schedulePreview() {
   clearTimeout(previewTimer);
@@ -208,13 +411,14 @@ async function renderPreview() {
   const body = jsonInput.value.trim();
   if (!body) return;
 
-  spinner.hidden    = false;
-  previewImg.hidden = true;
-  noPreview.hidden  = true;
-  renderErr.hidden  = true;
+  spinner.hidden      = false;
+  previewImg.hidden   = true;
+  previewSize.hidden  = true;
+  noPreview.hidden    = true;
+  renderErr.hidden    = true;
 
   try {
-    const res = await fetch(`/${TEMPLATE}/render`, {
+    const res = await fetch((previewEngine === 'zza' ? `/edit/${TEMPLATE}/zza-render` : `/${TEMPLATE}/render`) + (previewMode === 'anim' ? '?format=gif' : ''), {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
@@ -224,10 +428,13 @@ async function renderPreview() {
       renderErr.textContent = msg;
       renderErr.hidden = false;
     } else {
+      const blob = await res.blob();
       if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
-      prevBlobUrl       = URL.createObjectURL(await res.blob());
-      previewImg.src    = prevBlobUrl;
-      previewImg.hidden = false;
+      prevBlobUrl             = URL.createObjectURL(blob);
+      previewImg.src          = prevBlobUrl;
+      previewImg.hidden       = false;
+      previewSize.textContent = formatSize(blob.size);
+      previewSize.hidden      = false;
     }
   } catch (e) {
     renderErr.textContent = 'Netzwerkfehler: ' + e.message;
@@ -246,7 +453,7 @@ uploadInput.addEventListener('change', async e => {
   const fd = new FormData();
   fd.append('file', file);
 
-  const res = await fetch(`/edit/${TOKEN}/upload`, { method: 'POST', body: fd });
+  const res = await fetch(`/edit/${TEMPLATE}/upload`, { method: 'POST', body: fd });
   if (res.ok) {
     showUploadStatus('Hochgeladen ✓', false);
     setTimeout(hideUploadStatus, 2500);
@@ -267,7 +474,7 @@ function hideUploadStatus() { uploadStatus.hidden = true; }
 // ── Delete ────────────────────────────────────────────────────────────────────
 async function deleteFile(name) {
   if (!confirm(`"${name}" wirklich löschen?`)) return;
-  const res = await fetch(`/edit/${TOKEN}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  const res = await fetch(`/edit/${TEMPLATE}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
   if (res.ok) {
     if (currentFile === name) openFile('template.yaml');
     await loadFiles();
@@ -276,19 +483,185 @@ async function deleteFile(name) {
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-async function init() {
-  await loadFiles();
-  await openFile('template.yaml');
+// ── Tab switching ─────────────────────────────────────────────────────────────
+tabYaml.addEventListener('click',  () => switchTab('yaml'));
+tabNodes.addEventListener('click', () => switchTab('nodes'));
 
-  // Pre-fill JSON from default.json.
+function switchTab(tab) {
+  if (activeTab === tab) return;
+
+  if (tab === 'nodes') {
+    switchToNodes();
+  } else {
+    switchToYaml();
+  }
+
+  activeTab = tab;
+  tabYaml.classList.toggle('tab-btn--active',  tab === 'yaml');
+  tabNodes.classList.toggle('tab-btn--active', tab === 'nodes');
+  cmHost.hidden          = tab !== 'yaml';
+  nodeCanvasWrap.hidden  = tab !== 'nodes';
+}
+
+function switchToNodes() {
+  nodeGraphValid = false;
+  const yamlStr = cmView ? cmView.state.doc.toString() : '';
+
+  let parsed;
   try {
-    const res = await fetch(`/edit/${TOKEN}/file/default.json`);
-    if (res.ok) {
-      jsonInput.value = await res.text();
+    parsed = jsYaml.load(yamlStr) || {};
+  } catch (e) {
+    nodeLock.hidden = false;
+    nodeLockReason.textContent = 'YAML-Fehler: ' + e.message;
+    return;
+  }
+
+  const layers = parsed.layers || [];
+  const result = layersToGraph(layers);
+
+  if (!nodeCanvasInitialized) {
+    initCanvas(nodeCanvas, ncViewport, ncSvg);
+    nodeCanvasInitialized = true;
+  }
+  _updateNodeEditorAssets(parsed);
+
+  if (!result.ok) {
+    nodeLock.hidden = false;
+    nodeLockReason.textContent = result.reason;
+    loadGraph({ nodes: [], chain: [] });
+    return;
+  }
+
+  nodeLock.hidden = true;
+  loadGraph({ nodes: result.nodes, chain: result.chain });
+  nodeGraphValid = true;
+  nodeLayersAtLoad = JSON.stringify(graphToLayers(getGraph()));
+  setTestJson(jsonInput.value);
+}
+
+function switchToYaml() {
+  if (!nodeGraphValid) return; // nothing was converted: keep the original YAML
+  const graph = getGraph();
+  if (!graph) return;
+
+  const newLayers = graphToLayers(graph);
+  if (JSON.stringify(newLayers) === nodeLayersAtLoad) return; // nothing edited
+
+  const yamlStr = cmView ? cmView.state.doc.toString() : '';
+  let parsed = {};
+  try { parsed = jsYaml.load(yamlStr) || {}; } catch { /* ignore */ }
+
+  const newDoc = jsYaml.dump({ ...parsed, layers: newLayers }, {
+    indent: 2,
+    lineWidth: -1,
+    quotingType: '"',
+    forceQuotes: false,
+  });
+
+  if (cmView) {
+    cmView.dispatch({
+      changes: { from: 0, to: cmView.state.doc.length, insert: newDoc }
+    });
+  }
+}
+
+function _updateNodeEditorAssets(parsed) {
+  const imgFiles = Array.from(document.querySelectorAll('.file-item'))
+    .map(li => li.dataset.name)
+    .filter(n => n && /\.(png|jpe?g)$/i.test(n));
+  setFileList(imgFiles);
+
+  const fontIds = (parsed.fonts || []).map(f => f.id).filter(Boolean);
+  setFontIds(fontIds);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function loadDefaultJson() {
+  try {
+    const f = await fetchFile('default.json');
+    if (f.ok) {
+      jsonInput.value = f.content;
+      jsonLoaded = f.content;
+      setTestJson(f.content);
       schedulePreview();
     }
   } catch { /* no default.json — that's fine */ }
+}
+
+// ── External changes (long-poll) ──────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Applies one batch. Never saves and never invalidates anything on the server:
+// events only ever lead to reads. Echoes of our own saves are caught by the
+// version comparison (the ETag of the file on disk equals currentVersion).
+async function applyChanges({ files, reset }) {
+  const d = decide({
+    files, reset: !!reset, currentFile,
+    dirty: dirty(), jsonDirty: jsonDirty(),
+  });
+  if (d.reloadList) await loadFiles();
+
+  if (d.currentFile !== 'none') {
+    const name = currentFile;
+    const f = await fetchFile(name);
+    // Only act if the user did not switch files meanwhile and the content differs.
+    if (name === currentFile) {
+      if (!f.ok) {
+        // Deleted or unreadable: tell the user instead of silently ignoring.
+        externalBar.hidden = false;
+      } else if (f.version !== currentVersion) {
+        if (d.currentFile === 'silent' && !dirty()) applyLoadedFile(name, f);
+        else externalBar.hidden = false;
+      }
+    }
+  }
+  if (d.refreshJson) {
+    const f = await fetchFile('default.json');
+    if (f.ok && f.content !== jsonLoaded && !jsonDirty()) {
+      jsonInput.value = f.content;
+      jsonLoaded = f.content;
+      setTestJson(f.content);
+    }
+  }
+  if (d.refreshPreview) schedulePreview();
+}
+
+async function watchChanges() {
+  let failures = 0;
+  for (;;) {
+    try {
+      const res = await fetch(`/edit/${TEMPLATE}/events` + (eventsSince === null ? '' : '?since=' + eventsSince));
+      if (res.status === 404) return; // no watcher in this build
+      if (!res.ok) throw new Error('events ' + res.status);
+      const { seq, files, reset } = await res.json();
+      failures = 0;
+      eventsSince = seq;
+      if ((files && files.length) || reset) {
+        try { await applyChanges({ files: files || [], reset }); }
+        catch (e) {
+          console.error('apply external change failed', e);
+          externalBar.hidden = false; // let the user reload manually
+        }
+      }
+    } catch {
+      await sleep(nextDelay(++failures));
+    }
+  }
+}
+
+async function init() {
+  // Take the event baseline before loading, so no change in between is missed.
+  try {
+    const res = await fetch(`/edit/${TEMPLATE}/events`);
+    if (res.ok) eventsSince = (await res.json()).seq;
+    else if (res.status === 404) eventsSince = -1; // no watcher
+  } catch { /* the loop retries with a fresh baseline */ }
+
+  await loadFiles();
+  await openFile('template.yaml');
+  await loadDefaultJson();
+
+  if (eventsSince !== -1) watchChanges();
 }
 
 init();

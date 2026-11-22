@@ -1,0 +1,231 @@
+package devicerender
+
+/*
+#include <stdlib.h>
+#include "zzarender_c.h"
+*/
+import "C"
+
+import (
+	"image"
+	"time"
+	"unsafe"
+)
+
+// Unexported wrappers around the zza_test_* C functions. import "C" is not
+// allowed in _test.go files, so tests reach the core through these.
+
+// testAlloc allocates and frees n bytes through the budget; returns the ZZA_* code.
+func testAlloc(r *Renderer, n int) int {
+	return int(C.zza_test_alloc(r.c, C.size_t(n)))
+}
+
+// testSHA256 hashes data with the core's SHA-256.
+func testSHA256(data []byte) [32]byte {
+	var out [32]byte
+	var p *C.uchar
+	if len(data) > 0 {
+		p = (*C.uchar)(unsafe.Pointer(&data[0]))
+	}
+	C.zza_test_sha256(p, C.size_t(len(data)), (*C.uchar)(unsafe.Pointer(&out[0])))
+	return out
+}
+
+// zzaTime mirrors zza_time for the test hooks.
+type zzaTime struct{ Year, Month, Day, Hour, Minute, Second, Weekday int }
+
+// testEval evaluates expr (as condition if isCond) with the C++ evaluator.
+// regexJSON is a `_re` table {"<pattern>": <program>, …} for match ("" = none).
+// The second result is a ZZA_ERR_* code (0 = ok).
+func testEval(dataJSON, regexJSON string, now zzaTime, frame, frames, delayCS int, expr string, isCond bool) (string, int) {
+	cData := C.CString(dataJSON)
+	defer C.free(unsafe.Pointer(cData))
+	var cRegex *C.char
+	if regexJSON != "" {
+		cRegex = C.CString(regexJSON)
+		defer C.free(unsafe.Pointer(cRegex))
+	}
+	cExpr := C.CString(expr)
+	defer C.free(unsafe.Pointer(cExpr))
+	t := C.zza_time{
+		year: C.int(now.Year), month: C.int(now.Month), day: C.int(now.Day),
+		hour: C.int(now.Hour), minute: C.int(now.Minute), second: C.int(now.Second),
+		weekday: C.int(now.Weekday),
+	}
+	cond := C.int(0)
+	if isCond {
+		cond = 1
+	}
+	buf := make([]byte, 4096)
+	for {
+		n := int(C.zza_test_eval(cData, cRegex, &t, C.int(frame), C.int(frames), C.int(delayCS), cExpr, cond,
+			(*C.char)(unsafe.Pointer(&buf[0])), C.size_t(len(buf))))
+		if n < 0 {
+			return "", -n
+		}
+		if n < len(buf) {
+			return string(buf[:n]), 0
+		}
+		buf = make([]byte, n+1)
+	}
+}
+
+// testRegex runs a program (devexport.Prog JSON) on in and returns capture
+// group g with Go matchGroup semantics; the second result is a ZZA_* code.
+func testRegex(progJSON, in string, group int) (string, int) {
+	cProg := C.CString(progJSON)
+	defer C.free(unsafe.Pointer(cProg))
+	b := []byte(in)
+	var p *C.char
+	if len(b) > 0 {
+		p = (*C.char)(unsafe.Pointer(&b[0]))
+	}
+	out := make([]byte, len(b)+1) // a group is a substring of in
+	n := int(C.zza_test_regex(cProg, p, C.size_t(len(b)), C.int(group),
+		(*C.char)(unsafe.Pointer(&out[0])), C.size_t(len(out))))
+	if n < 0 {
+		return "", -n
+	}
+	return string(out[:n]), 0
+}
+
+// testIntExpr evaluates a coordinate expression; the second result is a ZZA_* code.
+func testIntExpr(expr, varsJSON string) (int, int) {
+	cExpr := C.CString(expr)
+	defer C.free(unsafe.Pointer(cExpr))
+	cVars := C.CString(varsJSON)
+	defer C.free(unsafe.Pointer(cVars))
+	var out C.int
+	rc := int(C.zza_test_intexpr(cExpr, cVars, &out))
+	return int(out), rc
+}
+
+// testLatin1 converts UTF-8 to Latin-1 bytes; ok is false in strict mode when a
+// rune above U+00FF is present.
+func testLatin1(s string, strict bool) ([]byte, bool) {
+	b := []byte(s)
+	out := make([]byte, len(b)+1)
+	var p *C.char
+	if len(b) > 0 {
+		p = (*C.char)(unsafe.Pointer(&b[0]))
+	}
+	st := C.int(0)
+	if strict {
+		st = 1
+	}
+	n := int(C.zza_test_latin1(p, C.size_t(len(b)), st, (*C.uchar)(unsafe.Pointer(&out[0])), C.size_t(len(out))))
+	if n < 0 {
+		return nil, false
+	}
+	return out[:n], true
+}
+
+// testHash returns the core's FNV-1a of the decoded data of image/font id ("i0", "f1").
+func testHash(r *Renderer, id string) (uint32, int) {
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(cid))
+	var out C.uint
+	rc := int(C.zza_test_hash(r.c, cid, &out))
+	return uint32(out), rc
+}
+
+// errStateCode and noMemCode are ZZA_ERR_STATE and ZZA_ERR_NOMEM.
+const (
+	errStateCode = int(C.ZZA_ERR_STATE)
+	noMemCode    = int(C.ZZA_ERR_NOMEM)
+)
+
+// testAnimFrame calls zza_anim_frame for frame i (into a scratch buffer) and
+// returns the ZZA_* code.
+func testAnimFrame(r *Renderer, i int) int {
+	buf := C.malloc(240 * 240 * 3)
+	defer C.free(buf)
+	var delay, n C.int
+	return int(C.zza_anim_frame(r.c, C.int(i), nil, (*C.uchar)(buf), &delay, nil, 0, &n))
+}
+
+// testAnimFrameAt calls zza_anim_frame for frame i with now (nil: the core
+// advances the time) into a zeroed buffer and returns the ZZA_* code and the
+// frame.
+func testAnimFrameAt(r *Renderer, i int, now *time.Time) (int, *image.NRGBA) {
+	buf := (*C.uchar)(C.calloc(1, 240*240*3))
+	defer C.free(unsafe.Pointer(buf))
+	var cn *C.zza_time
+	if now != nil {
+		t := cTime(*now)
+		cn = &t
+	}
+	var delay, n C.int
+	code := int(C.zza_anim_frame(r.c, C.int(i), cn, buf, &delay, nil, 0, &n))
+	return code, toNRGBA(buf)
+}
+
+// testSetLimit changes the budget limit of r.
+func testSetLimit(r *Renderer, limit int) { C.zza_test_set_limit(r.c, C.size_t(limit)) }
+
+// testAnimBegin starts an animation with data at now; returns the ZZA_* code and the frame count.
+func testAnimBegin(r *Renderer, data []byte, now zzaTime) (int, int) {
+	var cd *C.char
+	if len(data) > 0 {
+		cd = (*C.char)(C.CBytes(data))
+		defer C.free(unsafe.Pointer(cd))
+	}
+	t := C.zza_time{
+		year: C.int(now.Year), month: C.int(now.Month), day: C.int(now.Day),
+		hour: C.int(now.Hour), minute: C.int(now.Minute), second: C.int(now.Second),
+		weekday: C.int(now.Weekday),
+	}
+	var frames, loop C.int
+	code := int(C.zza_anim_begin(r.c, cd, C.size_t(len(data)), &t, &frames, &loop))
+	return code, int(frames)
+}
+
+// defaultWorkLimit is ZZA_DEFAULT_WORK_LIMIT.
+const defaultWorkLimit = uint64(C.ZZA_DEFAULT_WORK_LIMIT)
+
+// testSetWorkLimit sets the work limit per call (0: the default).
+func testSetWorkLimit(r *Renderer, ops uint64) { C.zza_set_work_limit(r.c, C.uint64_t(ops)) }
+
+// testWorkUsed returns the work of the last render / animation call.
+func testWorkUsed(r *Renderer) uint64 { return uint64(C.zza_work_used(r.c)) }
+
+// templateCode is ZZA_ERR_TEMPLATE.
+const templateCode = int(C.ZZA_ERR_TEMPLATE)
+
+// testErr maps a ZZA_* code of r to its Go error.
+func testErr(r *Renderer, code int) error { return r.errFor(C.int(code)) }
+
+// testAnimEnd ends the animation of r.
+func testAnimEnd(r *Renderer) { C.zza_anim_end(r.c) }
+
+// testClock returns zza_clock of r (ZZA_CLOCK_*).
+func testClock(r *Renderer) int { return int(C.zza_clock(r.c)) }
+
+// testRenderDiff calls zza_render_diff with data at now on a copy of prev (nil:
+// a black image), asking for up to maxRects rectangles. It returns the ZZA_*
+// code, the buffer after the call and the reported rectangles.
+func testRenderDiff(r *Renderer, data []byte, now time.Time, prev *image.NRGBA, maxRects int) (int, *image.NRGBA, []image.Rectangle) {
+	buf := (*C.uchar)(C.calloc(1, 240*240*3))
+	defer C.free(unsafe.Pointer(buf))
+	if prev != nil {
+		dst := unsafe.Slice((*byte)(unsafe.Pointer(buf)), 240*240*3)
+		for i, j := 0, 0; i < len(dst); i, j = i+3, j+4 {
+			dst[i], dst[i+1], dst[i+2] = prev.Pix[j], prev.Pix[j+1], prev.Pix[j+2]
+		}
+	}
+	var cd *C.char
+	if len(data) > 0 {
+		cd = (*C.char)(C.CBytes(data))
+		defer C.free(unsafe.Pointer(cd))
+	}
+	t := cTime(now)
+	rects := make([]C.zza_rect, max(maxRects, 1))
+	var n C.int
+	code := int(C.zza_render_diff(r.c, cd, C.size_t(len(data)), &t, buf, &rects[0], C.int(maxRects), &n))
+	var out []image.Rectangle
+	for i := 0; i < int(n); i++ {
+		c := rects[i]
+		out = append(out, image.Rect(int(c.x), int(c.y), int(c.x+c.w), int(c.y+c.h)))
+	}
+	return code, toNRGBA(buf), out
+}

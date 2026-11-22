@@ -3,8 +3,52 @@ package renderer
 import (
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestGetFont_ReloadsChangedFile(t *testing.T) {
+	src := filepath.Join("..", "..", "templates", "umuc-105-v1")
+	a, err := os.ReadFile(filepath.Join(src, "Roboto-Bold.ttf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(src, "RobotoCondensed-Regular.ttf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.ttf")
+	if err := os.WriteFile(p, a, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := New(dir)
+	f1, err := r.getFont(dir, "f.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f1b, _ := r.getFont(dir, "f.ttf")
+	if f1 != f1b {
+		t.Error("unchanged file must hit the cache")
+	}
+	if err := os.WriteFile(p, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(p, later, later); err != nil {
+		t.Fatal(err)
+	}
+	f2, err := r.getFont(dir, "f.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f2 == f1 {
+		t.Error("changed file must be reloaded")
+	}
+}
 
 // --- test helpers ---
 
@@ -235,5 +279,23 @@ func TestRender_BlockIf_MixedWithRegular(t *testing.T) {
 	// Center (2,2) is red (covered by red square).
 	if got := nrgbaAt(img, 2, 2); got != (color.NRGBA{R: 0xff, A: 0xff}) {
 		t.Errorf("pixel (2,2) = %v, want red", got)
+	}
+}
+
+func TestParseTemplate(t *testing.T) {
+	tmpl, err := ParseTemplate([]byte("meta:\n  canvas: {width: 240, height: 240}\nlayers: []\n"), "/abs/dir")
+	if err != nil {
+		t.Fatalf("ParseTemplate: %v", err)
+	}
+	if tmpl.Dir != "/abs/dir" || tmpl.Meta.Canvas.Width != 240 {
+		t.Errorf("unexpected template: dir=%q width=%d", tmpl.Dir, tmpl.Meta.Canvas.Width)
+	}
+	_, err = ParseTemplate([]byte("meta:\n  canvas: {width: 240, height: 240, colors: 1}\n"), "/abs/dir")
+	if err == nil || !strings.Contains(err.Error(), "renderer: ParseTemplate: canvas.colors must be between 2 and 256") {
+		t.Errorf("colors error = %v", err)
+	}
+	_, err = ParseTemplate([]byte("layers: [::"), "/abs/dir")
+	if err == nil || !strings.Contains(err.Error(), "decoding YAML") {
+		t.Errorf("syntax error = %v", err)
 	}
 }

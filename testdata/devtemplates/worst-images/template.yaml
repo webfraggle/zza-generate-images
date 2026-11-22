@@ -1,0 +1,23 @@
+meta:
+  name: "Worst Case Bilder"
+  description: "Lasttest: 6 Vollbild-Bilder mit Alpha (keine RLE-Läufe) und 4 zur Laufzeit skalierte Vollbilder"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: text, id: nm, value: "{{name}}", font: reg, size: 10, color: "#ffffff", x: 2, y: 228}
+  - {type: image, file: img1.png, x: 0, y: 0}
+  - {type: image, file: img2.png, x: 0, y: 0}
+  - {type: image, file: img3.png, x: 0, y: 0}
+  - {type: image, file: img4.png, x: 0, y: 0}
+  - {type: image, file: img5.png, x: 0, y: 0}
+  - {type: image, file: img6.png, x: 0, y: 0}
+  # Laufzeit-Skalierung (Cache mit 4 Einträgen bis 240 × 240)
+  - {type: image, file: img1.png, x: 0, y: 0, width: "{{240 - nm.width / 8}}", height: 240}
+  - {type: image, file: img2.png, x: 0, y: 0, width: 240, height: "{{239 - nm.width / 8}}"}
+  - {type: image, file: img3.png, x: 0, y: 0, width: "{{238 - nm.width / 8}}", height: "{{238}}"}
+  - {type: image, file: img4.png, x: 120, y: 120, width: "{{237 - nm.width / 8}}", height: 237, rotate: "30"}
+  - {type: text, value: "{{name}}", font: reg, size: 10, color: "#ffffff", x: 2, y: 228}

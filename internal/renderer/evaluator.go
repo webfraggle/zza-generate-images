@@ -6,7 +6,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // interpolateRe matches {{expr}} where expr may contain quoted strings (including '}').
@@ -19,11 +21,23 @@ type Evaluator struct {
 	data    map[string]interface{}
 	intVars map[string]int // integer variables for coordinate expressions (i, loop.index, …)
 	now     time.Time      // captured once at creation for consistent {{now.*}} values
+	anim    animVars       // {{anim.*}} values
 }
 
-// NewEvaluator creates a new Evaluator with the given data map.
+// animVars holds the animation variables: current frame, frame count and
+// frame delay in hundredths of a second (0 outside frame mode).
+type animVars struct{ frame, frames, delayCS int }
+
+// NewEvaluator creates a new Evaluator with the given data map. It uses
+// time.Now in the local zone; the renderer uses newEvaluator (template time
+// zone, injectable clock).
 func NewEvaluator(data map[string]interface{}) *Evaluator {
-	return &Evaluator{data: data, now: time.Now()}
+	return newEvaluatorAt(data, time.Now())
+}
+
+// newEvaluatorAt creates an Evaluator with a fixed `now`.
+func newEvaluatorAt(data map[string]interface{}, now time.Time) *Evaluator {
+	return &Evaluator{data: data, now: now, anim: animVars{frames: 1}}
 }
 
 // withLoopVars returns a new Evaluator with additional loop-scope variables.
@@ -45,11 +59,47 @@ func (e *Evaluator) withLoopVars(strVars map[string]string, loopIntVars map[stri
 	for k, v := range loopIntVars {
 		newIntVars[k] = v
 	}
-	return &Evaluator{data: newData, intVars: newIntVars, now: e.now}
+	return &Evaluator{data: newData, intVars: newIntVars, now: e.now, anim: e.anim}
+}
+
+// withOwnIntVars returns a copy of e with its own integer-variable map (data
+// and now are shared), so that variables set during one render stay private to it.
+func (e *Evaluator) withOwnIntVars() *Evaluator {
+	iv := make(map[string]int, len(e.intVars)+4)
+	for k, v := range e.intVars {
+		iv[k] = v
+	}
+	c := *e
+	c.intVars = iv
+	return &c
+}
+
+// withNow returns a copy of e with a different `now` (everything else shared).
+func (e *Evaluator) withNow(t time.Time) *Evaluator {
+	c := *e
+	c.now = t
+	return &c
+}
+
+// withAnim returns a copy of e (data and now are shared) with the animation
+// variables set: {{anim.*}} in strings and anim.frame / anim.frames in
+// coordinate expressions.
+func (e *Evaluator) withAnim(frame, frames, delayCS int) *Evaluator {
+	iv := make(map[string]int, len(e.intVars)+2)
+	for k, v := range e.intVars {
+		iv[k] = v
+	}
+	iv["anim.frame"], iv["anim.frames"] = frame, frames
+	return &Evaluator{data: e.data, intVars: iv, now: e.now, anim: animVars{frame, frames, delayCS}}
 }
 
 // Interpolate replaces all {{expr}} placeholders in s.
-// Expressions support filter pipelines: {{var | filter1 | filter2(arg)}}.
+// Expressions are pipelines: operand ( "|" filter )*, where
+// filter := name [ "(" arg ( "," arg )* ")" ] and
+// arg := 'text' | "text" | number | pipeline (without {{ }}).
+// "|" and "," only separate at top level, i.e. outside quotes and parentheses.
+// Numeric filters (add, sub, mul, div, mod) evaluate non-literal arguments as
+// nested pipelines; text filters take literal arguments only.
 func (e *Evaluator) Interpolate(s string) string {
 	return interpolateRe.ReplaceAllStringFunc(s, func(match string) string {
 		inner := strings.TrimSpace(match[2 : len(match)-2])
@@ -57,18 +107,59 @@ func (e *Evaluator) Interpolate(s string) string {
 	})
 }
 
-var pipelineSplitRe = regexp.MustCompile(`\s*\|\s*`)
+// maxPipelineDepth limits nested argument pipelines; deeper ones yield "".
+const maxPipelineDepth = 4
+
+// minutesRe matches "H:MM"/"HH:MM" at the start of a value.
+var minutesRe = regexp.MustCompile(`^(\d{1,2}):(\d{1,2})`)
+
+// splitTopLevel splits s at sep outside of '…', "…" and ( … ). The parenthesis
+// depth never drops below 0: a surplus ")" counts as a normal character.
+// The parts are not trimmed.
+func splitTopLevel(s string, sep byte) []string {
+	var parts []string
+	depth := 0
+	var quote byte
+	start := 0
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch {
+		case ch == '\'' || ch == '"':
+			quote = ch
+		case ch == '(':
+			depth++
+		case ch == ')':
+			if depth > 0 {
+				depth--
+			}
+		case ch == sep && depth == 0:
+			parts = append(parts, s[start:i])
+			start = i + 1
+		}
+	}
+	return append(parts, s[start:])
+}
 
 // evalPipeline evaluates a pipeline expression like "var | filter1 | filter2(arg)".
-// Pipeline stages are separated by | with optional surrounding spaces.
 func (e *Evaluator) evalPipeline(expr string) string {
-	stages := pipelineSplitRe.Split(expr, -1)
-	if len(stages) == 0 {
+	return e.evalPipelineDepth(expr, 0)
+}
+
+// evalPipelineDepth evaluates a pipeline; depth counts nested argument pipelines.
+func (e *Evaluator) evalPipelineDepth(expr string, depth int) string {
+	if depth > maxPipelineDepth {
 		return ""
 	}
+	stages := splitTopLevel(expr, '|')
 	value := e.resolveVar(strings.TrimSpace(stages[0]))
 	for _, stage := range stages[1:] {
-		value = e.applyFilter(value, strings.TrimSpace(stage))
+		value = e.applyFilter(value, strings.TrimSpace(stage), depth)
 	}
 	return value
 }
@@ -79,7 +170,24 @@ func (e *Evaluator) resolveVar(name string) string {
 	if name == "now" || strings.HasPrefix(name, "now.") {
 		return e.resolveNow(name)
 	}
+	if name == "anim" || strings.HasPrefix(name, "anim.") {
+		return e.resolveAnim(name)
+	}
 	return e.resolvePath(name)
+}
+
+// resolveAnim returns the animation variable values; unknown names give "".
+func (e *Evaluator) resolveAnim(name string) string {
+	switch name {
+	case "anim.frame":
+		return strconv.Itoa(e.anim.frame)
+	case "anim.frames":
+		return strconv.Itoa(e.anim.frames)
+	case "anim.time":
+		return strconv.FormatFloat(float64(e.anim.frame*e.anim.delayCS)/100, 'f', -1, 64)
+	default:
+		return ""
+	}
 }
 
 // resolveNow returns time-related variable values.
@@ -144,7 +252,7 @@ func (e *Evaluator) resolvePath(path string) string {
 }
 
 // applyFilter applies a single filter expression to a value.
-func (e *Evaluator) applyFilter(value, filter string) string {
+func (e *Evaluator) applyFilter(value, filter string, depth int) string {
 	name, args := parseFilterCall(filter)
 	switch name {
 	case "strip":
@@ -158,6 +266,24 @@ func (e *Evaluator) applyFilter(value, filter string) string {
 	case "stripBetween":
 		if len(args) == 2 {
 			return doStripBetween(value, unquote(args[0]), unquote(args[1]))
+		}
+	case "before":
+		if len(args) == 1 {
+			if sep := unquote(args[0]); sep != "" {
+				if i := strings.Index(value, sep); i >= 0 {
+					return value[:i]
+				}
+			}
+			return value
+		}
+	case "after":
+		if len(args) == 1 {
+			if sep := unquote(args[0]); sep != "" {
+				if i := strings.Index(value, sep); i >= 0 {
+					return value[i+len(sep):]
+				}
+			}
+			return ""
 		}
 	case "upper":
 		return strings.ToUpper(value)
@@ -176,30 +302,96 @@ func (e *Evaluator) applyFilter(value, filter string) string {
 	case "format":
 		// Applies to e.now regardless of input value.
 		// Intended use: {{now | format('HH:mm')}}.
+		// Optional second argument: offset in seconds (number, variable or
+		// pipeline); a non-numeric offset is ignored.
 		if len(args) == 1 {
 			return formatTime(e.now, unquote(args[0]))
 		}
+		if len(args) == 2 {
+			t := e.now
+			arg, _ := e.numericArg(args[1], depth)
+			if sec, err := strconv.ParseFloat(strings.TrimSpace(arg), 64); err == nil &&
+				!math.IsNaN(sec) && math.Abs(sec) <= maxFormatOffsetSec {
+				t = t.Add(time.Duration(sec * float64(time.Second)))
+			}
+			return formatTime(t, unquote(args[0]))
+		}
+	case "clock":
+		// Minutes since midnight -> HH:MM, wrapping modulo 1440.
+		v, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+			return ""
+		}
+		m := math.Mod(math.Floor(v), 1440)
+		if m < 0 {
+			m += 1440
+		}
+		return fmt.Sprintf("%02d:%02d", int(m)/60, int(m)%60)
+	case "replace":
+		if len(args) == 2 {
+			if from := unquote(args[0]); from != "" {
+				to := unquote(args[1])
+				// Size budget: untrusted values must not blow up the result.
+				if len(value)+strings.Count(value, from)*(len(to)-len(from)) > maxFilterValueLen {
+					return value
+				}
+				return strings.ReplaceAll(value, from, to)
+			}
+			return value
+		}
+	case "match":
+		if len(args) == 2 {
+			return matchGroup(value, unquote(args[0]), e.numericArgInt(args[1], depth))
+		}
 	case "mul":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 { return a * b })
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 { return a * b })
 		}
 	case "div":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 {
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 {
 				if b == 0 {
 					return 0
 				}
 				return a / b
 			})
 		}
+	case "mod":
+		if len(args) == 1 {
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 {
+				if b == 0 {
+					return 0
+				}
+				r := math.Mod(a, b)
+				if r != 0 && (r < 0) != (b < 0) {
+					r += b
+				}
+				if r == b { // float rounding, e.g. -1e-20 mod 1440
+					r = 0
+				}
+				return r
+			})
+		}
 	case "add":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 { return a + b })
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 { return a + b })
 		}
 	case "sub":
 		if len(args) == 1 {
-			return doMath(value, unquote(args[0]), func(a, b float64) float64 { return a - b })
+			arg, strict := e.numericArg(args[0], depth)
+			return doMath(value, arg, strict, func(a, b float64) float64 { return a - b })
 		}
+	case "minutes":
+		if m := minutesRe.FindStringSubmatch(strings.TrimSpace(value)); m != nil {
+			h, _ := strconv.Atoi(m[1])
+			mi, _ := strconv.Atoi(m[2])
+			return strconv.Itoa(h*60 + mi)
+		}
+		return ""
 	case "round":
 		v, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 		if err == nil {
@@ -215,7 +407,7 @@ func (e *Evaluator) applyFilter(value, filter string) string {
 const maxCondDepth = 10
 
 // EvalCondition evaluates a boolean condition expression.
-// Supported functions: startsWith, endsWith, contains, isEmpty, equals, greaterThan, not.
+// Supported functions: startsWith, endsWith, contains, isEmpty, equals, greaterThan, not, and, or.
 // Returns true for empty expressions.
 func (e *Evaluator) EvalCondition(expr string) bool {
 	return e.evalCond(expr, 0)
@@ -246,7 +438,25 @@ func (e *Evaluator) evalCond(expr string, depth int) bool {
 		return false
 	}
 
-	fieldVal := e.resolveVar(strings.TrimSpace(args[0]))
+	// and(c1, c2, …) / or(c1, c2, …): each argument is itself a condition.
+	switch funcName {
+	case "and":
+		for _, a := range args {
+			if !e.evalCond(a, depth+1) {
+				return false
+			}
+		}
+		return true
+	case "or":
+		for _, a := range args {
+			if e.evalCond(a, depth+1) {
+				return true
+			}
+		}
+		return false
+	}
+
+	fieldVal := e.evalPipelineDepth(strings.TrimSpace(args[0]), 1)
 
 	switch funcName {
 	case "startsWith":
@@ -294,41 +504,98 @@ func parseFilterCall(filter string) (name string, args []string) {
 	return
 }
 
-// parseArgs splits a comma-separated argument string, respecting quoted strings.
+// parseArgs splits an argument string at top-level commas (outside quotes and
+// parentheses), trims the parts and drops empty ones.
 // Example: "'*', '{'" → ["'*'", "'{'"]
 func parseArgs(s string) []string {
 	var args []string
-	var current strings.Builder
-	inQuote := false
-	var quoteChar byte
-
-	for i := 0; i < len(s); i++ {
-		ch := s[i]
-		if inQuote {
-			current.WriteByte(ch)
-			if ch == quoteChar {
-				inQuote = false
-			}
-		} else {
-			switch ch {
-			case '\'', '"':
-				inQuote = true
-				quoteChar = ch
-				current.WriteByte(ch)
-			case ',':
-				if t := strings.TrimSpace(current.String()); t != "" {
-					args = append(args, t)
-				}
-				current.Reset()
-			default:
-				current.WriteByte(ch)
-			}
+	for _, part := range splitTopLevel(s, ',') {
+		if t := strings.TrimSpace(part); t != "" {
+			args = append(args, t)
 		}
 	}
-	if t := strings.TrimSpace(current.String()); t != "" {
-		args = append(args, t)
-	}
 	return args
+}
+
+// numLiteralRe matches plain decimal literals (no inf/nan/hex/exponent); same
+// pattern as the JS node editor.
+var numLiteralRe = regexp.MustCompile(`^[+-]?(\d+\.?\d*|\.\d+)$`)
+
+// numericArg resolves the argument of a numeric filter. Quoted text and plain
+// numbers are literals (fromExpr=false); anything else is evaluated as a
+// nested pipeline (fromExpr=true).
+func (e *Evaluator) numericArg(arg string, depth int) (val string, fromExpr bool) {
+	t := strings.TrimSpace(arg)
+	if len(t) >= 2 && ((t[0] == '\'' && t[len(t)-1] == '\'') || (t[0] == '"' && t[len(t)-1] == '"')) {
+		return unquote(t), false
+	}
+	if numLiteralRe.MatchString(t) {
+		return t, false
+	}
+	return e.evalPipelineDepth(t, depth+1), true
+}
+
+// numericArgInt resolves a numeric filter argument to an int; anything that is
+// not a plain integer yields -1.
+func (e *Evaluator) numericArgInt(arg string, depth int) int {
+	v, _ := e.numericArg(arg, depth)
+	n, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
+// maxFormatOffsetSec bounds the format() offset (about 100 years) so the
+// Duration conversion cannot overflow.
+const maxFormatOffsetSec = 3.2e9
+
+const (
+	maxMatchPatternLen = 100
+	// maxFilterValueLen caps the input of match and the result of replace (bytes).
+	maxFilterValueLen = 64 * 1024
+	maxRegexCacheSize  = 256
+)
+
+var (
+	regexCacheMu sync.Mutex
+	regexCache   = map[string]*regexp.Regexp{} // nil value = invalid pattern
+)
+
+// compileCached compiles a RE2 pattern, caching results (including failures)
+// in a map bounded to maxRegexCacheSize entries.
+func compileCached(pattern string) *regexp.Regexp {
+	regexCacheMu.Lock()
+	defer regexCacheMu.Unlock()
+	if re, ok := regexCache[pattern]; ok {
+		return re
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		re = nil
+	}
+	if len(regexCache) >= maxRegexCacheSize {
+		regexCache = make(map[string]*regexp.Regexp, maxRegexCacheSize)
+	}
+	regexCache[pattern] = re
+	return re
+}
+
+// matchGroup returns capture group n (0 = whole match) of the first match of
+// pattern in value, or "" on no match, invalid/overlong pattern or bad n.
+func matchGroup(value, pattern string, n int) string {
+	if n < 0 || utf8.RuneCountInString(pattern) > maxMatchPatternLen || len(value) > maxFilterValueLen {
+		return ""
+	}
+	re := compileCached(pattern)
+	if re == nil {
+		return ""
+	}
+	m := re.FindStringSubmatch(value)
+	if m == nil || n >= len(m) {
+		return ""
+	}
+	return m[n]
 }
 
 // unquote removes surrounding single or double quotes from a string.
@@ -342,12 +609,20 @@ func unquote(s string) string {
 	return s
 }
 
-// doMath applies a binary float64 operation. Returns the original string on parse error.
+// doMath applies a binary float64 operation. A non-numeric value is returned
+// unchanged. A non-numeric arg returns "" if strictArg (arg came from an
+// expression), otherwise the value unchanged.
 // Returns an integer string when the result has no fractional part and fits in int64.
-func doMath(value, arg string, op func(a, b float64) float64) string {
+func doMath(value, arg string, strictArg bool, op func(a, b float64) float64) string {
 	v, err1 := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err1 != nil {
+		return value
+	}
 	a, err2 := strconv.ParseFloat(strings.TrimSpace(arg), 64)
-	if err1 != nil || err2 != nil {
+	if err2 != nil {
+		if strictArg {
+			return ""
+		}
 		return value
 	}
 	result := op(v, a)

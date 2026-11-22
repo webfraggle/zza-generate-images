@@ -2,7 +2,7 @@ meta:
   name: "RhB 1.05\""
   description: "Rhätische Bahn, 1.05 Zoll Display, Pixel-Fonts"
   author: "christoph"
-  version: "1.0"
+  version: "2.0"
   canvas:
     width: 240
     height: 240
@@ -13,52 +13,80 @@ fonts:
   - id: small
     file: 04B_03__.TTF
 
+# Aufbau wie legacy/rhb-105-v1/index.php: Gezeichnet wird die obere Bildhälfte,
+# ein copy-Layer am Ende setzt sie nach y 120.
+#  1. Punktmatrix-Feld aus zehn Punkten (Abstand 11 px), gelb. dot.png ist die
+#     Glyphe "•" aus LLPIXEL3 (58,67 pt, scale_x 0.5) als Bild — "•" liegt
+#     außerhalb von Latin-1 und wäre auf dem ZZA nicht darstellbar.
+#  2. Zugnummer schwarz darüber; ihre Breite (nr.width) bestimmt, wo das
+#     schwarze Rechteck das Punktfeld abschneidet (nr.width + 3) und wo die
+#     Vias beginnen (nr.width + 21). Leere nr hat Breite 0.
+#  3. Vias: an "-" geteilt, 6 px Abstand, ohne Begrenzung der Anzahl
+#     (fit_items ohne max_width lässt nichts weg).
+#  4. Zeit + Ziel in einer Zeile, ohne Umbruch.
+# Schriftgrößen = Legacy-Größe × 16/9 (PHP: ×4/3 Punkt→Pixel, GD rechnet
+# nochmals mit 96 dpi). Das Legacy-PHP positioniert die Tinten-Bounding-Box
+# (y = Oberkante bzw. Unterkante der Tinte); hier ist y die Oberkante der
+# Zeilenbox, daher elementweise Offsets (per Pixelvergleich mit der PHP-
+# Ausgabe bestimmt; negative y sind gewollt, die Punkte ragen oben aus dem Bild).
+# Abweichungen: nr.width ist in Go ca. 1 px schmaler als die PHP-Rückgabe, daher
+# +4 statt +3 (Rechteck) und +22 statt +21 (Vias); bei leerer nr (Breite 0)
+# liegen Rechteck und Vias dadurch 1 px weiter rechts als im Original.
+# Via-Schrift (04B_03): Glyphenhöhe 11 statt 12 px, sonst ±1 px.
+
 layers:
-  # Hintergrund
   - type: image
     file: bg.png
     x: 0
     y: 0
 
-  # Zugnummer (schwarzer Bereich oben links)
-  - type: text
-    value: "{{zug1.nr}}"
-    x: 3
-    y: 18
-    font: bold
-    size: 20
-    color: "#000000"
-    align: left
+  - type: loop
+    value: "0,1,2,3,4,5,6,7,8,9"
+    split_by: ","
+    var: d
+    layers:
+      - type: image
+        file: dot.png
+        x: "{{i * 11 + 1}}"
+        y: -21
 
-  # Zeit + Ziel (gelb)
+  - type: text
+    id: nr
+    value: "{{zug1.nr | trim}}"
+    x: 4
+    y: -11
+    font: bold
+    size: 40.89
+    color: "#000000"
+    scale_x: 0.5
+
+  - type: rect
+    x: "{{nr.width + 4}}"
+    y: 0
+    width: 240
+    height: 36
+    color: "#000000"
+
+  - type: text
+    value: "{{zug1.via}}"
+    x: "{{nr.width + 22}}"
+    y: 5
+    font: small
+    size: 17.78
+    color: "#ffde00"
+    fit_items:
+      split_by: "-"
+      gap: 6
+
   - type: text
     value: "{{zug1.zeit}} {{zug1.vonnach}}"
-    x: 3
-    y: 40
+    x: 4
+    y: 24
     font: bold
-    size: 20
+    size: 53.33
     color: "#ffde00"
-    align: left
-    max_width: 234
+    scale_x: 0.5
 
-  # Via-Stationen (kleine Pixel-Schrift)
-  - type: loop
-    if: "not(isEmpty(zug1.via))"
-    value: "{{zug1.via}}"
-    split_by: "-"
-    var: via
-    max_items: 4
-    layers:
-      - type: text
-        value: "{{via | trim}}"
-        x: "{{i * 45 + 60}}"
-        y: 6
-        font: small
-        size: 10
-        color: "#ffde00"
-        align: left
-
-  # Obere Hälfte auf untere Hälfte spiegeln
   - type: copy
     src_x: 0
     src_y: 0

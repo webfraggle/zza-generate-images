@@ -1,5 +1,5 @@
 services:
-  zza:
+  zza-server:
     build: .
     ports:
       - "${PORT:-8080}:8080"
@@ -8,11 +8,9 @@ services:
     environment:
       TEMPLATES_DIR: /data/templates
       CACHE_DIR: /data/cache
-      DB_PATH: /data/db/zza.db
     volumes:
       - ./templates:/data/templates
       - cache_data:/data/cache
-      - db_data:/data/db
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -27,4 +25,3 @@ services:
 
 volumes:
   cache_data:
-  db_data:

@@ -1,7 +1,13 @@
+// Package editor provides filesystem operations for template editing:
+// listing, reading, writing, uploading, and deleting files inside a
+// template directory. It is the desktop build's data layer — the server
+// build does not import it.
 package editor
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // MaxUploadBytes is the maximum size for uploaded asset files (10 MiB).
@@ -24,6 +31,9 @@ var (
 	ErrFileNotFound = errors.New("editor: file not found")
 	ErrForbidden    = errors.New("editor: access denied")
 	ErrInvalidName  = errors.New("editor: invalid filename")
+	// ErrVersionConflict is returned by WriteTextFileIfMatch when the file
+	// changed since the caller read it.
+	ErrVersionConflict = errors.New("editor: version conflict")
 )
 
 // editableExts are the extensions that can be read and written as text.
@@ -73,6 +83,20 @@ func templateDir(templatesDir, templateName string) (string, error) {
 	if !strings.HasPrefix(abs+sep, base+sep) {
 		return "", ErrForbidden
 	}
+	// An existing template folder must be a real directory: a symlink
+	// (templates/x-105-v1 -> elsewhere, e.g. from a shared ZIP/Git checkout)
+	// would make every read and write happen in the link target.
+	if abs != base {
+		fi, err := os.Lstat(abs)
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// New template; InitTemplate creates it.
+		case err != nil:
+			return "", fmt.Errorf("editor: checking template dir: %w", err)
+		case !fi.IsDir():
+			return "", ErrForbidden
+		}
+	}
 	return abs, nil
 }
 
@@ -92,6 +116,12 @@ func safeFilePath(templatesDir, templateName, filename string) (string, error) {
 		return "", ErrForbidden
 	}
 	return p, nil
+}
+
+// SafeFilePath returns the absolute path of filename inside the template
+// directory, rejecting invalid names and path traversal.
+func SafeFilePath(templatesDir, templateName, filename string) (string, error) {
+	return safeFilePath(templatesDir, templateName, filename)
 }
 
 // SanitizeFilename strips disallowed characters from a filename.
@@ -123,19 +153,31 @@ func InitTemplate(templatesDir, templateName string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("editor: creating template dir: %w", err)
 	}
-	yamlPath := filepath.Join(dir, "template.yaml")
-	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
-		if err := os.WriteFile(yamlPath, starterYAML, 0o644); err != nil {
-			return fmt.Errorf("editor: writing starter template.yaml: %w", err)
-		}
+	if err := createIfMissing(filepath.Join(dir, "template.yaml"), starterYAML); err != nil {
+		return fmt.Errorf("editor: writing starter template.yaml: %w", err)
 	}
-	jsonPath := filepath.Join(dir, "default.json")
-	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
-		if err := os.WriteFile(jsonPath, starterDefaultJSON, 0o644); err != nil {
-			return fmt.Errorf("editor: writing starter default.json: %w", err)
-		}
+	if err := createIfMissing(filepath.Join(dir, "default.json"), starterDefaultJSON); err != nil {
+		return fmt.Errorf("editor: writing starter default.json: %w", err)
 	}
 	return nil
+}
+
+// createIfMissing creates p with data unless something (file, directory or
+// symlink — even a dangling one) already exists at p. O_EXCL never follows
+// a symlink.
+func createIfMissing(p string, data []byte) error {
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, os.ErrExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // ListFiles returns all files in the template directory.
@@ -195,15 +237,56 @@ func WriteTextFile(templatesDir, templateName, filename string, data []byte) err
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("editor: writing file: %w", err)
+	return AtomicWrite(filepath.Dir(p), filepath.Base(p), data)
+}
+
+// VersionConflictError carries the current version of the conflicting file
+// ("" if it does not exist). It matches ErrVersionConflict via errors.Is.
+type VersionConflictError struct{ Current string }
+
+func (e *VersionConflictError) Error() string {
+	return fmt.Sprintf("%s: current version %s", ErrVersionConflict, e.Current)
+}
+
+func (e *VersionConflictError) Is(target error) bool { return target == ErrVersionConflict }
+
+// writeMu serialises WriteTextFileIfMatch within the process so that the
+// version check and the write are one step.
+var writeMu sync.Mutex
+
+// CurrentVersion returns the version (FileVersion) of a text file, or "" and
+// nil if the file does not exist.
+func CurrentVersion(templatesDir, templateName, filename string) (string, error) {
+	data, err := ReadTextFile(templatesDir, templateName, filename)
+	if errors.Is(err, ErrFileNotFound) {
+		return "", nil
 	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("editor: renaming file: %w", err)
+	if err != nil {
+		return "", err
 	}
-	return nil
+	return FileVersion(data), nil
+}
+
+// WriteTextFileIfMatch writes a text file only if its current version equals
+// expected. expected "" or "*" writes unconditionally; a missing file never
+// matches a concrete version. It returns the new version. On mismatch the
+// error wraps ErrVersionConflict and names the current version.
+func WriteTextFileIfMatch(templatesDir, templateName, filename string, data []byte, expected string) (string, error) {
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	if expected != "" && expected != "*" {
+		cur, err := CurrentVersion(templatesDir, templateName, filename)
+		if err != nil {
+			return "", err
+		}
+		if cur != expected {
+			return "", &VersionConflictError{Current: cur}
+		}
+	}
+	if err := WriteTextFile(templatesDir, templateName, filename, data); err != nil {
+		return "", err
+	}
+	return FileVersion(data), nil
 }
 
 // UploadFile writes an asset file (image or font) to the template directory.
@@ -225,15 +308,7 @@ func UploadFile(templatesDir, templateName, filename string, r io.Reader) error 
 	if int64(len(data)) > MaxUploadBytes {
 		return fmt.Errorf("editor: upload exceeds %d bytes", MaxUploadBytes)
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("editor: writing upload: %w", err)
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("editor: renaming upload: %w", err)
-	}
-	return nil
+	return AtomicWrite(filepath.Dir(p), filepath.Base(p), data)
 }
 
 // DeleteFile removes a file from the template directory.
@@ -252,4 +327,11 @@ func DeleteFile(templatesDir, templateName, filename string) error {
 		return fmt.Errorf("editor: deleting file: %w", err)
 	}
 	return nil
+}
+
+// FileVersion returns the version identifier of file content: the first 16
+// hex characters of its SHA-256. Used for optimistic concurrency (ETag, MCP).
+func FileVersion(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:8])
 }

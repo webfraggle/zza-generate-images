@@ -1,17 +1,40 @@
 meta:
   name: "ÖBB 1.05\""
-  description: "Österreichische Bundesbahnen, 1.05 Zoll Display"
+  description: "Österreichische Bundesbahnen, 1.05 Zoll Display, mit laufender Uhr (Sekunden)"
   author: "christoph"
-  version: "1.0"
+  version: "2.0"
   canvas:
     width: 240
     height: 240
+  timezone: "Europe/Vienna"
+  animation:
+    frames: 60        # eine Minute in Sekundenschritten, danach von vorn
+    frame_delay: 1
+    loop: true
 
 fonts:
   - id: bold
     file: Roboto-Bold.ttf
   - id: regular
     file: Roboto-Light.ttf
+
+# Aufbau wie legacy/oebb-105-v1/index.php: Gezeichnet wird die obere Bildhälfte
+# (y 0–120); ein copy-Layer am Ende setzt sie nach y 121.
+# Schriftgrößen = Legacy-Größe × 4/3. Das PHP setzt die linke obere Ecke der
+# Tinte auf (x,y), die Go-Engine die Oberkante der Zeilenbox; die y-Werte sind
+# deshalb pro Element gegen die PHP-Ausgabe abgeglichen (±1–2 px).
+# Abweichungen zum PHP:
+# - Wiederholte Layer: Das PHP zeichnet jeden Text mehrfach übereinander, was
+#   die Kantenglättung deckender macht. Ohne das wirkt die Schrift grau und dünn.
+#   Deshalb steht jeder Text so oft da, bis die Tintenstärke zum PHP passt
+#   (Uhr 3×, Zeit 3×, neue Zeit 3×, Ziel 3×, Via 4×, Hinweis 3×, Nummer 3×).
+#   Die Kopien tragen keine id/advance (nur der erste Layer schiebt den Fluss),
+#   haben aber dasselbe x. Fette Zuggattung und S-Nummer werden einmal gezeichnet.
+# - Zeile 2 fließt wie im PHP ($x += $w + 3): Zeit, bei abw > 0 neue Zeit in
+#   Gelb (zeit + abw), dann Ziel — je 3 px Abstand. Eine Zeit ohne ":" wird
+#   unverändert gezeigt, dahinter gibt es dann keine neue Zeit.
+# - Die Uhr läuft im GIF über now (je Frame neu); das PNG zeigt Frame 0.
+# - Das PHP wandelt vonnach nach ISO-8859-1; hier entfällt das (UTF-8).
 
 layers:
   # Hintergrund
@@ -20,106 +43,282 @@ layers:
     x: 0
     y: 0
 
-  # Aktuelle Uhrzeit (rechts oben)
+  # Uhr rechts oben, rechtsbündig an x 236
   - type: text
-    value: "{{now.hour}}:{{now.minute}}"
+    value: "{{now | format('HH:mm:ss')}}"
     x: 236
-    y: 14
+    y: 10
     font: regular
-    size: 14
+    size: 18.13
     color: "#ffffff"
     align: right
 
-  # Abfahrtszeit
+  - type: text
+    value: "{{now | format('HH:mm:ss')}}"
+    x: 236
+    y: 10
+    font: regular
+    size: 18.13
+    color: "#ffffff"
+    align: right
+
+  - type: text
+    value: "{{now | format('HH:mm:ss')}}"
+    x: 236
+    y: 10
+    font: regular
+    size: 18.13
+    color: "#ffffff"
+    align: right
+  # Abfahrtszeit (weiß), schiebt die folgenden Texte nach rechts
+  - type: text
+    id: zeit
+    advance: 3
+    value: "{{zug1.zeit}}"
+    x: 0
+    y: 40
+    font: regular
+    size: 16
+    scale_y: 1.2
+    color: "#ffffff"
+
   - type: text
     value: "{{zug1.zeit}}"
     x: 0
-    y: 29
+    y: 40
     font: regular
-    size: 12
+    size: 16
+    scale_y: 1.2
     color: "#ffffff"
-    align: left
 
-  # Verspätung (gelb), nur wenn abw > 0
   - type: text
-    if: "greaterThan(zug1.abw, 0)"
-    value: "+{{zug1.abw}}'"
-    x: 55
-    y: 29
+    value: "{{zug1.zeit}}"
+    x: 0
+    y: 40
     font: regular
-    size: 12
+    size: 16
+    scale_y: 1.2
+    color: "#ffffff"
+  # Neue Zeit (zeit + abw) in Gelb, nur bei abw > 0; bedingter value mit leerem
+  # else statt Layer-if, damit der Fluss (id/advance) erhalten bleibt
+  - type: text
+    id: neu
+    advance: 3
+    value:
+      if: "greaterThan(zug1.abw, 0)"
+      then: "{{zug1.zeit | minutes | add(zug1.abw) | clock}}"
+      else: ""
+    x: "{{zeit.end}}"
+    y: 40
+    font: regular
+    size: 16
+    scale_y: 1.2
     color: "#fbef52"
-    align: left
 
-  # Ziel (vonnach) — zweite Zeile
+  - type: text
+    value:
+      if: "greaterThan(zug1.abw, 0)"
+      then: "{{zug1.zeit | minutes | add(zug1.abw) | clock}}"
+      else: ""
+    x: "{{zeit.end}}"
+    y: 40
+    font: regular
+    size: 16
+    scale_y: 1.2
+    color: "#fbef52"
+
+  - type: text
+    value:
+      if: "greaterThan(zug1.abw, 0)"
+      then: "{{zug1.zeit | minutes | add(zug1.abw) | clock}}"
+      else: ""
+    x: "{{zeit.end}}"
+    y: 40
+    font: regular
+    size: 16
+    scale_y: 1.2
+    color: "#fbef52"
+  # Ziel
   - type: text
     value: "{{zug1.vonnach}}"
-    x: 0
-    y: 44
+    x: "{{neu.end}}"
+    y: 37
     font: regular
-    size: 17
+    size: 22.67
+    scale_x: 1.04
     color: "#ffffff"
-    align: left
-    max_width: 182
 
-  # Via-Stationen
   - type: text
-    if: "not(isEmpty(zug1.via))"
-    value: "{{zug1.via}}"
-    x: 3
-    y: 54
+    value: "{{zug1.vonnach}}"
+    x: "{{neu.end}}"
+    y: 37
     font: regular
-    size: 11
+    size: 22.67
+    scale_x: 1.04
     color: "#ffffff"
-    align: left
-    max_width: 234
 
-  # Hinweis-Hintergrund (gelb bei *)
+  - type: text
+    value: "{{zug1.vonnach}}"
+    x: "{{neu.end}}"
+    y: 37
+    font: regular
+    size: 22.67
+    scale_x: 1.04
+    color: "#ffffff"
+  # Via: " - " wird zu "~"
+  - type: text
+    value: "{{zug1.via | replace(' - ', '~')}}"
+    x: 3
+    y: 67
+    font: regular
+    size: 15.2
+    color: "#ffffff"
+
+  - type: text
+    value: "{{zug1.via | replace(' - ', '~')}}"
+    x: 3
+    y: 67
+    font: regular
+    size: 15.2
+    color: "#ffffff"
+
+  - type: text
+    value: "{{zug1.via | replace(' - ', '~')}}"
+    x: 3
+    y: 67
+    font: regular
+    size: 15.2
+    color: "#ffffff"
+
+  - type: text
+    value: "{{zug1.via | replace(' - ', '~')}}"
+    x: 3
+    y: 67
+    font: regular
+    size: 15.2
+    color: "#ffffff"
+  # Hinweis mit * : gelber Balken, schwarzer Text
   - type: rect
     if: "startsWith(zug1.hinweis, '*')"
     x: 0
     y: 89
     width: 240
-    height: 24
+    height: 25
     color: "#fbef52"
 
-  # Hinweis-Text
   - type: text
     if: "not(isEmpty(zug1.hinweis))"
     value:
       if: "startsWith(zug1.hinweis, '*')"
       then: "{{zug1.hinweis | strip('*')}}"
       else: "{{zug1.hinweis}}"
-    x: 3
-    y: 79
+    x: 4
+    y: 89
     font: regular
-    size: 11
+    size: 14.67
+    scale_x: 1.02
+    scale_y: 1.28
     color:
       if: "startsWith(zug1.hinweis, '*')"
       then: "#000000"
       else: "#ffffff"
-    align: left
-    max_width: 234
 
-  # S-Bahn Icon (wenn Nr mit "S" beginnt)
-  - type: image
-    if: "startsWith(zug1.nr, 'S')"
-    file: s.png
-    x: 56
-    y: 12
-
-  # Zugnummer als Text (ohne S-Bahn Icon)
   - type: text
-    if: "not(startsWith(zug1.nr, 'S'))"
-    value: "{{zug1.nr}}"
-    x: 56
-    y: 14
-    font: bold
-    size: 14
-    color: "#ffffff"
-    align: left
+    if: "not(isEmpty(zug1.hinweis))"
+    value:
+      if: "startsWith(zug1.hinweis, '*')"
+      then: "{{zug1.hinweis | strip('*')}}"
+      else: "{{zug1.hinweis}}"
+    x: 4
+    y: 89
+    font: regular
+    size: 14.67
+    scale_x: 1.02
+    scale_y: 1.28
+    color:
+      if: "startsWith(zug1.hinweis, '*')"
+      then: "#000000"
+      else: "#ffffff"
 
-  # Obere Hälfte auf untere Hälfte spiegeln
+  - type: text
+    if: "not(isEmpty(zug1.hinweis))"
+    value:
+      if: "startsWith(zug1.hinweis, '*')"
+      then: "{{zug1.hinweis | strip('*')}}"
+      else: "{{zug1.hinweis}}"
+    x: 4
+    y: 89
+    font: regular
+    size: 14.67
+    scale_x: 1.02
+    scale_y: 1.28
+    color:
+      if: "startsWith(zug1.hinweis, '*')"
+      then: "#000000"
+      else: "#ffffff"
+  # Zuggattung ab x 56 (Treffer von ([a-zA-Z]+)([0-9]+): Gruppe 1 = Typ, 2 = Nummer)
+  # S/s + Nummer: S-Logo + fette Nummer
+  - if: "equals(zug1.nr | match('([a-zA-Z]+)([0-9]+)', 1) | lower, 's')"
+    layers:
+      - type: image
+        file: s.png
+        x: 56
+        y: 12
+      - type: text
+        value: "{{zug1.nr | match('([a-zA-Z]+)([0-9]+)', 2)}}"
+        x: 76
+        y: 7
+        font: bold
+        size: 22
+        color: "#ffffff"
+
+  # anderer Typ: Typ fett, Nummer leicht dahinter
+  - elif: "not(isEmpty(zug1.nr | match('([a-zA-Z]+)([0-9]+)', 0)))"
+    layers:
+      - type: text
+        id: typ
+        advance: 2
+        value: "{{zug1.nr | match('([a-zA-Z]+)([0-9]+)', 1)}}"
+        x: 57
+        y: 11
+        font: bold
+        size: 18.67
+        color: "#ffffff"
+      - type: text
+        value: "{{zug1.nr | match('([a-zA-Z]+)([0-9]+)', 2)}}"
+        x: "{{typ.end}}"
+        y: 12
+        font: regular
+        size: 16
+        color: "#ffffff"
+
+      - type: text
+        value: "{{zug1.nr | match('([a-zA-Z]+)([0-9]+)', 2)}}"
+        x: "{{typ.end}}"
+        y: 12
+        font: regular
+        size: 16
+        color: "#ffffff"
+
+      - type: text
+        value: "{{zug1.nr | match('([a-zA-Z]+)([0-9]+)', 2)}}"
+        x: "{{typ.end}}"
+        y: 12
+        font: regular
+        size: 16
+        color: "#ffffff"
+  # kein Treffer: ganze nr fett
+  - else: true
+    layers:
+      - type: text
+        value: "{{zug1.nr}}"
+        x: 56
+        y: 11
+        font: bold
+        size: 18.67
+        color: "#ffffff"
+
+  # Obere Hälfte in die untere kopieren
   - type: copy
     src_x: 0
     src_y: 0

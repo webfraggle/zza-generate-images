@@ -14,6 +14,7 @@ type TemplateInfo struct {
 	Name       string
 	Meta       renderer.Meta
 	HasDefault bool // true when default.json exists
+	Animated   bool // true when the template renders as an animated GIF
 }
 
 // ListTemplates reads all valid template directories under templatesDir and
@@ -45,6 +46,7 @@ func ListTemplates(templatesDir string) ([]TemplateInfo, error) {
 			Name:       name,
 			Meta:       tmpl.Meta,
 			HasDefault: statErr == nil,
+			Animated:   tmpl.IsAnimated(),
 		})
 	}
 

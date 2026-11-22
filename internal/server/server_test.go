@@ -2,13 +2,17 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/webfraggle/zza-generate-images/internal/config"
+	"github.com/webfraggle/zza-generate-images/internal/editor"
+	"github.com/webfraggle/zza-generate-images/internal/version"
 	"github.com/webfraggle/zza-generate-images/web"
 )
 
@@ -33,6 +37,35 @@ func newTestServer(t *testing.T) *Server {
 	return srv
 }
 
+func TestForgetPreview(t *testing.T) {
+	srv := newTestServer(t)
+	srv.previewMu.Lock()
+	srv.previewGIFs["x"] = previewEntry{data: []byte("gif")}
+	srv.previewMu.Unlock()
+	srv.ForgetPreview("x")
+	srv.previewMu.Lock()
+	_, ok := srv.previewGIFs["x"]
+	srv.previewMu.Unlock()
+	if ok {
+		t.Error("entry still present")
+	}
+	srv.ForgetPreview("unknown") // must not panic
+}
+
+func TestInvalidateTemplateCache_ForgetsPreview(t *testing.T) {
+	srv := newTestServer(t)
+	srv.previewMu.Lock()
+	srv.previewGIFs["x"] = previewEntry{data: []byte("gif")}
+	srv.previewMu.Unlock()
+	srv.InvalidateTemplateCache("x")
+	srv.previewMu.Lock()
+	_, ok := srv.previewGIFs["x"]
+	srv.previewMu.Unlock()
+	if ok {
+		t.Error("preview entry survived invalidation")
+	}
+}
+
 func TestServer_Health(t *testing.T) {
 	srv := newTestServer(t)
 
@@ -43,15 +76,19 @@ func TestServer_Health(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("health: got %d, want 200", rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "ok") {
-		t.Errorf("health body: %q", rr.Body.String())
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("health Content-Type = %q, want application/json", ct)
+	}
+	want := fmt.Sprintf(`{"status":"ok","version":%q}`, version.Version)
+	if got := strings.TrimSpace(rr.Body.String()); got != want {
+		t.Errorf("health body = %q, want %q", got, want)
 	}
 }
 
 func TestServer_CORS_Preflight(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodOptions, "/sbb-096-v1/render", nil)
+	req := httptest.NewRequest(http.MethodOptions, "/sbb-105-v1/render", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
@@ -76,15 +113,15 @@ func TestServer_Gallery(t *testing.T) {
 	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
 		t.Errorf("gallery Content-Type: %q", ct)
 	}
-	if !strings.Contains(rr.Body.String(), "sbb-096-v1") {
-		t.Error("gallery should list sbb-096-v1")
+	if !strings.Contains(rr.Body.String(), "sbb-105-v1") {
+		t.Error("gallery should list sbb-105-v1")
 	}
 }
 
 func TestServer_Detail(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sbb-105-v1", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
@@ -92,11 +129,39 @@ func TestServer_Detail(t *testing.T) {
 		t.Errorf("detail: got %d, want 200", rr.Code)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "sbb-096-v1") {
+	if !strings.Contains(body, "sbb-105-v1") {
 		t.Error("detail page should contain template name")
 	}
 	if !strings.Contains(body, "json-input") {
 		t.Error("detail page should contain JSON textarea")
+	}
+	if !strings.Contains(body, `id="zza-export-btn"`) || !strings.Contains(body, `"/zza.zip"`) {
+		t.Error("server build should offer the ZZA export (GET /{template}/zza.zip)")
+	}
+	if strings.Contains(body, "/edit/") {
+		t.Error("server build must not use the desktop-only /edit/ routes")
+	}
+	if strings.Contains(body, "Bearbeiten") {
+		t.Error("server build should NOT show edit button")
+	}
+	if !strings.Contains(body, "/sbb-105-v1.zip") {
+		t.Error("detail page should show ZIP download link")
+	}
+}
+
+func TestServer_Detail_EditorEnabled_ShowsEditButton(t *testing.T) {
+	srv := newTestServer(t)
+	srv.SetEditorEnabled(true)
+
+	req := httptest.NewRequest(http.MethodGet, "/sbb-105-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if !strings.Contains(rr.Body.String(), `href="/edit/sbb-105-v1"`) {
+		t.Error("desktop build should link to /edit/sbb-105-v1")
+	}
+	if !strings.Contains(rr.Body.String(), `id="zza-export-btn"`) {
+		t.Error("desktop build should show the ZZA export button")
 	}
 }
 
@@ -115,7 +180,7 @@ func TestServer_Detail_NotFound(t *testing.T) {
 func TestServer_Preview(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/sbb-096-v1/preview", nil)
+	req := httptest.NewRequest(http.MethodGet, "/sbb-105-v1/preview", nil)
 	rr := httptest.NewRecorder()
 	srv.ServeHTTP(rr, req)
 
@@ -149,7 +214,7 @@ func TestServer_Render_InvalidTemplateName(t *testing.T) {
 func TestServer_Render_InvalidJSON(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/sbb-096-v1/render",
+	req := httptest.NewRequest(http.MethodPost, "/sbb-105-v1/render",
 		strings.NewReader("not json"))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -188,7 +253,7 @@ func TestServer_Render_Success(t *testing.T) {
 		},
 		"gleis": "7",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/sbb-096-v1/render",
+	req := httptest.NewRequest(http.MethodPost, "/sbb-105-v1/render",
 		strings.NewReader(string(data)))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -221,7 +286,7 @@ func TestServer_Render_CacheHit(t *testing.T) {
 	})
 
 	makeReq := func() *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodPost, "/sbb-096-v1/render",
+		req := httptest.NewRequest(http.MethodPost, "/sbb-105-v1/render",
 			strings.NewReader(string(data)))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
@@ -239,5 +304,120 @@ func TestServer_Render_CacheHit(t *testing.T) {
 	}
 	if rr2.Header().Get("X-Cache") != "HIT" {
 		t.Errorf("second request should be cache HIT, got %q", rr2.Header().Get("X-Cache"))
+	}
+}
+
+func TestHandleRender_WithColorPalette(t *testing.T) {
+	// Own TemplatesDir with a mini-template that sets colors: 2.
+	templatesDir := t.TempDir()
+	tmplDir := filepath.Join(templatesDir, "palette-test")
+	if err := os.MkdirAll(tmplDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tmplYAML := "meta:\n  canvas:\n    width: 4\n    height: 4\n    colors: 2\nlayers:\n  - type: rect\n    x: 0\n    y: 0\n    width: 4\n    height: 4\n    color: \"#FF0000\"\n"
+	if err := os.WriteFile(filepath.Join(tmplDir, "template.yaml"), []byte(tmplYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Port:             "8080",
+		TemplatesDir:     templatesDir,
+		CacheDir:         t.TempDir(),
+		CacheMaxAgeHours: 1,
+		CacheMaxSizeMB:   10,
+	}
+	srv, err := New(cfg, web.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := strings.NewReader("{}")
+	req := httptest.NewRequest(http.MethodPost, "/palette-test/render", body)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("render with palette: got %d, body: %s", rr.Code, rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("Content-Type: got %q, want image/png", ct)
+	}
+	b := rr.Body.Bytes()
+	if len(b) < 8 || b[0] != 0x89 || b[1] != 0x50 || b[2] != 0x4E || b[3] != 0x47 {
+		t.Error("response body is not a valid PNG")
+	}
+}
+
+func TestServer_EditorPage_DesktopOnly(t *testing.T) {
+	srv := newTestServer(t)
+	// Without RegisterEditor, the /edit/ pre-mux dispatch hits the
+	// editorHandler==nil branch in ServeHTTP and returns 404 directly
+	// (it does NOT fall through to the mux, where GET /{template} would
+	// otherwise match and render a detail page).
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-105-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("server build /edit should 404, got %d", rr.Code)
+	}
+}
+
+func TestServer_EditorPage_WithEditor_Renders(t *testing.T) {
+	srv := newTestServer(t)
+	tdir := filepath.Join("..", "..", "templates")
+	srv.RegisterEditor(editor.NewFSHandlers(tdir, srv.InvalidateTemplateCache))
+
+	req := httptest.NewRequest(http.MethodGet, "/edit/sbb-105-v1", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("got %d, body: %s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "sbb-105-v1") {
+		t.Error("editor page should include template name")
+	}
+	if !strings.Contains(body, "'sbb-105-v1'") {
+		t.Error("editor page JS should reference TEMPLATE = 'sbb-105-v1'")
+	}
+}
+
+func TestGallery_AnimatedCardHasGifAndRestartButton(t *testing.T) {
+	srv := newTestServer(t)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+	body := rr.Body.String()
+
+	if !strings.Contains(body, `src="/umuc-105-v1/preview?format=gif"`) {
+		t.Error("animated template should load the GIF preview")
+	}
+	if !strings.Contains(body, `aria-label="Animation neu starten"`) {
+		t.Error("animated card should have a restart button")
+	}
+	if !strings.Contains(body, `src="/sbb-105-v1/preview"`) {
+		t.Error("static template should load the PNG preview")
+	}
+	if strings.Contains(body, `src="/sbb-105-v1/preview?format=gif"`) {
+		t.Error("static template must not load a GIF")
+	}
+	// Exactly one button per animated template, none for static ones.
+	if got, want := strings.Count(body, `class="card-restart"`), strings.Count(body, `?format=gif"`); got != want {
+		t.Errorf("restart buttons = %d, animated images = %d", got, want)
+	}
+}
+
+func TestRegisterEditorExtraRoute(t *testing.T) {
+	srv := newTestServer(t)
+	srv.RegisterEditor(editor.NewFSHandlers(t.TempDir(), nil), EditorRoute{
+		Pattern: "POST /edit/{template}/extra",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("extra " + r.PathValue("template")))
+		}),
+	})
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/edit/abc/extra", nil))
+	if rec.Code != 200 || rec.Body.String() != "extra abc" {
+		t.Errorf("status %d body %q", rec.Code, rec.Body)
 	}
 }

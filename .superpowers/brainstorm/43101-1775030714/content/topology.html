@@ -1,0 +1,141 @@
+<h2>Graph-Topologie</h2>
+<p class="subtitle">Lineare Kette — if/elif/else und loop öffnen parallele Äste</p>
+
+<div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+
+  <!-- if/elif/else -->
+  <div class="mockup" style="min-width:320px">
+    <div class="mockup-header">if / elif / else</div>
+    <div class="mockup-body" style="padding:16px">
+      <svg width="300" height="400" font-family="monospace" font-size="12">
+        <!-- Nodes -->
+        <!-- Background -->
+        <rect x="90" y="10" width="120" height="36" rx="6" fill="#2d2d4e" stroke="#7c6af7" stroke-width="1.5"/>
+        <text x="150" y="33" text-anchor="middle" fill="#fff">image: background</text>
+
+        <!-- If node -->
+        <rect x="60" y="80" width="180" height="44" rx="6" fill="#2d2d4e" stroke="#f7a76a" stroke-width="1.5"/>
+        <text x="150" y="99" text-anchor="middle" fill="#f7a76a" font-size="10">IF</text>
+        <text x="150" y="114" text-anchor="middle" fill="#ccc" font-size="11">startsWith(nr, 'ICN')</text>
+
+        <!-- Branch A: ICN -->
+        <rect x="10" y="168" width="100" height="36" rx="6" fill="#2d2d4e" stroke="#6af7a7" stroke-width="1.5"/>
+        <text x="60" y="191" text-anchor="middle" fill="#fff">image: icn.png</text>
+
+        <!-- Branch B: elif IC -->
+        <rect x="195" y="148" width="100" height="36" rx="6" fill="#2d2d4e" stroke="#f7a76a" stroke-width="1.5"/>
+        <text x="245" y="163" text-anchor="middle" fill="#f7a76a" font-size="10">ELIF</text>
+        <text x="245" y="178" text-anchor="middle" fill="#ccc" font-size="11">startsWith(nr,'IC')</text>
+
+        <rect x="195" y="218" width="100" height="36" rx="6" fill="#2d2d4e" stroke="#6af7a7" stroke-width="1.5"/>
+        <text x="245" y="241" text-anchor="middle" fill="#fff">image: ic.png</text>
+
+        <!-- else -->
+        <rect x="100" y="168" width="80" height="36" rx="6" fill="#2d2d4e" stroke="#888" stroke-width="1.5"/>
+        <text x="140" y="182" text-anchor="middle" fill="#888" font-size="10">ELSE</text>
+        <text x="140" y="197" text-anchor="middle" fill="#ccc" font-size="11">text: {{nr}}</text>
+
+        <!-- Merge node -->
+        <rect x="80" y="298" width="140" height="36" rx="6" fill="#2d2d4e" stroke="#7c6af7" stroke-width="1.5"/>
+        <text x="150" y="321" text-anchor="middle" fill="#fff">text: {{zug1.zeit}}</text>
+
+        <!-- Connections -->
+        <!-- background → if -->
+        <line x1="150" y1="46" x2="150" y2="80" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <polygon points="150,80 146,72 154,72" fill="#7c6af7"/>
+
+        <!-- if → branch ICN -->
+        <path d="M 110 124 Q 60 148 60 168" fill="none" stroke="#6af7a7" stroke-width="1.5"/>
+        <polygon points="60,168 56,160 64,160" fill="#6af7a7"/>
+
+        <!-- if → else -->
+        <line x1="150" y1="124" x2="140" y2="168" stroke="#888" stroke-width="1.5"/>
+        <polygon points="140,168 136,160 144,160" fill="#888"/>
+
+        <!-- if → elif -->
+        <path d="M 200 124 Q 245 140 245 148" fill="none" stroke="#f7a76a" stroke-width="1.5"/>
+        <polygon points="245,148 241,140 249,140" fill="#f7a76a"/>
+
+        <!-- ICN → merge -->
+        <path d="M 60 204 Q 60 260 110 298" fill="none" stroke="#6af7a7" stroke-width="1.5" stroke-dasharray="3,2"/>
+        <polygon points="110,298 104,292 112,289" fill="#6af7a7"/>
+
+        <!-- else → merge -->
+        <line x1="140" y1="204" x2="140" y2="298" stroke="#888" stroke-width="1.5" stroke-dasharray="3,2"/>
+        <polygon points="140,298 136,290 144,290" fill="#888"/>
+
+        <!-- elif result → merge -->
+        <path d="M 245 254 Q 245 280 190 298" fill="none" stroke="#f7a76a" stroke-width="1.5" stroke-dasharray="3,2"/>
+        <polygon points="190,298 188,289 196,292" fill="#f7a76a"/>
+
+        <!-- Labels -->
+        <text x="38" y="160" fill="#6af7a7" font-size="10">true</text>
+        <text x="144" y="160" fill="#888" font-size="10">else</text>
+        <text x="205" y="140" fill="#f7a76a" font-size="10">elif</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- loop -->
+  <div class="mockup" style="min-width:260px">
+    <div class="mockup-header">loop</div>
+    <div class="mockup-body" style="padding:16px">
+      <svg width="240" height="380" font-family="monospace" font-size="12">
+        <!-- text: zeit -->
+        <rect x="60" y="10" width="120" height="36" rx="6" fill="#2d2d4e" stroke="#7c6af7" stroke-width="1.5"/>
+        <text x="120" y="33" text-anchor="middle" fill="#fff">text: {{zeit}}</text>
+
+        <!-- Loop node -->
+        <rect x="40" y="80" width="160" height="50" rx="6" fill="#2d2d4e" stroke="#f76a8f" stroke-width="1.5"/>
+        <text x="120" y="99" text-anchor="middle" fill="#f76a8f" font-size="10">LOOP</text>
+        <text x="120" y="114" text-anchor="middle" fill="#ccc" font-size="11">{{zug1.via}} split "|"</text>
+        <text x="120" y="126" text-anchor="middle" fill="#888" font-size="10">var: item  max: 6</text>
+
+        <!-- Loop body (sub-chain, indented) -->
+        <rect x="4" y="0" width="2" height="160" fill="#f76a8f" opacity="0.3" transform="translate(20,164)"/>
+
+        <rect x="60" y="170" width="120" height="36" rx="6" fill="#1e1e38" stroke="#f76a8f" stroke-width="1"/>
+        <text x="120" y="188" text-anchor="middle" fill="#aaa" font-size="11">image: via-dot.png</text>
+        <text x="120" y="201" text-anchor="middle" fill="#666" font-size="10">y: i*12+30</text>
+
+        <rect x="60" y="222" width="120" height="36" rx="6" fill="#1e1e38" stroke="#f76a8f" stroke-width="1"/>
+        <text x="120" y="240" text-anchor="middle" fill="#aaa" font-size="11">text: {{item}}</text>
+        <text x="120" y="253" text-anchor="middle" fill="#666" font-size="10">y: i*12+30</text>
+
+        <!-- Loop end -->
+        <rect x="60" y="298" width="120" height="36" rx="6" fill="#2d2d4e" stroke="#7c6af7" stroke-width="1.5"/>
+        <text x="120" y="321" text-anchor="middle" fill="#fff">text: {{hinweis}}</text>
+
+        <!-- Connections -->
+        <line x1="120" y1="46" x2="120" y2="80" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <polygon points="120,80 116,72 124,72" fill="#7c6af7"/>
+
+        <line x1="120" y1="130" x2="120" y2="170" stroke="#f76a8f" stroke-width="1.5"/>
+        <polygon points="120,170 116,162 124,162" fill="#f76a8f"/>
+
+        <line x1="120" y1="206" x2="120" y2="222" stroke="#f76a8f" stroke-width="1"/>
+        <polygon points="120,222 116,214 124,214" fill="#f76a8f"/>
+
+        <line x1="120" y1="258" x2="120" y2="278" stroke="#f76a8f" stroke-width="1.5" stroke-dasharray="3,2"/>
+        <polygon points="120,282 116,274 124,274" fill="#f76a8f"/>
+        <text x="128" y="272" fill="#f76a8f" font-size="10">end loop</text>
+
+        <line x1="120" y1="286" x2="120" y2="298" stroke="#7c6af7" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <polygon points="120,298 116,290 124,290" fill="#7c6af7"/>
+      </svg>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:16px;padding:12px;background:#1a1a2e;border-radius:8px;border-left:3px solid #7c6af7;font-size:13px">
+  <strong>Legende:</strong>
+  &nbsp;<span style="color:#6af7a7">●</span> if-true-Ast &nbsp;
+  <span style="color:#f7a76a">●</span> elif-Ast &nbsp;
+  <span style="color:#888">●</span> else-Ast &nbsp;
+  <span style="color:#f76a8f">●</span> Loop-Body &nbsp;
+  <span style="color:#7c6af7">●</span> Haupt-Kette
+  <br><br>
+  Alle Äste laufen in einem <strong>Merge-Node</strong> zusammen und setzen die Haupt-Kette fort.
+  Loop-Body-Nodes sind visuell eingerückt / umrandet.
+</div>

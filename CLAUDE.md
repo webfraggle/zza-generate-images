@@ -1,97 +1,87 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Hinweise für Claude Code beim Arbeiten an diesem Repo.
 
-## Projekt-Status
+## Architektur
 
-Dieses Projekt befindet sich im **kompletten Rewrite** von PHP nach Go.
-Die alte PHP-Implementierung liegt als Referenz unter `legacy/`.
-Die neue Go-Implementierung wird auf Branch `develop` gebaut.
+Dual-Build aus einer Go-Codebase:
 
-## Dokumentation
-
-Alle relevanten Dokumente liegen unter `docs/`:
-
-| Datei | Inhalt |
-|---|---|
-| `docs/requirements-collection.md` | Alle gesammelten Anforderungen und Entscheidungen |
-| `docs/implementation-plan.md` | 9-Phasen-Implementierungsplan mit Agenten-Zuordnung |
-| `docs/phase-workflow.md` | Pflicht-Ablauf bei jeder Phase (7 Schritte) |
-| `docs/yaml-template-spec.md` | Spezifikation des YAML-Template-Formats |
-| `docs/user-guide-templates.md` | User-Guide für Template-Erstellung |
-| `docs/backlog.md` | Ideen und Wünsche für spätere Features |
-
-## Architektur (Ziel)
-
-Go-Server der YAML-Templates zu PNG-Bildern rendert. Modellbahn-Zugzielanzeiger schicken JSON → Server gibt PNG zurück.
-
-**Stack:**
-- Sprache: Go (single binary, cross-platform)
-- Deployment: Docker Compose auf kleiner VM
-- Lokale Nutzung: native Binaries für Windows + macOS
-- Datenbank: SQLite
-- Template-Format: YAML (flache Verzeichnisstruktur)
-- Frontend: Vanilla JS + CodeMirror (kein Framework)
-
-**URL-Struktur:**
-- `POST /{template}/render` — JSON → PNG (einzige Route ohne HTTPS-Redirect, für Microcontroller)
-- `GET /{template}` — Vorschau-Seite mit Meta-Info, Render-URL, PNG-Download
-- `GET /{template}/edit` — Template-Editor (E-Mail-Auth)
-- `GET /` — Template-Galerie mit Ausprobiermodus
-- `GET /admin` — Superuser-Bereich (Token + TOTP)
-- `GET /health` — Health-Check
-
-**Projektstruktur:**
-```
-cmd/zza/main.go          # Einstiegspunkt (Server + CLI)
-cmd/zza-desktop/main.go  # Desktop-CLI (nur render, kein Server/SQLite)
-internal/renderer/       # YAML laden, PNG rendern
-internal/editor/         # Auth, Token, E-Mail, Datei-Upload
-internal/admin/          # Superuser, TOTP
-internal/gallery/        # Template-Galerie
-internal/db/             # SQLite
-internal/server/         # HTTP-Router, Middleware, Cache
-internal/config/         # Konfiguration (Umgebungsvariablen)
-internal/cli/            # Geteilte CLI-Commands (render)
-internal/version/        # Build-Version (per ldflags gesetzt)
-web/                     # Frontend-Assets (HTML-Templates, CSS, JS)
-templates/               # YAML-Templates (portiert aus legacy/)
-legacy/                  # Alte PHP-Implementierung (nur Referenz)
-VERSION                  # Versionsdatei (vX.Y.Z) — Patch auto-increment bei Build
-build.sh                 # Cross-Compile + Docker Multi-Arch + Version-Management
-```
-
-## Agenten
-
-| Agent | Datei | Wann einsetzen |
+| Build | Zweck | Auslieferung |
 |---|---|---|
-| `security-reviewer` | `~/.claude/agents/security-reviewer.md` | Nach jeder Phase — Pflicht |
-| `code-reviewer` | `~/.claude/agents/code-reviewer.md` | Nach Security-Review — Pflicht |
-| `template-porter` | `~/.claude/agents/template-porter.md` | Phase 8: PHP → YAML Portierung |
+| `cmd/zza-server` | Galerie + Vorschau + Render-Endpoint + ZIP-Download | Docker-Image auf VM (gen.yuv.de) |
+| `cmd/zza` | Editor + Vorschau + Render + native GUI (Wails v2) | ZIPs für macOS arm64/intel + Windows x64 |
 
-## Phasen-Workflow
+Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/devicerender`, `internal/devpreview`, `internal/mcp`, `internal/watch`, fsnotify, oksvg und das MCP-SDK nicht importieren (Prüfung: `CGO_ENABLED=0 go build ./cmd/zza-server && go list -deps ./cmd/zza-server | grep -E 'fsnotify|modelcontextprotocol|oksvg|rasterx|internal/mcp|internal/watch|internal/devicerender|internal/devpreview'` muss leer sein). Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
 
-Bei **jeder Phase** gilt: Implementierung → Security Review → Code Review → Commit → Manuelle Testbeschreibung → User-OK → Abschluss. Details: `docs/phase-workflow.md`.
+**Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /{template}/zza.zip` (ZZA-Paket wie `zza export`, über `internal/devexport`; 422 mit „nicht ZZA-kompatibel: …“, 503 bei belegten Export-Plätzen; eigener Cache im Ordner `zza/` des `CACHE_DIR`), `GET /health` (`{"status":"ok","version":"vX.Y.Z"}`, wie modellbahn-api; `DEPLOY=1 ./build.sh` wartet darauf).
 
-## Versionierung
+**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`), `GET /edit/{template}/zza-export` (ZZA-Paket `<template>-zza.zip` wie `zza export`, Knopf „Für ZZA exportieren“ im Editor und auf der Detailseite; Fehler wie zza-render), `GET /edit/{template}/events` (Long-Poll für externe Dateiänderungen, 25 s). Nur im GUI-Fenster: `POST /edit/_desktop/save-file?name=…` (nativer „Speichern unter“-Dialog über `desktop.Saver`, weil die Wails-WebView Downloads ignoriert; die Seiten nutzen dafür `web/static/save.js`, im Browser bleibt es ein normaler Download).
 
-- `VERSION`-Datei im Root enthält die aktuelle Version (`vX.Y.Z`)
-- Major.Minor wird manuell gepflegt, Patch wird bei jedem `./build.sh` automatisch erhöht
-- Version wird per `-ldflags -X` in `internal/version.Version` kompiliert
-- Docker-Image-Tag ist automatisch an die Version gekoppelt (plus `latest`)
-- Alle HTML-Seiten zeigen die Version unten links
+**Desktop-Subcommands:** `serve`, `render`, `export` (ZZA-Paket), `version`, `mcp` (MCP-Server über stdio für Claude Desktop / Claude Code, 19 Tools; stdout gehört nur dem Protokoll, Logs über `log` nach stderr; `write_file`/`create_template` lassen nur Latin-1 zu). Anleitung: `docs/user-guide-templates.md` → „KI-Assistent (MCP)"; Client-Config im Repo: `.mcp.json`.
 
-## HTTPS-Redirect
+**HTTPS-Redirect:** Alle Server-Routen außer `POST /{template}/render` werden bei `X-Forwarded-Proto: http` per 301 auf `https://` redirected. Render bleibt http für Microcontroller ohne TLS.
 
-Alle Routen außer `POST /{template}/render` werden per 301 auf HTTPS umgeleitet (via `X-Forwarded-Proto` Header). Die Render-Route bleibt auf HTTP verfügbar, da sie von Microcontrollern ohne TLS-Support aufgerufen wird.
+## Projektstruktur
 
-## Konfiguration (Umgebungsvariablen)
+```
+cmd/
+  zza-server/main.go     # schlanker Server (Cobra: serve, version)
+  zza/main.go            # Desktop-Root (Cobra: serve, render, version, default=GUI)
+  zza/wails.json         # Wails-v2-Config (muss neben main.go liegen)
+internal/
+  renderer/              # SHARED — YAML laden, PNG rendern
+  server/                # SHARED — Router, Gallery, Detail, Render, ZIP, Cache
+  gallery/               # SHARED
+  config/                # SHARED — Env-Vars
+  version/               # SHARED — Build-Version (per ldflags)
+  cli/                   # DESKTOP-ONLY — Render-CLI
+  editor/                # DESKTOP-ONLY — File-System-Editor (FSHandlers, files.go, starter)
+  desktop/               # DESKTOP-ONLY — Wails-Bootstrap, Browser-Fallback, Templates-Pfad-Resolution
+  devpreview/            # DESKTOP-ONLY — HTTP-Handler der ZZA-Vorschau (devexport + devicerender)
+  devicerender/          # DESKTOP-ONLY — cgo-Brücke zum C++-Kern device/zzarender (Mac: CGO_CXXFLAGS, siehe device/README.md)
+  mcp/                   # DESKTOP-ONLY — MCP-Server (Tools, Validierung, Foto-/SVG-Werkzeuge)
+  watch/                 # DESKTOP-ONLY — fsnotify-Watcher für externe Änderungen
+docs/embed.go            # embedded yaml-template-spec.md + ai-design-guide.md (für MCP)
+device/
+  zzarender/             # C++-Kern des On-Device-Renderers (Master-Kopie; Firmware-Kopie nie direkt bearbeiten)
+  README.md
+tools/
+  sync-zzarender.sh      # kopiert device/zzarender/ in die Firmware (lib/zzarender); `--check <firmware-repo>` muss Exit 0 liefern
+web/                     # Frontend-Assets (HTML-Templates, CSS, JS) — embedded
+templates/               # YAML-Templates
+docs/                    # Specs, Pläne, User-Guide
+legacy/                  # Alte PHP-Implementierung (Referenz)
+VERSION                  # vX.Y.Z — Patch-Auto-Increment im build.sh
+build.sh                 # Wails-Cross-Compile + Docker-Multi-Arch
+```
 
-`PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`, `DB_PATH`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `EDIT_TOKEN_TTL_HOURS`, `ADMIN_TOKEN`, `TOTP_SECRET`, `BASE_URL`, `SECURE_COOKIES`
+## Konfiguration (Server-Build)
+
+Env-Vars (nur Server liest sie): `PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`, `ZZA_CACHE_MAX_SIZE_MB` (Cache der ZZA-Pakete, Standard 50). Desktop-Build hat keine Env-Vars, alles über CLI-Flags (`--templates-dir`, `--port`).
+
+## Versionierung & Build
+
+- `VERSION` im Root: `vX.Y.Z`. Patch wird beim `./build.sh` automatisch erhöht.
+- Version landet via `-ldflags -X` in `internal/version.Version`.
+- Docker-Image-Tag = Version + `latest`.
+- HTML-Seiten zeigen die Version unten links.
+
+## Workflow für neue Features
+
+1. Spec in `docs/superpowers/specs/YYYY-MM-DD-<feature>-design.md`.
+2. Plan in `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` mit TDD-Tasks.
+3. Manueller Testplan in `docs/superpowers/plans/YYYY-MM-DD-<feature>-manual-tests.md`.
+4. Feature-Branch, Subagent-driven implementation mit Spec- und Code-Quality-Review pro Task.
+5. Vor Merge: security-reviewer + code-reviewer auf den Branch-Diff.
+6. Merge → develop → push.
+7. Optional: `DOCKER_PUSH=1 ./build.sh` für Multi-Arch-Push (davor `go vet` + `go test`, dann CVE-Scan mit Trivy über `scripts/scan-image.sh`, `SKIP_SCAN=1` überspringt ihn), `DEPLOY=1 ./build.sh` zusätzlich mit Deployment auf der VM (SSH-Alias `modellbahn-vm`, `~/zza-generate-images`; überträgt `docker-compose.ionos.yml` als `docker-compose.yml`, wenn geändert, nie `.env` oder `templates/`), `gh release create` für Desktop-ZIPs.
+
+## Deployment
+
+VM `gen.yuv.de` per Docker Compose hinter Traefik (TLS via Let's Encrypt). Update-Befehl steht in `README.md`.
 
 ## Legacy-Referenz
 
-Die alte PHP-Implementierung unter `legacy/` dient als Referenz für:
-- Rendering-Logik der einzelnen Themes
-- Default-Konfigurationen (`default.json`) → neue YAML-Templates
-- Bildassets und Fonts die übernommen werden
+`legacy/` enthält die alte PHP-Implementierung als Referenz für Rendering-Logik einzelner Themes, Default-Konfigurationen, Bildassets und Fonts.
+
+`docs/legacy/` enthält die historischen Planungs-Dokumente vom Go-Rewrite (Phase 1–10, Security-Findings, Phasen-Workflow) — wurden vom Dual-Build-Refactor abgelöst.

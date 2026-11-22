@@ -1,0 +1,30 @@
+meta:
+  name: "Worst Case Text"
+  description: "Lasttest: 20 Text-Layer mit großem Schriftgrad (32–70), je ein voller Latin-1-Glyphensatz (dynamische Werte)"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: text, value: "{{t0}}", font: reg, size: 32, color: "#28ff00", x: 0, y: 0, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t1}}", font: reg, size: 34, color: "#32ff19", x: 13, y: 11, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t2}}", font: reg, size: 36, color: "#3cff32", x: 26, y: 22, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t3}}", font: reg, size: 38, color: "#46ff4b", x: 39, y: 33, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t0}}", font: reg, size: 40, color: "#50ff64", x: 52, y: 44, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t1}}", font: reg, size: 42, color: "#5aff7d", x: 5, y: 55, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t2}}", font: reg, size: 44, color: "#64ff96", x: 18, y: 66, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t3}}", font: reg, size: 46, color: "#6effaf", x: 31, y: 77, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t0}}", font: reg, size: 48, color: "#78ffc8", x: 44, y: 88, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t1}}", font: reg, size: 50, color: "#82ffe1", x: 57, y: 99, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t2}}", font: reg, size: 52, color: "#8cfffa", x: 10, y: 110, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t3}}", font: reg, size: 54, color: "#96ff13", x: 23, y: 121, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t0}}", font: reg, size: 56, color: "#a0ff2c", x: 36, y: 132, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t1}}", font: reg, size: 58, color: "#aaff45", x: 49, y: 143, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t2}}", font: reg, size: 60, color: "#b4ff5e", x: 2, y: 154, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t3}}", font: reg, size: 62, color: "#beff77", x: 15, y: 165, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t0}}", font: reg, size: 64, color: "#c8ff90", x: 28, y: 176, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t1}}", font: reg, size: 66, color: "#d2ffa9", x: 41, y: 187, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t2}}", font: reg, size: 68, color: "#dcffc2", x: 54, y: 198, max_width: 230, line_height: 0.9}
+  - {type: text, value: "{{t3}}", font: reg, size: 70, color: "#e6ffdb", x: 7, y: 9, max_width: 230, line_height: 0.9}

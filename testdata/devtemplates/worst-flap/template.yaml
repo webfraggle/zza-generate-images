@@ -1,0 +1,89 @@
+meta:
+  name: "Worst Case Split-Flap"
+  description: "Lasttest: 64 Module, 64 Reel-Einträge, flip_frames 6, 5 s bei 25 fps (125 Frames)"
+  canvas: {width: 240, height: 240}
+  animation: {fps: 25, duration: 5}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#000000", x: 0, y: 0, width: 240, height: 240}
+  - type: splitflap
+    x: 0
+    y: 4
+    width: 13
+    height: 52
+    split_y: 26
+    cells: 16
+    pitch: 15
+    split: chars
+    value: "{{z1 | upper}}"
+    reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789.-:/()!?&+*abcdefghijklm"
+    var: ch
+    flip_frames: 6
+    min_flips: 64
+    layers:
+      # zwei Kind-Layer: 64 Module × 2 zählen gegen die 256 Layer
+      - {type: rect, color: "#1a1a1a", x: 0, y: 0, width: 13, height: 52}
+      - {type: text, value: "{{ch}}", font: reg, size: 36, scale_x: 0.5, color: {if: "equals(ch, ' ')", then: "#303030", else: "#f0f0f0"}, x: 6, y: 40, align: center, valign: baseline}
+  - type: splitflap
+    x: 0
+    y: 63
+    width: 13
+    height: 52
+    split_y: 26
+    cells: 16
+    pitch: 15
+    split: chars
+    value: "{{z2 | upper}}"
+    reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789.-:/()!?&+*abcdefghijklm"
+    var: ch
+    flip_frames: 6
+    min_flips: 64
+    layers:
+      # zwei Kind-Layer: 64 Module × 2 zählen gegen die 256 Layer
+      - {type: rect, color: "#1a1a1a", x: 0, y: 0, width: 13, height: 52}
+      - {type: text, value: "{{ch}}", font: reg, size: 36, scale_x: 0.5, color: {if: "equals(ch, ' ')", then: "#303030", else: "#f0f0f0"}, x: 6, y: 40, align: center, valign: baseline}
+  - type: splitflap
+    x: 0
+    y: 122
+    width: 13
+    height: 52
+    split_y: 26
+    cells: 16
+    pitch: 15
+    split: chars
+    value: "{{z3 | upper}}"
+    reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789.-:/()!?&+*abcdefghijklm"
+    var: ch
+    flip_frames: 6
+    min_flips: 64
+    layers:
+      # zwei Kind-Layer: 64 Module × 2 zählen gegen die 256 Layer
+      - {type: rect, color: "#1a1a1a", x: 0, y: 0, width: 13, height: 52}
+      - {type: text, value: "{{ch}}", font: reg, size: 36, scale_x: 0.5, color: {if: "equals(ch, ' ')", then: "#303030", else: "#f0f0f0"}, x: 6, y: 40, align: center, valign: baseline}
+  - type: splitflap
+    x: 0
+    y: 181
+    width: 13
+    height: 52
+    split_y: 26
+    cells: 16
+    pitch: 15
+    split: chars
+    value: "{{z4 | upper}}"
+    reel: " ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ0123456789.-:/()!?&+*abcdefghijklm"
+    var: ch
+    flip_frames: 6
+    min_flips: 64
+    layers:
+      # zwei Kind-Layer: 64 Module × 2 zählen gegen die 256 Layer
+      - {type: rect, color: "#1a1a1a", x: 0, y: 0, width: 13, height: 52}
+      - {type: text, value: "{{ch}}", font: reg, size: 36, scale_x: 0.5, color: {if: "equals(ch, ' ')", then: "#303030", else: "#f0f0f0"}, x: 6, y: 40, align: center, valign: baseline}
+  # Scharniere über allen Modulen
+  - {type: rect, color: "#00000099", x: 0, y: 30, width: 240, height: 1}
+  - {type: rect, color: "#00000099", x: 0, y: 89, width: 240, height: 1}
+  - {type: rect, color: "#00000099", x: 0, y: 148, width: 240, height: 1}
+  - {type: rect, color: "#00000099", x: 0, y: 207, width: 240, height: 1}

@@ -2,6 +2,8 @@ package renderer
 
 import (
 	"fmt"
+	"math/rand"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -263,6 +265,42 @@ func TestCondition_Empty_AlwaysTrue(t *testing.T) {
 	}
 }
 
+func TestCondition_AndOr(t *testing.T) {
+	e := fixedEval(testData()) // hinweis set, via empty, abw 10
+	cases := []struct {
+		expr string
+		want bool
+	}{
+		{"and(isEmpty(zug1.via), greaterThan(zug1.abw, 0))", true},
+		{"and(isEmpty(zug1.via), isEmpty(zug1.hinweis))", false},
+		{"and(isEmpty(zug1.via), not(isEmpty(zug1.hinweis)), equals(gleis, '3'))", true},
+		{"or(isEmpty(zug1.hinweis), isEmpty(zug1.via))", true},
+		{"or(isEmpty(zug1.hinweis), greaterThan(zug1.abw, 10))", false},
+		{"not(or(isEmpty(zug1.hinweis), greaterThan(zug1.abw, 10)))", true},
+		{"and(or(isEmpty(zug1.hinweis), isEmpty(zug1.via)), equals(gleis, '3'))", true},
+		// commas and parentheses inside quotes do not split arguments
+		{"or(startsWith(zug1.hinweis, ',('), isEmpty(zug1.via))", true},
+		{"and()", false},
+		{"or()", false},
+	}
+	for _, c := range cases {
+		if got := e.EvalCondition(c.expr); got != c.want {
+			t.Errorf("%s = %v, want %v", c.expr, got, c.want)
+		}
+	}
+}
+
+func TestCondition_AndOr_DepthLimit(t *testing.T) {
+	e := fixedEval(testData())
+	expr := "isEmpty(zug1.via)"
+	for i := 0; i < maxCondDepth+2; i++ {
+		expr = "and(" + expr + ")"
+	}
+	if e.EvalCondition(expr) {
+		t.Error("over-nested and() must be false")
+	}
+}
+
 // --- doStripBetween ---
 
 func TestStripBetween_Multiple(t *testing.T) {
@@ -490,5 +528,245 @@ func TestFormatTime_EE(t *testing.T) {
 	}
 	if got := formatTime(t1, "EEEE"); got != "Dienstag" {
 		t.Errorf("got %q, want %q", got, "Dienstag")
+	}
+}
+
+// --- pipeline parser, variable arguments, mod/minutes ---
+
+func pipeData() map[string]interface{} {
+	return map[string]interface{}{
+		"a": "5", "b": "2.5", "n": "-3",
+		"z1": "10:15", "z2": "10:18", "z3": "10:26",
+		"t1": "23:58", "t2": "00:04",
+		"empty": "", "txt": "abc", "v": "a|b",
+		"seven": "7", "sevenhalf": "7.5", "mseven": "-7",
+	}
+}
+
+func checkInterp(t *testing.T, e *Evaluator, expr, want string) {
+	t.Helper()
+	if got := e.Interpolate(expr); got != want {
+		t.Errorf("%s = %q, want %q", expr, got, want)
+	}
+}
+
+func TestPipeline_VariableArgs(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]string{
+		"{{a | add(b)}}":         "7.5",
+		"{{a|add(b)}}":           "7.5",
+		"{{a | mul(b) | round}}": "13",
+		"{{a | add('3')}}":       "8",
+		"{{a | sub(missing)}}":   "",
+		"{{txt | add(a)}}":       "abc",
+		"{{a | add(txt)}}":       "",
+	} {
+		checkInterp(t, e, expr, want)
+	}
+}
+
+func TestFilter_Minutes(t *testing.T) {
+	for in, want := range map[string]string{
+		"10:15": "615", "0:04": "4", "23:58": "1438", " 10:15 Uhr": "615", "10:5": "605",
+		"": "", "ca. 10": "", "1015": "", ":15": "",
+	} {
+		e := fixedEval(map[string]interface{}{"t": in})
+		if got := e.Interpolate("{{t | minutes}}"); got != want {
+			t.Errorf("minutes(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFilter_Mod(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]string{
+		"{{n | mod(1440)}}":      "1437",
+		"{{seven | mod(3)}}":     "1",
+		"{{sevenhalf | mod(2)}}": "1.5",
+		"{{mseven | mod(-3)}}":   "-1",
+		"{{a | mod(0)}}":         "0",
+		"{{txt | mod(3)}}":       "abc",
+	} {
+		checkInterp(t, e, expr, want)
+	}
+}
+
+func TestPipeline_MinutesColumn(t *testing.T) {
+	const expr = "{{Z | minutes | sub(R | minutes) | mod(1440) | add(5)}}"
+	cases := []struct{ z, r, want string }{
+		{"z1", "z1", "5"}, {"z2", "z1", "8"}, {"z3", "z1", "16"}, {"t2", "t1", "11"},
+		{"empty", "z1", ""}, {"z2", "empty", ""}, {"txt", "z1", ""},
+	}
+	e := fixedEval(pipeData())
+	for _, c := range cases {
+		x := strings.NewReplacer("Z", c.z, "R", c.r).Replace(expr)
+		checkInterp(t, e, x, c.want)
+	}
+}
+
+func TestPipeline_ClockAngles(t *testing.T) {
+	const expr = "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"
+	cases := []struct {
+		h, m int
+		want string
+	}{{10, 15, "307.5"}, {12, 0, "360"}, {0, 30, "375"}, {3, 0, "90"}}
+	for _, c := range cases {
+		e := fixedEval(map[string]interface{}{})
+		e.now = time.Date(2026, 11, 13, c.h, c.m, 0, 0, time.UTC)
+		checkInterp(t, e, expr, c.want)
+	}
+}
+
+func TestPipeline_QuotedPipeAndParens(t *testing.T) {
+	e := fixedEval(pipeData())
+	checkInterp(t, e, "{{v | stripAll('|')}}", "ab")
+	checkInterp(t, e, "{{v | before('|')}}", "a")
+}
+
+func TestPipeline_DepthLimit(t *testing.T) {
+	e := fixedEval(pipeData())
+	checkInterp(t, e, "{{a | add(a | add(a | add(a | add(a))))}}", "25")
+	checkInterp(t, e, "{{a | add(a | add(a | add(a | add(a | add(a)))))}}", "")
+}
+
+func TestPipeline_Malformed(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]string{
+		"{{a | add(b}}":   "5",
+		"{{a | add()}}":   "5",
+		"{{a | add(b))}}": "",
+		"{{a | add('x)}}": "",
+		"{{ | }}":         "",
+	} {
+		checkInterp(t, e, expr, want)
+	}
+	rng := rand.New(rand.NewSource(42))
+	const alphabet = "a|(),'\"0 ."
+	for i := 0; i < 2000; i++ {
+		b := make([]byte, rng.Intn(24))
+		for j := range b {
+			b[j] = alphabet[rng.Intn(len(alphabet))]
+		}
+		e.Interpolate("{{" + string(b) + "}}")
+	}
+}
+
+func TestCondition_PipelineArg(t *testing.T) {
+	e := fixedEval(pipeData())
+	for expr, want := range map[string]bool{
+		"greaterThan(z2 | minutes, 600)": true,
+		"greaterThan(z1 | minutes, 615)": false,
+		"equals(z1 | minutes, '615')":    true,
+		"isEmpty(empty | minutes)":       true,
+		"startsWith(txt, 'a')":           true,
+	} {
+		if got := e.EvalCondition(expr); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
+	}
+}
+
+func TestSplitTopLevel(t *testing.T) {
+	cases := []struct {
+		in   string
+		sep  byte
+		want []string
+	}{
+		{"a | b(c | d) | e", '|', []string{"a ", " b(c | d) ", " e"}},
+		{"'x|y' | z", '|', []string{"'x|y' ", " z"}},
+		{"a)|b", '|', []string{"a)", "b"}},
+		{"x, f(a, b), 'c,d'", ',', []string{"x", " f(a, b)", " 'c,d'"}},
+	}
+	for _, c := range cases {
+		if got := splitTopLevel(c.in, c.sep); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("splitTopLevel(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// --- clock / replace / match / format offset ---
+
+func TestFilter_ClockReplaceMatchFormatOffset(t *testing.T) {
+	cases := []struct {
+		name string
+		data map[string]interface{}
+		expr string
+		want string
+	}{
+		{"clock 963", map[string]interface{}{"m": 963}, "{{m | clock}}", "16:03"},
+		{"clock 0", map[string]interface{}{"m": 0}, "{{m | clock}}", "00:00"},
+		{"clock wrap", map[string]interface{}{"m": 1445}, "{{m | clock}}", "00:05"},
+		{"clock negative", map[string]interface{}{"m": -5}, "{{m | clock}}", "23:55"},
+		{"clock text", map[string]interface{}{"m": "abc"}, "{{m | clock}}", ""},
+		{"clock empty", map[string]interface{}{"m": ""}, "{{m | clock}}", ""},
+		{"clock chain", map[string]interface{}{"zug1": map[string]interface{}{"zeit": "15:53", "abw": 10}},
+			"{{zug1.zeit | minutes | add(zug1.abw) | clock}}", "16:03"},
+		{"replace", map[string]interface{}{"v": "A - B - C"}, "{{v | replace(' - ', '~')}}", "A~B~C"},
+		{"replace empty from", map[string]interface{}{"v": "A - B"}, "{{v | replace('', 'x')}}", "A - B"},
+		{"match g1", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 1)}}", "S"},
+		{"match g2", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 2)}}", "1"},
+		{"match g0", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 0)}}", "S1"},
+		{"match none", map[string]interface{}{"nr": "REX 1234"}, "{{nr | match('^([a-zA-Z]+)([0-9]+)$', 1)}}", ""},
+		{"match group out of range", map[string]interface{}{"nr": "S1"}, "{{nr | match('([a-zA-Z]+)([0-9]+)', 5)}}", ""},
+		{"match invalid", map[string]interface{}{"nr": "S1"}, "{{nr | match('(', 0)}}", ""},
+		{"match too long", map[string]interface{}{"nr": "S1"}, "{{nr | match('" + strings.Repeat("a", 101) + "', 0)}}", ""},
+		{"match 100 chars ok", map[string]interface{}{"nr": strings.Repeat("a", 100)},
+			"{{nr | match('" + strings.Repeat("a", 100) + "', 0)}}", strings.Repeat("a", 100)},
+		{"format offset", nil, "{{now | format('HH:mm:ss', 5)}}", "12:01:03"},
+		{"format offset negative", nil, "{{now | format('HH:mm:ss', 0 | sub(58))}}", "12:00:58"},
+		{"format offset text", nil, "{{now | format('HH:mm', 'x')}}", "12:00"},
+		{"format offset huge", nil, "{{now | format('HH:mm', 1e30)}}", "12:00"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEvaluatorAt(c.data, time.Date(2026, 3, 24, 12, 0, 58, 0, time.UTC))
+			if got := e.Interpolate(c.expr); got != c.want {
+				t.Errorf("%s = %q, want %q", c.expr, got, c.want)
+			}
+		})
+	}
+}
+
+func TestFilter_FormatOffsetAnimTime(t *testing.T) {
+	e := newEvaluatorAt(nil, time.Date(2026, 3, 24, 12, 0, 0, 0, time.UTC)).withAnim(3, 60, 100)
+	if got := e.Interpolate("{{now | format('HH:mm:ss', anim.time)}}"); got != "12:00:03" {
+		t.Errorf("got %q, want 12:00:03", got)
+	}
+}
+
+func TestFilter_MatchAsCondition(t *testing.T) {
+	e := fixedEval(map[string]interface{}{"nr": "S1", "x": "REX 12"})
+	if e.EvalCondition("isEmpty(nr | match('([a-zA-Z]+)([0-9]+)', 2))") {
+		t.Error("S1 should match")
+	}
+	if !e.EvalCondition("isEmpty(x | match('^([a-zA-Z]+)([0-9]+)$', 2))") {
+		t.Error("REX 12 should not match")
+	}
+}
+
+func TestMatch_PatternLimitCountsCharacters(t *testing.T) {
+	pat := strings.Repeat("ä", 60) // 120 bytes, 60 characters
+	e := fixedEval(map[string]interface{}{"v": pat})
+	if got := e.Interpolate("{{v | match('" + pat + "', 0)}}"); got != pat {
+		t.Errorf("60-char umlaut pattern should match, got %q", got)
+	}
+}
+
+func TestFilter_SizeBudget(t *testing.T) {
+	big := strings.Repeat("a", maxFilterValueLen+1)
+	e := fixedEval(map[string]interface{}{"big": big, "ok": strings.Repeat("a", 1000)})
+	if got := e.Interpolate("{{big | match('a', 0)}}"); got != "" {
+		t.Errorf("match on oversized value should be empty, got len %d", len(got))
+	}
+	if got := e.Interpolate("{{ok | match('a', 0)}}"); got != "a" {
+		t.Errorf("match on small value = %q", got)
+	}
+	// 1000 x "a" -> 100 chars each = 100000 > limit: unchanged.
+	longTo := strings.Repeat("b", 100)
+	if got := e.Interpolate("{{ok | replace('a', '" + longTo + "')}}"); got != strings.Repeat("a", 1000) {
+		t.Errorf("replace exceeding budget should return value unchanged, got len %d", len(got))
+	}
+	if got := e.Interpolate("{{ok | replace('a', 'bb')}}"); got != strings.Repeat("bb", 1000) {
+		t.Errorf("replace within budget should apply, got len %d", len(got))
 	}
 }

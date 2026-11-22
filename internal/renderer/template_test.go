@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -45,5 +47,44 @@ func TestElseMarker_UnmarshalFalse(t *testing.T) {
 	}
 	if bool(l.Else) {
 		t.Errorf("expected Else=false, got true")
+	}
+}
+
+func TestLoadTemplate_ColorsValidation(t *testing.T) {
+	dir := t.TempDir()
+	write := func(yaml string) error {
+		return os.WriteFile(filepath.Join(dir, "template.yaml"), []byte(yaml), 0644)
+	}
+
+	// colors: 0 (default, kein Feld) → valid
+	if err := write("meta:\n  canvas:\n    width: 10\n    height: 10\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadTemplate(filepath.Dir(dir), filepath.Base(dir)); err != nil {
+		t.Errorf("colors omitted: unexpected error: %v", err)
+	}
+
+	// colors: 32 → valid
+	if err := write("meta:\n  canvas:\n    width: 10\n    height: 10\n    colors: 32\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadTemplate(filepath.Dir(dir), filepath.Base(dir)); err != nil {
+		t.Errorf("colors: 32: unexpected error: %v", err)
+	}
+
+	// colors: 1 → invalid
+	if err := write("meta:\n  canvas:\n    width: 10\n    height: 10\n    colors: 1\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadTemplate(filepath.Dir(dir), filepath.Base(dir)); err == nil {
+		t.Error("colors: 1: expected error, got nil")
+	}
+
+	// colors: 257 → invalid
+	if err := write("meta:\n  canvas:\n    width: 10\n    height: 10\n    colors: 257\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadTemplate(filepath.Dir(dir), filepath.Base(dir)); err == nil {
+		t.Error("colors: 257: expected error, got nil")
 	}
 }

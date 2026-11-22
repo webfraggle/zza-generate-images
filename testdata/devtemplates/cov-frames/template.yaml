@@ -1,0 +1,30 @@
+meta:
+  name: "Abdeckung Frame-Modus"
+  description: "Funktionsabdeckung des Gerätekerns: meta.animation.frames"
+  canvas: {width: 240, height: 240}
+  animation:
+    frames: 12
+    frame_delay: 0.02
+    loop: false
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#102030", x: 0, y: 0, width: 240, height: 240}
+  - {type: image, file: opaque.png, x: 4, y: 4}
+  - {type: image, file: hand.png, x: 120, y: 120, rotate: "{{anim.frame | mul(30)}}"}
+  # Alte Uhr-Schreibweise mit Absicht (Regression von add(var) mit now): now läuft im Frame-Modus
+  # schon pro Frame mit, als Uhr zählt die Zeit hier doppelt.
+  - {type: image, file: hand.png, x: 60, y: 120, rotate: "{{now.second | add(anim.frame) | mul(6)}}"}
+  - {type: rect, color: "#ff8000", x: "{{anim.frame * 18}}", y: 200, width: 10, height: 10}
+  - {type: text, value: "{{name}} {{anim.frame}}/{{anim.frames}} t={{anim.time}}", font: reg, size: 12, color: "#ffffff", x: 8, y: 220}
+  - if: "equals(anim.frame, '5')"
+    type: rect
+    color: "#00ff00"
+    x: 200
+    y: 10
+    width: 30
+    height: 30
+  - {type: copy, src_x: 100, src_y: 90, src_width: 40, src_height: 60, x: 180, y: 90}

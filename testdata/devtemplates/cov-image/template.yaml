@@ -1,0 +1,50 @@
+meta:
+  name: "Abdeckung Bilder"
+  description: "Funktionsabdeckung des Gerätekerns: Bild-Layer"
+  canvas: {width: 240, height: 240}
+
+fonts:
+  - id: reg
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - {type: rect, color: "#304050", x: 0, y: 0, width: 240, height: 240}
+  # Text-ids liefern datenabhängige Größen für die dynamischen Bilder.
+  - {type: text, id: nm, value: "{{name}}", font: reg, size: 8, color: "#808080", x: 2, y: 228}
+  - {type: text, id: lw, value: "{{label}}", font: reg, size: 8, color: "#808080", x: 120, y: 228}
+
+  # deckend, halbtransparent, teilweise außerhalb
+  - {type: image, file: opaque.png, x: 4, y: 4}
+  - {type: image, file: alpha.png, x: 56, y: 4}
+  - {type: image, file: alpha.png, x: 40, y: 20}
+  - {type: image, file: opaque.png, x: -20, y: -12}
+  - {type: image, file: alpha.png, x: 222, y: -10}
+  - {type: image, file: opaque.png, x: 215, y: 220}
+  - {type: image, file: alpha.png, x: -16, y: 225}
+
+  # konstante Größen
+  - {type: image, file: opaque.png, x: 96, y: 4, width: 70, height: 20}
+  - {type: image, file: alpha.png, x: 170, y: 4, width: 50}
+  - {type: image, file: opaque.png, x: 96, y: 30, height: 12}
+  - {type: image, file: alpha.png, x: 130, y: 30, width: 9, height: 40}
+
+  # dynamische Größen (beide Seiten, nur eine Seite)
+  - {type: image, file: opaque.png, x: 4, y: 60, width: "{{nm.width}}", height: "{{lw.width / 2}}"}
+  - {type: image, file: alpha.png, x: 4, y: 110, width: "{{nm.width + 10}}"}
+  - {type: image, file: opaque.png, x: 150, y: 60, height: "{{lw.width}}"}
+  - {type: image, file: alpha.png, x: 180, y: 40, width: "{{lw.width / 3}}", height: 30}
+
+  # Drehung um den Mittelpunkt (x/y)
+  - {type: image, file: hand.png, x: 40, y: 190, rotate: "0"}
+  - {type: image, file: hand.png, x: 80, y: 190, rotate: "37.5"}
+  - {type: image, file: hand.png, x: 120, y: 190, rotate: "90"}
+  - {type: image, file: hand.png, x: 160, y: 190, rotate: "-15"}
+  - {type: image, file: hand.png, x: 200, y: 190, rotate: "{{now.second | mul(6)}}"}
+  - type: image
+    file: alpha.png
+    x: 120
+    y: 140
+    rotate: {if: "isEmpty(name)", then: "10", else: "{{now.minute | mul(6) | add(5)}}"}
+  - {type: image, file: opaque.png, x: 200, y: 140, width: 60, rotate: "200"}
+  - {type: image, file: opaque.png, x: 60, y: 150, width: "{{nm.width}}", rotate: "{{now.second}}"}
+  - {type: image, file: hand.png, x: 236, y: 236, rotate: "45"}
