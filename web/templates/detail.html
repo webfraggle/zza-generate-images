@@ -40,6 +40,15 @@
       </div>
 
       <div class="transport">
+        {{if .EditorEnabled}}
+        <label class="tbtn tbtn-select" title="Server: Go-Renderer (PNG/GIF); ZZA: Renderer-Kern des Controllers">
+          Vorschau
+          <select id="preview-engine" aria-label="Vorschau-Engine">
+            <option value="server" selected>PNG/GIF</option>
+            <option value="zza">ZZA</option>
+          </select>
+        </label>
+        {{end}}
         <button type="button" id="download-btn" class="tbtn{{if not .Animated}} tbtn-primary{{end}}" disabled>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           PNG herunterladen
@@ -164,6 +173,25 @@
     let dataGen   = 0;     // bumped on every data change; responses for older data are dropped
     let renderGen = 0;     // bumped per still render; only the newest one updates the preview
     let debounce  = null;  // pending render timer
+    let touched   = false; // the user changed the data on this page
+
+    // Preview engine (desktop app only): "server" = the Go renderer, "zza" =
+    // the controller's renderer core. Remembered per template, shared with the
+    // editor. localStorage may be unavailable or throw: then the default holds.
+    let engine = "server";
+    const engineSelect = $("preview-engine");
+    const engineKey = "zza-preview-engine:" + templateName;
+    if (engineSelect) {
+      try {
+        if (localStorage.getItem(engineKey) === "zza") engine = "zza";
+      } catch (e) { /* default stays */ }
+      engineSelect.value = engine;
+      engineSelect.addEventListener("change", () => {
+        engine = engineSelect.value === "zza" ? "zza" : "server";
+        try { localStorage.setItem(engineKey, engine); } catch (e) { /* ignore */ }
+        scheduleRender();
+      });
+    }
 
     // ── Render URL ────────────────────────────────────────────────────────
     const renderUrl = window.location.origin + "/" + templateName + "/render";
@@ -211,12 +239,14 @@
     if (form) {
       form.addEventListener("input", (e) => {
         if (!e.target.name) return;
+        touched = true;
         setPath(data, e.target.name, fieldValue(e.target));
         writeJSON();
         scheduleRender();
       });
     }
     jsonInput.addEventListener("input", () => {
+      touched = true;
       let parsed;
       try {
         parsed = JSON.parse(jsonInput.value);
@@ -291,7 +321,9 @@
 
     // POSTs the current data; returns a Blob, or null after showing an error.
     async function fetchImage(format) {
-      const url = "/" + templateName + "/render" + (format === "gif" ? "?format=gif" : "");
+      let url = "/" + templateName + "/render";
+      {{if .EditorEnabled}}if (engine === "zza") url = "/edit/" + templateName + "/zza-render";{{end}}
+      if (format === "gif") url += "?format=gif";
       try {
         const resp = await fetch(url, {
           method: "POST",
@@ -448,6 +480,35 @@
         exportBtn.disabled = false;
       }
     });
+    {{end}}
+
+    {{if .EditorEnabled}}
+    // ── External changes (desktop app) ────────────────────────────────────
+    // Files changed outside this page (the AI over MCP, another editor): show
+    // the new state. New example data reload the page while the user has not
+    // changed anything here (form and JSON come from the server); otherwise
+    // only the image is rendered again, with the data on this page.
+    (async function watchChanges() {
+      const eventsUrl = "/edit/" + templateName + "/events";
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      let since = null;
+      for (;;) {
+        try {
+          const res = await fetch(eventsUrl + (since === null ? "" : "?since=" + since));
+          if (res.status === 404) return;   // no watcher in this build
+          if (!res.ok) throw new Error("events " + res.status);
+          const ev = await res.json();
+          const first = since === null;     // the first answer is only the baseline
+          since = ev.seq;
+          const files = ev.files || [];
+          if (first || (!files.length && !ev.reset)) continue;
+          if (!touched && (ev.reset || files.includes("default.json"))) { location.reload(); return; }
+          scheduleRender();
+        } catch (e) {
+          await sleep(3000);
+        }
+      }
+    })();
     {{end}}
 
     {{if .HasDefault}}

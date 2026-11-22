@@ -579,6 +579,13 @@ a.brand:hover { color: var(--brand); }
   transition: background .15s, color .15s;
 }
 .tbtn:last-child { border-right: none; }
+/* Preview engine choice in the action bar (desktop app). */
+.tbtn-select { cursor: default; }
+.tbtn-select select {
+  font: inherit; font-size: .85rem; padding: 4px 8px;
+  border: 1px solid var(--housing-line); border-radius: 6px;
+  background: var(--housing); color: var(--ink);
+}
 a.tbtn { text-decoration: none; }
 /* Small replay button in the housing corner (animated templates). */
 .replay-btn {
