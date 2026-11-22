@@ -33,22 +33,26 @@
           <div class="canvas-frame"><div class="anim-clip" id="anim-clip-top"><img id="anim-img-top" alt="Animation, obere Hälfte"></div></div>
           <div class="canvas-frame"><div class="anim-clip" id="anim-clip-bottom"><img id="anim-img-bottom" alt="Animation, untere Hälfte"></div></div>
         </div>
-        <button type="button" id="replay-btn" class="replay-btn" title="Animation nochmal abspielen" aria-label="Animation nochmal abspielen" hidden>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
         {{end}}
+        <div class="housing-tools">
+          {{if .EditorEnabled}}
+          <label class="engine-choice" title="PNG/GIF: Go-Renderer; ZZA: Renderer-Kern des Controllers">
+            Vorschau
+            <select id="preview-engine" aria-label="Vorschau-Engine">
+              <option value="server" selected>PNG/GIF</option>
+              <option value="zza">ZZA</option>
+            </select>
+          </label>
+          {{end}}
+          {{if .Animated}}
+          <button type="button" id="replay-btn" class="replay-btn" title="Animation nochmal abspielen" aria-label="Animation nochmal abspielen" hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          {{end}}
+        </div>
       </div>
 
       <div class="transport">
-        {{if .EditorEnabled}}
-        <label class="tbtn tbtn-select" title="Server: Go-Renderer (PNG/GIF); ZZA: Renderer-Kern des Controllers">
-          Vorschau
-          <select id="preview-engine" aria-label="Vorschau-Engine">
-            <option value="server" selected>PNG/GIF</option>
-            <option value="zza">ZZA</option>
-          </select>
-        </label>
-        {{end}}
         <button type="button" id="download-btn" class="tbtn{{if not .Animated}} tbtn-primary{{end}}" disabled>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           PNG herunterladen

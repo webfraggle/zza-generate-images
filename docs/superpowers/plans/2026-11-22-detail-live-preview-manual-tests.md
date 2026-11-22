@@ -2,7 +2,7 @@
 
 Voraussetzung: Desktop-App (GUI-Fenster) mit einem ZZA-kompatiblen Template, z. B. `umuc-105-v1`.
 
-1. Vorschauseite öffnen: In der Aktionsleiste steht „Vorschau“ mit „PNG/GIF“ und „ZZA“.
+1. Vorschauseite öffnen: Über dem Bild, rechts neben dem Replay-Knopf, steht „Vorschau“ mit „PNG/GIF“ und „ZZA“.
 2. Auf „ZZA“ stellen: Das Bild wird neu gerendert (bei animierten Templates spielt die Animation). Seite neu laden: „ZZA“ ist noch gewählt. Editor desselben Templates öffnen: Dort steht die Engine ebenfalls auf „ZZA“.
 3. „PNG herunterladen“ bei „ZZA“: Die Datei zeigt das ZZA-Bild.
 4. Nicht ZZA-kompatibles Template auf „ZZA“ stellen: Unter der Vorschau steht „nicht ZZA-kompatibel: …“.
