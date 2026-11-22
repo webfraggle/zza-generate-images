@@ -105,6 +105,8 @@
   </div>
 </dialog>
 
+{{if .NativeSave}}<script>window.ZZA_NATIVE_SAVE = true;</script>{{end}}
+<script src="/static/save.js"></script>
 <script type="module">
 // ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
 // EditorView constructor accepts doc+extensions directly — no EditorState needed.
@@ -390,16 +392,10 @@ exportBtn.addEventListener('click', async () => {
       renderErr.hidden = false;
       return;
     }
-    const url = URL.createObjectURL(await res.blob());
-    const a   = document.createElement('a');
-    a.href     = url;
-    a.download = `${TEMPLATE}-zza.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // Browser download, or the native "save as" dialog in the desktop app.
+    await window.zzaSave(await res.blob(), `${TEMPLATE}-zza.zip`);
   } catch (e) {
-    renderErr.textContent = 'Netzwerkfehler: ' + e.message;
+    renderErr.textContent = 'Fehler: ' + e.message;
     renderErr.hidden = false;
   } finally {
     exportBtn.disabled = false;

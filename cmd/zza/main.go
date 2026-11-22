@@ -112,17 +112,22 @@ func mcpCmd() *cobra.Command {
 }
 
 func runGUI(override string) error {
-	handler, stop, err := buildHandler(override)
+	// The window's web view ignores downloads; files go through the native
+	// save dialog instead (see desktop.Saver).
+	saver := desktop.NewSaver()
+	handler, stop, err := buildHandler(override,
+		server.EditorRoute{Pattern: desktop.SavePattern, Handler: saver})
 	if err != nil {
 		return err
 	}
 	defer stop()
-	return desktop.RunGUI("Zugzielanzeiger", handler)
+	handler.SetNativeSave(true)
+	return desktop.RunGUI("Zugzielanzeiger", handler, saver)
 }
 
 // buildHandler wires the HTTP server with editor handlers attached. The
 // returned stop function ends the file watcher.
-func buildHandler(templatesOverride string) (*server.Server, func(), error) {
+func buildHandler(templatesOverride string, extra ...server.EditorRoute) (*server.Server, func(), error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return nil, nil, fmt.Errorf("locating executable: %w", err)
@@ -161,9 +166,11 @@ func buildHandler(templatesOverride string) (*server.Server, func(), error) {
 		h.Feed = w
 	}
 	preview := devpreview.New(tdir)
-	srv.RegisterEditor(h,
-		server.EditorRoute{Pattern: devpreview.Pattern, Handler: preview},
-		server.EditorRoute{Pattern: devpreview.ExportPattern, Handler: preview.ExportHandler()})
+	routes := append([]server.EditorRoute{
+		{Pattern: devpreview.Pattern, Handler: preview},
+		{Pattern: devpreview.ExportPattern, Handler: preview.ExportHandler()},
+	}, extra...)
+	srv.RegisterEditor(h, routes...)
 	return srv, stop, nil
 }
 

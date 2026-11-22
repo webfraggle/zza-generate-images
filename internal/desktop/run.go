@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -17,12 +18,18 @@ import (
 // cannot start (no WebView2 on Windows 10, exotic Linux, headless CI),
 // it falls back to opening the system default browser pointed at a localhost
 // HTTP server that serves the same handler. Blocks until the window closes
-// or the server stops.
-func RunGUI(title string, handler http.Handler) error {
+// or the server stops. saver (may be nil) gets the window so it can show the
+// native save dialog.
+func RunGUI(title string, handler http.Handler, saver *Saver) error {
 	err := wails.Run(&options.App{
 		Title:  title,
 		Width:  1400,
 		Height: 900,
+		OnStartup: func(ctx context.Context) {
+			if saver != nil {
+				saver.attach(ctx)
+			}
+		},
 		AssetServer: &assetserver.Options{
 			Handler: handler,
 		},

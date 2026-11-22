@@ -117,6 +117,8 @@
     </section>
   </main>
 
+  {{if .NativeSave}}<script>window.ZZA_NATIVE_SAVE = true;</script>{{end}}
+  <script src="/static/save.js"></script>
   <script>
   (() => {
     const templateName = "{{.Name}}";
@@ -348,15 +350,24 @@
       img.src = url;
     }
 
+    // Browser download, or the native "save as" dialog in the desktop app.
     function download(blob, filename) {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return window.zzaSave(blob, filename).catch((e) => showError(e.message));
+    }
+
+    // The source ZIP is a plain link; the desktop app's window ignores such
+    // downloads, so there it is fetched and saved like the other files.
+    if (window.ZZA_NATIVE_SAVE) {
+      $("download-src-btn").addEventListener("click", async (ev) => {
+        ev.preventDefault();
+        try {
+          const res = await fetch("/" + templateName + ".zip");
+          if (!res.ok) { showError((await res.text()).trim()); return; }
+          await download(await res.blob(), templateName + ".zip");
+        } catch (e) {
+          showError("Netzwerkfehler: " + e.message);
+        }
+      });
     }
 
     pngBtn.addEventListener("click", () => { if (pngBlob) download(pngBlob, templateName + ".png"); });
@@ -425,7 +436,7 @@
       try {
         const res = await fetch("/edit/" + templateName + "/zza-export");
         if (!res.ok) { showError((await res.text()).trim()); return; }
-        download(await res.blob(), templateName + "-zza.zip");
+        await download(await res.blob(), templateName + "-zza.zip");
       } catch (e) {
         showError("Netzwerkfehler: " + e.message);
       } finally {

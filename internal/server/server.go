@@ -85,6 +85,7 @@ type Server struct {
 	previewGIFs    map[string]previewEntry // at most one entry per existing template
 	htmlTmpl       *template.Template
 	editorEnabled  bool
+	nativeSave     bool // downloads go to the desktop app's save dialog
 }
 
 // New creates and initialises a Server from cfg.
@@ -183,6 +184,12 @@ func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
 // Call once during startup before ServeHTTP — not concurrency-safe.
 func (s *Server) SetEditorEnabled(v bool) { s.editorEnabled = v }
 
+// SetNativeSave makes the pages hand downloads to the desktop app's "save as"
+// route instead of the browser (the Wails web view ignores downloads). The
+// desktop GUI sets true and registers that route as an EditorRoute.
+// Call once during startup before ServeHTTP — not concurrency-safe.
+func (s *Server) SetNativeSave(v bool) { s.nativeSave = v }
+
 // EditorRoute is an additional route of the editor mux (full ServeMux pattern,
 // e.g. "POST /edit/{template}/zza-render"). It lets the desktop build add
 // routes without the server package importing their packages.
@@ -231,6 +238,7 @@ func (s *Server) InvalidateTemplateCache(name string) {
 type editorPageData struct {
 	TemplateName string
 	Animated     bool
+	NativeSave   bool
 }
 
 // isAnimated reports whether the template is animated (splitflap or frame
@@ -252,7 +260,7 @@ func (s *Server) handleEditorPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.htmlTmpl.ExecuteTemplate(w, "edit-editor.html", editorPageData{TemplateName: name, Animated: s.isAnimated(name)}); err != nil {
+	if err := s.htmlTmpl.ExecuteTemplate(w, "edit-editor.html", editorPageData{TemplateName: name, Animated: s.isAnimated(name), NativeSave: s.nativeSave}); err != nil {
 		log.Printf("editor page: execute template: %v", err)
 	}
 }
@@ -325,6 +333,7 @@ type detailData struct {
 	DefaultJSON   string
 	HasDefault    bool
 	EditorEnabled bool
+	NativeSave    bool        // downloads go to the desktop app's save dialog
 	Animated      bool        // template has splitflap layers (GIF output is animated)
 	Form          []formGroup // input fields the template actually uses; nil if unavailable
 }
@@ -368,6 +377,7 @@ func (s *Server) loadDetailData(templateName string) (detailData, error) {
 		DefaultJSON:   string(jsonBytes),
 		HasDefault:    len(jsonBytes) > 0,
 		EditorEnabled: s.editorEnabled,
+		NativeSave:    s.nativeSave,
 		Animated:      tmpl.IsAnimated(),
 	}
 	if len(jsonBytes) == 0 {
