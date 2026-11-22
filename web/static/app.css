@@ -1462,7 +1462,8 @@ body.editor-page {
 .external-change[hidden] { display: none; }
 .external-change span { flex: 1; }
 
-#conflict-dialog {
+#conflict-dialog,
+#delete-dialog {
   max-width: 420px;
   padding: 20px 24px;
   border: 1px solid var(--border-strong);
@@ -1472,8 +1473,10 @@ body.editor-page {
   font-size: .9rem;
   line-height: 1.5;
 }
-#conflict-dialog::backdrop { background: rgba(0, 0, 0, .45); }
-#conflict-dialog .dialog-actions {
+#conflict-dialog::backdrop,
+#delete-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+#conflict-dialog .dialog-actions,
+#delete-dialog .dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
