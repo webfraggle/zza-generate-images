@@ -105,6 +105,15 @@
   </div>
 </dialog>
 
+<dialog id="delete-dialog">
+  <p id="delete-text"></p>
+  <p id="delete-error" class="error-text" hidden></p>
+  <div class="dialog-actions">
+    <button id="delete-confirm" class="btn btn-sm btn-danger" type="button">Löschen</button>
+    <button id="delete-cancel" class="btn btn-sm btn-level2" type="button">Abbrechen</button>
+  </div>
+</dialog>
+
 {{if .NativeSave}}<script>window.ZZA_NATIVE_SAVE = true;</script>{{end}}
 <script src="/static/save.js"></script>
 <script type="module">
@@ -472,16 +481,38 @@ function showUploadStatus(msg, isError) {
 function hideUploadStatus() { uploadStatus.hidden = true; }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
-async function deleteFile(name) {
-  if (!confirm(`"${name}" wirklich löschen?`)) return;
-  const res = await fetch(`/edit/${TEMPLATE}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
-  if (res.ok) {
-    if (currentFile === name) openFile('template.yaml');
-    await loadFiles();
-  } else {
-    alert('Fehler beim Löschen');
-  }
+// A page dialog, not confirm()/alert(): the app window's web view (WKWebView)
+// shows neither, confirm() just returns false there.
+const deleteDialog = document.getElementById('delete-dialog');
+const deleteError  = document.getElementById('delete-error');
+let deleteName = null;
+
+function deleteFile(name) {
+  deleteName = name;
+  document.getElementById('delete-text').textContent = `"${name}" wirklich löschen?`;
+  deleteError.hidden = true;
+  deleteDialog.showModal();
 }
+
+document.getElementById('delete-cancel').addEventListener('click', () => deleteDialog.close());
+document.getElementById('delete-confirm').addEventListener('click', async () => {
+  const name = deleteName;
+  let msg = '';
+  try {
+    const res = await fetch(`/edit/${TEMPLATE}/file/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (!res.ok) msg = (await res.text()).trim() || 'Fehler beim Löschen';
+  } catch (e) {
+    msg = 'Fehler beim Löschen';
+  }
+  if (msg) {
+    deleteError.textContent = msg;
+    deleteError.hidden = false;
+    return;
+  }
+  deleteDialog.close();
+  if (currentFile === name) openFile('template.yaml');
+  await loadFiles();
+});
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 tabYaml.addEventListener('click',  () => switchTab('yaml'));
