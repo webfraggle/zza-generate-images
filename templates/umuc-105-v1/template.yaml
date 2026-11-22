@@ -2,7 +2,7 @@ meta:
   name: "U-Muc 1.05\""
   description: "U-Bahn München, 240×240px, 1.05 Zoll, Bahnhofsuhr mit laufendem Sekundenzeiger"
   author: "christoph"
-  version: "2.0"
+  version: "2.3"
   canvas:
     width: 240
     height: 240
@@ -22,10 +22,17 @@ fonts:
 # Bildhälfte (links Uhr + Gleis, rechts Abfahrtsliste); zwei copy-Layer am
 # Ende setzen sie vertauscht in die untere Hälfte. Alles vor den copy-Layern
 # — auch die Uhrzeiger — erscheint deshalb zweimal.
-# Schriftgrößen = Legacy-Größe × 4/3; Positionen = Oberkante der Schrift.
+# Schriftgrößen: v2.1 Zeilen 13 und Gleis 18 (je +1 gegenüber Legacy × 4/3),
+# Kopfzeile bleibt 10 (sonst stößt der Hinweis an „Min.");
+# Positionen = Oberkante der Schrift.
+# v2.2: Alle Texte werden wie im PHP doppelt an derselben Stelle gezeichnet,
+# damit die Kantenglättung dichter wird und die Schrift nicht verwäscht.
+# Zieltexte sitzen 1 px höher als Linien-Text (y 35 / 61 / 87).
+# v2.3: Zieltexte mit scale_x 0.88 gestaucht, damit lange Ziele nicht in
+# zweistellige Minuten laufen.
 # Linien-Badges: file ist aus Sicherheitsgründen nicht interpolierbar, daher
 # je Zeile eine if/elif-Kette über U1–U8; jede andere Linie (auch leer)
-# landet im else-Zweig als Text.
+# landet im else-Block als Text.
 # Spalte „Min.": wie im Original relativ zu Zug 1, der fest mit 5 Minuten
 # angezeigt wird; mod(1440) hält den Wert über Mitternacht positiv.
 # Leere oder ungültige Zeiten ergeben eine leere Zelle.
@@ -39,8 +46,6 @@ layers:
 
   # Uhr: Zifferblatt-Mitte (39,56). Zeiger-PNGs 70×70, Drehpunkt = Bildmitte,
   # bei 0° nach oben; rotate dreht im Uhrzeigersinn, x/y = Drehpunkt.
-  # now läuft im GIF mit (Frame i = Start + i s, 60 Frames à 1 s) und zeigt
-  # auf dem Gerät die Geräte-Uhr; kein Versatz über anim.frame nötig.
   - type: image
     file: clock-hour.png
     x: 39
@@ -59,7 +64,14 @@ layers:
     y: 56
     rotate: "{{now.second | mul(6)}}"
 
-  # Kopfzeile der Abfahrtsliste
+  # Kopfzeile der Abfahrtsliste (doppelt)
+  - type: text
+    value: "{{zug1.hinweis}}"
+    x: 142
+    y: 19
+    font: regular
+    size: 10
+    color: "#ffffff"
   - type: text
     value: "{{zug1.hinweis}}"
     x: 142
@@ -75,18 +87,33 @@ layers:
     font: regular
     size: 10
     color: "#ffffff"
+  - type: text
+    value: "Min."
+    x: 222
+    y: 19
+    font: regular
+    size: 10
+    color: "#ffffff"
 
-  # Gleis unter der Uhr
+  # Gleis unter der Uhr (doppelt)
   - type: text
     value: "Gleis {{gleis}}"
     x: 38
-    y: 96
+    y: 95
     font: bold
-    size: 17
+    size: 18
+    color: "#ffffff"
+    align: center
+  - type: text
+    value: "Gleis {{gleis}}"
+    x: 38
+    y: 95
+    font: bold
+    size: 18
     color: "#ffffff"
     align: center
 
-  # --- Zug 1 (Zeile y 37) ---
+  # --- Zug 1 (Zeile y 36) ---
   - type: image
     if: "equals(zug1.nr, 'U1')"
     file: U1.png
@@ -127,31 +154,56 @@ layers:
     file: U8.png
     x: 120
     y: 36
+  - else: true
+    layers:
+      - type: text
+        value: "{{zug1.nr}}"
+        x: 121
+        y: 36
+        font: regular
+        size: 13
+        color: "#ffffff"
+      - type: text
+        value: "{{zug1.nr}}"
+        x: 121
+        y: 36
+        font: regular
+        size: 13
+        color: "#ffffff"
   - type: text
-    else: true
-    value: "{{zug1.nr}}"
-    x: 121
-    y: 37
+    value: "{{zug1.vonnach}}"
+    x: 143
+    y: 35
     font: regular
-    size: 12
+    size: 13
+    scale_x: 0.88
     color: "#ffffff"
   - type: text
     value: "{{zug1.vonnach}}"
     x: 143
-    y: 37
+    y: 35
     font: regular
-    size: 12
+    size: 13
+    scale_x: 0.88
     color: "#ffffff"
   - type: text
     value: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"
     x: 238
-    y: 36
+    y: 35
     font: regular
-    size: 12
+    size: 13
+    color: "#ffffff"
+    align: right
+  - type: text
+    value: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"
+    x: 238
+    y: 35
+    font: regular
+    size: 13
     color: "#ffffff"
     align: right
 
-  # --- Zug 2 (Zeile y 63) ---
+  # --- Zug 2 (Zeile y 62) ---
   - type: image
     if: "equals(zug2.nr, 'U1')"
     file: U1.png
@@ -192,31 +244,56 @@ layers:
     file: U8.png
     x: 120
     y: 62
+  - else: true
+    layers:
+      - type: text
+        value: "{{zug2.nr}}"
+        x: 121
+        y: 62
+        font: regular
+        size: 13
+        color: "#ffffff"
+      - type: text
+        value: "{{zug2.nr}}"
+        x: 121
+        y: 62
+        font: regular
+        size: 13
+        color: "#ffffff"
   - type: text
-    else: true
-    value: "{{zug2.nr}}"
-    x: 121
-    y: 63
+    value: "{{zug2.vonnach}}"
+    x: 143
+    y: 61
     font: regular
-    size: 12
+    size: 13
+    scale_x: 0.88
     color: "#ffffff"
   - type: text
     value: "{{zug2.vonnach}}"
     x: 143
-    y: 63
+    y: 61
     font: regular
-    size: 12
+    size: 13
+    scale_x: 0.88
     color: "#ffffff"
   - type: text
     value: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"
     x: 238
-    y: 62
+    y: 61
     font: regular
-    size: 12
+    size: 13
+    color: "#ffffff"
+    align: right
+  - type: text
+    value: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"
+    x: 238
+    y: 61
+    font: regular
+    size: 13
     color: "#ffffff"
     align: right
 
-  # --- Zug 3 (Zeile y 89) ---
+  # --- Zug 3 (Zeile y 88) ---
   - type: image
     if: "equals(zug3.nr, 'U1')"
     file: U1.png
@@ -257,27 +334,52 @@ layers:
     file: U8.png
     x: 120
     y: 88
+  - else: true
+    layers:
+      - type: text
+        value: "{{zug3.nr}}"
+        x: 121
+        y: 88
+        font: regular
+        size: 13
+        color: "#ffffff"
+      - type: text
+        value: "{{zug3.nr}}"
+        x: 121
+        y: 88
+        font: regular
+        size: 13
+        color: "#ffffff"
   - type: text
-    else: true
-    value: "{{zug3.nr}}"
-    x: 121
-    y: 89
+    value: "{{zug3.vonnach}}"
+    x: 143
+    y: 87
     font: regular
-    size: 12
+    size: 13
+    scale_x: 0.88
     color: "#ffffff"
   - type: text
     value: "{{zug3.vonnach}}"
     x: 143
-    y: 89
+    y: 87
     font: regular
-    size: 12
+    size: 13
+    scale_x: 0.88
     color: "#ffffff"
   - type: text
     value: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"
     x: 238
-    y: 88
+    y: 87
     font: regular
-    size: 12
+    size: 13
+    color: "#ffffff"
+    align: right
+  - type: text
+    value: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(5)}}"
+    x: 238
+    y: 87
+    font: regular
+    size: 13
     color: "#ffffff"
     align: right
 

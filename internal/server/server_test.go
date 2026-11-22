@@ -165,6 +165,23 @@ func TestServer_Detail_EditorEnabled_ShowsEditButton(t *testing.T) {
 	}
 }
 
+// The engine choice and the live update need the desktop's /edit/ routes
+// (zza-render, events): only the desktop build offers them on the detail page.
+func TestServer_Detail_EngineChoiceAndLiveUpdateOnlyOnDesktop(t *testing.T) {
+	for _, desktop := range []bool{false, true} {
+		srv := newTestServer(t)
+		srv.SetEditorEnabled(desktop)
+		rr := httptest.NewRecorder()
+		srv.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/sbb-105-v1", nil))
+		body := rr.Body.String()
+		for _, want := range []string{`<select id="preview-engine"`, `"/events"`} {
+			if got := strings.Contains(body, want); got != desktop {
+				t.Errorf("desktop=%v: page contains %s = %v", desktop, want, got)
+			}
+		}
+	}
+}
+
 func TestServer_Detail_NotFound(t *testing.T) {
 	srv := newTestServer(t)
 
