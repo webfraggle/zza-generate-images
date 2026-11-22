@@ -16,7 +16,8 @@ import (
 	"time"
 )
 
-// Cache is a file-based image cache (PNG and GIF). Cache keys are SHA-256 hashes of
+// Cache is a file-based cache: rendered images (PNG and GIF) and, in a second
+// instance with its own folder, ZZA packages. Cache keys are SHA-256 hashes of
 // (template name + request body). A background goroutine evicts stale
 // and oversized entries periodically.
 type Cache struct {
@@ -80,8 +81,27 @@ func (c *Cache) SetExt(key, ext string, data []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	path := c.filePath(key, ext)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	// Write to a temporary file and rename it into place: a full disk or a
+	// kill mid-write must not leave a truncated file that later reads as a hit.
+	tmp, err := os.CreateTemp(c.dir, ".tmp-*")
+	if err != nil {
 		return fmt.Errorf("cache: writing %q: %w", path, err)
+	}
+	tmpName := tmp.Name()
+	_, werr := tmp.Write(data)
+	cerr := tmp.Close()
+	if werr == nil {
+		werr = cerr
+	}
+	if werr == nil {
+		werr = os.Chmod(tmpName, 0o644)
+	}
+	if werr == nil {
+		werr = os.Rename(tmpName, path)
+	}
+	if werr != nil {
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("cache: writing %q: %w", path, werr)
 	}
 	return nil
 }

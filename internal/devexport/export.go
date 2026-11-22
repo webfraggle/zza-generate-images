@@ -22,17 +22,22 @@ type Package struct {
 }
 
 // Export checks the template for device compatibility and builds its package.
-// An incompatible template yields *Incompatible listing every reason.
+// An incompatible template yields *Incompatible listing every reason. A file
+// that cannot be read (permissions, I/O) is a plain error, not a verdict on
+// the template: callers must not treat it as "incompatible".
 func Export(templatesDir, name string) (*Package, error) {
 	tmpl, err := renderer.LoadTemplate(templatesDir, name)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) || isReadError(err) {
 			return nil, err
 		}
 		return nil, &Incompatible{Reasons: []string{"Template ungültig: " + err.Error()}}
 	}
 	doc, err := templateJSON(filepath.Join(tmpl.Dir, "template.yaml"))
 	if err != nil {
+		if isReadError(err) {
+			return nil, err
+		}
 		return nil, &Incompatible{Reasons: []string{"Template ungültig: " + err.Error()}}
 	}
 	a := newAnalysis(tmpl)
@@ -157,4 +162,11 @@ func (a *analysis) build(doc map[string]any, files map[string][]byte) {
 		return
 	}
 	files["t.json"] = tj
+}
+
+// isReadError reports whether err comes from the file system (the file could
+// not be opened or read) rather than from the template's content.
+func isReadError(err error) bool {
+	var pe *fs.PathError
+	return errors.As(err, &pe)
 }

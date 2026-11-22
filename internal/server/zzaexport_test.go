@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -312,10 +313,155 @@ func TestDetailPage_ZZAButton(t *testing.T) {
 		t.Errorf("compatible template: export button missing or disabled")
 	}
 	bad := get(srv, "/klein").Body.String()
-	if !strings.Contains(bad, `id="zza-export-btn"`) || !strings.Contains(bad, "disabled") {
+	if !strings.Contains(bad, `id="zza-export-btn" class="tbtn" disabled`) {
 		t.Errorf("incompatible template: button should be shown disabled")
+	}
+	if strings.Contains(bad, `"/zza.zip"`) {
+		t.Errorf("incompatible template: page still wires the export request")
 	}
 	if !strings.Contains(bad, "240 × 240") {
 		t.Errorf("incompatible template: reason not shown")
+	}
+}
+
+// A cache file that is damaged or belongs to another template state is not
+// served: the package is exported again and the file replaced.
+func TestZZAExport_DamagedCacheFileIsNotServed(t *testing.T) {
+	srv, _ := zzaTestServer(t)
+	good := get(srv, "/sbb-105-v1/zza.zip")
+	key := srv.zzaCache.Key("sbb-105-v1", nil)
+	for _, junk := range [][]byte{
+		nil,
+		[]byte("short"),
+		bytes.Repeat([]byte("0"), zzaStampLen), // stamp only, no package
+		append(bytes.Repeat([]byte("0"), zzaStampLen), 'x'), // foreign stamp
+	} {
+		if err := srv.zzaCache.SetExt(key, zzaCacheExt, junk); err != nil {
+			t.Fatal(err)
+		}
+		rr := get(srv, "/sbb-105-v1/zza.zip")
+		if rr.Code != http.StatusOK || rr.Header().Get("X-Cache") != "MISS" || !bytes.Equal(rr.Body.Bytes(), good.Body.Bytes()) {
+			t.Fatalf("junk %q: %d, X-Cache %q, same bytes %v", junk, rr.Code, rr.Header().Get("X-Cache"),
+				bytes.Equal(rr.Body.Bytes(), good.Body.Bytes()))
+		}
+	}
+}
+
+func TestCacheSetExt_LeavesNoTemporaryFiles(t *testing.T) {
+	srv, _ := zzaTestServer(t)
+	for i := 0; i < 3; i++ {
+		if err := srv.zzaCache.SetExt(srv.zzaCache.Key("a", nil), "bin", []byte("data")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := os.ReadDir(srv.zzaCache.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || strings.HasPrefix(entries[0].Name(), ".tmp-") {
+		t.Errorf("cache dir holds %d entries (%v)", len(entries), entries)
+	}
+	if got, ok := srv.zzaCache.GetExt(srv.zzaCache.Key("a", nil), "bin"); !ok || string(got) != "data" {
+		t.Errorf("read back %q, %v", got, ok)
+	}
+}
+
+// Many requests for the same template at once: all get the same package.
+func TestZZAExport_ParallelRequests(t *testing.T) {
+	srv, _ := zzaTestServer(t)
+	const n = 12
+	bodies := make([][]byte, n)
+	codes := make([]int, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			rr := get(srv, "/sbb-105-v1/zza.zip")
+			codes[i], bodies[i] = rr.Code, rr.Body.Bytes()
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < n; i++ {
+		if codes[i] != http.StatusOK || !bytes.Equal(bodies[i], bodies[0]) {
+			t.Fatalf("request %d: code %d, same bytes %v", i, codes[i], bytes.Equal(bodies[i], bodies[0]))
+		}
+	}
+	if c := srv.zzaCache.Stats().FileCount; c != 1 {
+		t.Errorf("zza cache holds %d files", c)
+	}
+}
+
+// When no slot frees up and nothing is known yet, the page offers the button
+// instead of blocking or calling the template incompatible.
+func TestDetailPage_ZZAButtonWhenBusy(t *testing.T) {
+	srv, _ := zzaTestServer(t)
+	srv.zzaWaitTimeout = 20 * time.Millisecond
+	for i := 0; i < cap(srv.zzaSem); i++ {
+		srv.zzaSem <- struct{}{}
+	}
+	for _, name := range []string{"/sbb-105-v1", "/klein"} {
+		body := get(srv, name).Body.String()
+		if !strings.Contains(body, `id="zza-export-btn" class="tbtn" title`) {
+			t.Errorf("%s: button should be offered while the outcome is unknown", name)
+		}
+	}
+}
+
+// The detail page decides from the remembered result: no package read, no slot.
+func TestDetailPage_ZZAButtonFromRememberedResult(t *testing.T) {
+	srv, _ := zzaTestServer(t)
+	get(srv, "/sbb-105-v1/zza.zip")
+	get(srv, "/klein/zza.zip")
+	if err := srv.zzaCache.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	srv.zzaWaitTimeout = 20 * time.Millisecond
+	for i := 0; i < cap(srv.zzaSem); i++ {
+		srv.zzaSem <- struct{}{}
+	}
+	if body := get(srv, "/sbb-105-v1").Body.String(); !strings.Contains(body, `id="zza-export-btn" class="tbtn" title`) {
+		t.Error("compatible template: button missing")
+	}
+	if body := get(srv, "/klein").Body.String(); !strings.Contains(body, `id="zza-export-btn" class="tbtn" disabled`) {
+		t.Error("incompatible template: button should be disabled from the remembered result")
+	}
+}
+
+func TestPublicReasonsCarryNoServerPaths(t *testing.T) {
+	srv, dir := zzaTestServer(t)
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := srv.publicReasons([]string{"Bild \"a.png\" nicht lesbar: open " + filepath.Join(abs, "klein", "a.png") + ": permission denied"})
+	if strings.Contains(got[0], abs) || !strings.Contains(got[0], filepath.Join("klein", "a.png")) {
+		t.Errorf("reason = %q", got[0])
+	}
+}
+
+// A template that cannot be read is an error (500), not "incompatible", and
+// is not remembered: it works again once the file is readable.
+func TestZZAExport_UnreadableTemplateIsNotCalledIncompatible(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	srv, dir := zzaTestServer(t)
+	p := filepath.Join(dir, "sbb-105-v1", "template.yaml")
+	if err := os.Chmod(p, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	rr := get(srv, "/sbb-105-v1/zza.zip")
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("unreadable: got %d: %s", rr.Code, rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), dir) {
+		t.Errorf("error body leaks the path: %q", rr.Body.String())
+	}
+	if err := os.Chmod(p, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if rr := get(srv, "/sbb-105-v1/zza.zip"); rr.Code != http.StatusOK {
+		t.Fatalf("readable again: got %d: %s", rr.Code, rr.Body.String())
 	}
 }

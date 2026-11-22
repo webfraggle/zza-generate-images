@@ -38,14 +38,23 @@ const (
 	// by the ZIP, so it is not a plain .zip.
 	zzaCacheExt = "zzapkg"
 	zzaStampLen = 64
+
+	// zzaCompatWait bounds how long a detail page waits to learn whether its
+	// template is exportable when that is not known yet.
+	zzaCompatWait = 2 * time.Second
+	// maxZZAKnown caps the remembered results (one per template).
+	maxZZAKnown = 1024
 )
 
 // errZZABusy means no export slot became free in time.
 var errZZABusy = errors.New("all export slots busy")
 
-// zzaResult is the remembered outcome for a template that cannot be exported.
+// zzaResult is the remembered outcome of the last export of a template:
+// exportable (ok), or not, with the reasons. It holds for the template state
+// that stamp stands for.
 type zzaResult struct {
 	stamp   string
+	ok      bool
 	reasons []string
 }
 
@@ -60,12 +69,14 @@ func zzaFingerprint(templatesDir, name string) ([]byte, error) {
 	}
 	var lines []string
 	for _, e := range entries {
-		if !e.Type().IsRegular() {
+		if e.IsDir() {
 			continue
 		}
-		info, err := e.Info()
-		if err != nil {
-			return nil, err
+		// os.Stat follows symlinks like the exporter does when it reads the
+		// file, so a changed link target changes the fingerprint too.
+		info, err := os.Stat(filepath.Join(dir, e.Name()))
+		if err != nil || info.IsDir() {
+			continue
 		}
 		lines = append(lines, fmt.Sprintf("%s\x00%d\x00%d", e.Name(), info.Size(), info.ModTime().UnixNano()))
 	}
@@ -88,10 +99,11 @@ func (s *Server) zzaPackage(ctx context.Context, name string) (data []byte, hit 
 	key := s.zzaCache.Key(name, nil)
 	stamp := s.zzaCache.Key(name, fp) // 64 hex characters
 	if z, ok := s.zzaCached(key, stamp); ok {
+		s.zzaRemember(name, zzaResult{stamp: stamp, ok: true})
 		return z, true, nil
 	}
-	if reasons, ok := s.zzaKnownIncompatible(name, stamp); ok {
-		return nil, false, &devexport.Incompatible{Reasons: reasons}
+	if r, known := s.zzaKnownResult(name, stamp); known && !r.ok {
+		return nil, false, &devexport.Incompatible{Reasons: r.reasons}
 	}
 
 	wait := time.NewTimer(s.zzaWaitTimeout)
@@ -113,7 +125,10 @@ func (s *Server) zzaPackage(ctx context.Context, name string) (data []byte, hit 
 	if err != nil {
 		var inc *devexport.Incompatible
 		if errors.As(err, &inc) {
-			s.zzaRememberIncompatible(name, stamp, inc.Reasons)
+			// The reasons go to the public: no server paths in them.
+			inc = &devexport.Incompatible{Reasons: s.publicReasons(inc.Reasons)}
+			s.zzaRemember(name, zzaResult{stamp: stamp, reasons: inc.Reasons})
+			return nil, false, inc
 		}
 		return nil, false, err
 	}
@@ -121,6 +136,7 @@ func (s *Server) zzaPackage(ctx context.Context, name string) (data []byte, hit 
 	if err != nil {
 		return nil, false, err
 	}
+	s.zzaRemember(name, zzaResult{stamp: stamp, ok: true})
 	if err := s.zzaCache.SetExt(key, zzaCacheExt, append([]byte(stamp), z...)); err != nil {
 		log.Printf("zza-export: cache %q: %v", name, err) // still serve it
 	}
@@ -137,28 +153,43 @@ func (s *Server) zzaCached(key, stamp string) ([]byte, bool) {
 	return b[zzaStampLen:], true
 }
 
-// zzaKnownIncompatible reports the remembered reasons if this exact template
-// state was already found incompatible, so repeated requests cost no export.
-func (s *Server) zzaKnownIncompatible(name, stamp string) ([]string, bool) {
+// zzaKnownResult returns the remembered outcome if it is for this exact
+// template state, so repeated requests for an incompatible template cost no
+// export and the detail page needs no package to decide about its button.
+func (s *Server) zzaKnownResult(name, stamp string) (zzaResult, bool) {
 	s.zzaMu.Lock()
 	defer s.zzaMu.Unlock()
-	r, ok := s.zzaIncompat[name]
+	r, ok := s.zzaKnown[name]
 	if !ok || r.stamp != stamp {
-		return nil, false
+		return zzaResult{}, false
 	}
-	return r.reasons, true
+	return r, true
 }
 
-// zzaRememberIncompatible keeps one entry per template. Only names of existing
-// template folders get here, so the map is bounded by the templates on disk
-// (the cap guards against folders that come and go).
-func (s *Server) zzaRememberIncompatible(name, stamp string, reasons []string) {
+// zzaRemember keeps one entry per template. Only names of existing template
+// folders get here, so the map is bounded by the templates on disk (the cap
+// guards against folders that come and go).
+func (s *Server) zzaRemember(name string, r zzaResult) {
 	s.zzaMu.Lock()
 	defer s.zzaMu.Unlock()
-	if len(s.zzaIncompat) >= 1024 {
-		s.zzaIncompat = map[string]zzaResult{}
+	if _, exists := s.zzaKnown[name]; !exists && len(s.zzaKnown) >= maxZZAKnown {
+		s.zzaKnown = map[string]zzaResult{}
 	}
-	s.zzaIncompat[name] = zzaResult{stamp: stamp, reasons: reasons}
+	s.zzaKnown[name] = r
+}
+
+// publicReasons removes the templates directory from the exporter's messages
+// (error texts of the standard library carry full paths).
+func (s *Server) publicReasons(reasons []string) []string {
+	out := make([]string, len(reasons))
+	abs, absErr := filepath.Abs(s.templatesDir)
+	for i, r := range reasons {
+		if absErr == nil {
+			r = strings.ReplaceAll(r, abs+string(filepath.Separator), "")
+		}
+		out[i] = strings.ReplaceAll(r, filepath.Clean(s.templatesDir)+string(filepath.Separator), "")
+	}
+	return out
 }
 
 // handleZZAExport answers GET /{template}/zza.zip. The caller has extracted
@@ -207,10 +238,17 @@ func (s *Server) handleZZAExport(w http.ResponseWriter, r *http.Request, name st
 }
 
 // zzaCompat reports for the detail page whether the template can be exported.
-// known is false when that could not be determined right now (slots busy);
-// the page then offers the button and a click reports the outcome.
-func (s *Server) zzaCompat(name string) (ok bool, reasons []string, known bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+// It answers from the remembered result when there is one; otherwise it
+// exports once (at most zzaCompatWait). known is false when that could not be
+// determined right now (slots busy, read error); the page then offers the
+// button and a click reports the outcome.
+func (s *Server) zzaCompat(ctx context.Context, name string) (ok bool, reasons []string, known bool) {
+	if fp, err := zzaFingerprint(s.templatesDir, name); err == nil {
+		if r, found := s.zzaKnownResult(name, s.zzaCache.Key(name, fp)); found {
+			return r.ok, r.reasons, true
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, zzaCompatWait)
 	defer cancel()
 	_, _, err := s.zzaPackage(ctx, name)
 	var inc *devexport.Incompatible

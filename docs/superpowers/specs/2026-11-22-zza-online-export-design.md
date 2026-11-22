@@ -46,9 +46,18 @@ Die Route ist öffentlich und ohne Anmeldung. Gemessen (M1, 2026-11-22): ein Exp
   beginnt mit einem Stempel (64 Hex-Zeichen) über Name/Größe/Änderungszeit aller Dateien des Templates,
   Paketformat und Server-Version; danach folgt das ZIP. Passt der Stempel nicht mehr (Template geändert, neuer
   Deploy), wird neu exportiert und die Datei überschrieben. Der Cache hält so nie mehr als ein Paket je Template
-  – auch in der Desktop-App, die keinen Aufräum-Takt hat. Eingaben des Aufrufers gehen nicht in den Namen ein.
-- **Nicht kompatible Templates:** das Ergebnis (Gründe) wird je Template im Speicher gemerkt, solange der
-  Stempel passt. Wiederholte Aufrufe kosten keinen Export und keinen Export-Platz.
+  – auch in der Desktop-App, die keinen Aufräum-Takt hat. Die Datei eines gelöschten oder umbenannten Templates
+  bleibt bis zum Höchstalter liegen (in der Desktop-App dauerhaft, höchstens 3 MB je Template). Eingaben des
+  Aufrufers gehen nicht in den Namen ein.
+- **Schreiben:** Cache-Dateien werden in eine temporäre Datei geschrieben und umbenannt; eine volle Platte oder
+  ein Abbruch hinterlässt keine abgeschnittene Datei. Eine Datei mit fremdem oder fehlendem Stempel wird nicht
+  ausgeliefert.
+- **Gemerktes Ergebnis:** je Template merkt sich der Server im Speicher, ob der letzte Export gelang, und sonst
+  die Gründe – solange der Stempel passt. Wiederholte Aufrufe eines nicht kompatiblen Templates kosten keinen
+  Export und keinen Export-Platz, und die Detailseite entscheidet über den Knopf, ohne das Paket zu lesen.
+- **Lesefehler:** Kann eine Template-Datei nicht gelesen werden (Rechte, I/O), ist das ein Fehler (500, nur im
+  Log) und kein „nicht kompatibel“; es wird nicht gemerkt. Die Gründe im 422 und im Tooltip enthalten keine
+  Pfade des Servers.
 - **Gleichzeitigkeit:** höchstens 2 Exporte zugleich, Wartezeit 10 s, danach 503.
 - Der Bild-Cache zählt und löscht nur noch Dateien direkt in `CACHE_DIR`, keine Unterordner.
 

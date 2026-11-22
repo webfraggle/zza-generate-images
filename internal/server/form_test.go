@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -177,7 +178,7 @@ func TestBuildForm_EmptyAndInvalid(t *testing.T) {
 
 func TestLoadDetailData_Faltblatt(t *testing.T) {
 	srv := newTestServer(t)
-	d, err := srv.loadDetailData("faltblatt-105-v1")
+	d, err := srv.loadDetailData(context.Background(), "faltblatt-105-v1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +201,7 @@ func TestLoadDetailData_Faltblatt(t *testing.T) {
 
 func TestLoadDetailData_NotFound(t *testing.T) {
 	srv := newTestServer(t)
-	if _, err := srv.loadDetailData("does-not-exist"); err == nil {
+	if _, err := srv.loadDetailData(context.Background(), "does-not-exist"); err == nil {
 		t.Error("expected error for unknown template")
 	}
 }

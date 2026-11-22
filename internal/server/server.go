@@ -88,7 +88,7 @@ type Server struct {
 	zzaSem         chan struct{} // limits concurrent exports
 	zzaWaitTimeout time.Duration
 	zzaMu          sync.Mutex
-	zzaIncompat    map[string]zzaResult // per template: last incompatible result
+	zzaKnown       map[string]zzaResult // per template: outcome of the last export
 	editorEnabled  bool
 	nativeSave     bool // downloads go to the desktop app's save dialog
 }
@@ -148,7 +148,7 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 		zzaCache:       zzaCache,
 		zzaSem:         make(chan struct{}, maxConcurrentZZAExports),
 		zzaWaitTimeout: defaultZZAWaitTimeout,
-		zzaIncompat:    map[string]zzaResult{},
+		zzaKnown:       map[string]zzaResult{},
 		gifSem:         make(chan struct{}, maxConcurrentGIFRenders),
 		gifWaitTimeout: defaultGIFWaitTimeout,
 		now:            time.Now,
@@ -378,7 +378,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d, err := s.loadDetailData(templateName)
+	d, err := s.loadDetailData(r.Context(), templateName)
 	if err != nil {
 		http.Error(w, "template not found", http.StatusNotFound)
 		return
@@ -392,7 +392,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request) {
 // loadDetailData builds the detail page view model. It fails only if the
 // template itself cannot be loaded; problems with default.json or the form
 // derivation are logged and leave the corresponding fields empty.
-func (s *Server) loadDetailData(templateName string) (detailData, error) {
+func (s *Server) loadDetailData(ctx context.Context, templateName string) (detailData, error) {
 	tmpl, err := renderer.LoadTemplate(s.templatesDir, templateName)
 	if err != nil {
 		return detailData{}, err
@@ -413,7 +413,7 @@ func (s *Server) loadDetailData(templateName string) (detailData, error) {
 		Animated:      tmpl.IsAnimated(),
 	}
 	// Offer the ZZA export unless the template is known to be incompatible.
-	if ok, reasons, known := s.zzaCompat(templateName); known && !ok {
+	if ok, reasons, known := s.zzaCompat(ctx, templateName); known && !ok {
 		d.ZZAReasons = reasons
 	} else {
 		d.ZZAExportable = true
