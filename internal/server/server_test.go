@@ -135,8 +135,11 @@ func TestServer_Detail(t *testing.T) {
 	if !strings.Contains(body, "json-input") {
 		t.Error("detail page should contain JSON textarea")
 	}
-	if strings.Contains(body, "zza-export") {
-		t.Error("server build should NOT show the ZZA export button (route is desktop-only)")
+	if !strings.Contains(body, `id="zza-export-btn"`) || !strings.Contains(body, `"/zza.zip"`) {
+		t.Error("server build should offer the ZZA export (GET /{template}/zza.zip)")
+	}
+	if strings.Contains(body, "/edit/") {
+		t.Error("server build must not use the desktop-only /edit/ routes")
 	}
 	if strings.Contains(body, "Bearbeiten") {
 		t.Error("server build should NOT show edit button")

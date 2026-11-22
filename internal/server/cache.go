@@ -133,6 +133,11 @@ func (c *Cache) cleanup() error {
 			return nil // skip unreadable entries
 		}
 		if d.IsDir() {
+			// The cache is flat. Subfolders belong to other caches with their
+			// own limits (the zza package cache) and are left alone.
+			if filepath.Clean(path) != absDir {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		// Guard against symlinks that escape the cache directory.
@@ -192,8 +197,15 @@ func (c *Cache) Stats() CacheStats {
 	defer c.mu.RUnlock()
 	var totalBytes int64
 	var count int
-	_ = filepath.WalkDir(c.dir, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	root := filepath.Clean(c.dir)
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path != root {
+				return filepath.SkipDir // other caches' subfolders are not counted
+			}
 			return nil
 		}
 		if info, infoErr := d.Info(); infoErr == nil {

@@ -69,7 +69,7 @@ curl -X POST 'http://localhost:18080/umuc-105-v1/render?format=gif' -H 'Content-
 - `POST …/render` bleibt auch mit `?format=gif` vom HTTPS-Redirect ausgenommen (Microcontroller ohne TLS).
 - Format des GIFs und Template-Syntax: `docs/yaml-template-spec.md` (`type: splitflap`, „Frame-Animation", „GIF-Ausgabe").
 
-## ZZA-Export und -Vorschau (Desktop)
+## ZZA-Export und -Vorschau
 
 Templates lassen sich für den Controller (ZZA) exportieren, der sie mit einem eigenen C++-Renderer (`device/zzarender/`) selbst zeichnet:
 
@@ -78,6 +78,8 @@ go run ./cmd/zza export -t faltblatt-105-v1 -o /tmp/faltblatt-zza.zip
 ```
 
 Der Export prüft die Kompatibilität (Canvas 240 × 240, Latin-1-Konstanten, konstante Regex-Muster, Paket ≤ 3 MB; siehe „ZZA-kompatibel“ in `docs/yaml-template-spec.md`). Im Editor schaltet **Server / ZZA** die Vorschau auf den Geräte-Renderer um. Das ZIP lädst du in der Web-UI der Firmware hoch.
+
+Dasselbe Paket gibt es auch online, ohne Desktop-App: auf der Detailseite eines Templates über **Für ZZA exportieren** oder direkt unter `GET /{template}/zza.zip` (z. B. `https://gen.yuv.de/umuc-105-v1/zza.zip`). Der Server liefert immer das Paket des aktuellen Exporters; auf dem Controller muss dafür die neueste Firmware laufen. Ein nicht kompatibles Template ergibt 422 mit den Gründen, der Knopf ist dann ausgegraut. Die Pakete werden im Ordner `zza/` des `CACHE_DIR` gecacht, mit eigener Grenze `ZZA_CACHE_MAX_SIZE_MB` (Standard 50); ein geändertes Template wird neu exportiert.
 
 Der C++-Kern wird per cgo in die Desktop-Builds eingebunden. Der Server-Build bleibt CGO-frei. Auf einem Mac mit defekten Command Line Tools (Fehler `'cstdint' file not found`) setzt `build.sh` für die macOS-Builds automatisch `CGO_CXXFLAGS`; für `go test`/`go build` von Hand siehe `device/README.md`.
 

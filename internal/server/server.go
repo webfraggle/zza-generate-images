@@ -84,6 +84,11 @@ type Server struct {
 	previewMu      sync.Mutex
 	previewGIFs    map[string]previewEntry // at most one entry per existing template
 	htmlTmpl       *template.Template
+	zzaCache       *Cache        // ZZA packages (GET /{template}/zza.zip)
+	zzaSem         chan struct{} // limits concurrent exports
+	zzaWaitTimeout time.Duration
+	zzaMu          sync.Mutex
+	zzaIncompat    map[string]zzaResult // per template: last incompatible result
 	editorEnabled  bool
 	nativeSave     bool // downloads go to the desktop app's save dialog
 }
@@ -95,6 +100,18 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 		cfg.CacheDir,
 		time.Duration(cfg.CacheMaxAgeHours)*time.Hour,
 		cfg.CacheMaxSizeMB,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("server: %w", err)
+	}
+	zzaMaxMB := cfg.ZZACacheMaxSizeMB
+	if zzaMaxMB <= 0 {
+		zzaMaxMB = defaultZZACacheMaxSizeMB
+	}
+	zzaCache, err := NewCache(
+		filepath.Join(cfg.CacheDir, zzaCacheSubdir),
+		time.Duration(cfg.CacheMaxAgeHours)*time.Hour,
+		zzaMaxMB,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("server: %w", err)
@@ -128,6 +145,10 @@ func New(cfg *config.Config, webFS fs.FS) (*Server, error) {
 		staticHandler:  http.StripPrefix("/static/", http.FileServerFS(staticFS)),
 		rend:           renderer.New(cfg.TemplatesDir),
 		cache:          cache,
+		zzaCache:       zzaCache,
+		zzaSem:         make(chan struct{}, maxConcurrentZZAExports),
+		zzaWaitTimeout: defaultZZAWaitTimeout,
+		zzaIncompat:    map[string]zzaResult{},
 		gifSem:         make(chan struct{}, maxConcurrentGIFRenders),
 		gifWaitTimeout: defaultGIFWaitTimeout,
 		now:            time.Now,
@@ -145,7 +166,7 @@ func isRenderRoute(r *http.Request) bool {
 }
 
 // ServeHTTP implements http.Handler.
-// /static/... and /{template}.zip are dispatched before the mux to avoid
+// /static/..., /{template}/zza.zip and /{template}.zip are dispatched before the mux to avoid
 // routing conflicts with wildcard patterns like "GET /{template}/preview".
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Redirect HTTP → HTTPS for all routes except /render (called by microcontrollers).
@@ -167,6 +188,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.editorHandler.ServeHTTP(w, r)
 		return
 	}
+	// /{template}/zza.zip before the source ZIP: both end in ".zip", and a
+	// template name cannot contain "/", so the two never collide.
+	// "/zza.zip" alone stays the source ZIP of a template named "zza".
+	if strings.HasSuffix(r.URL.Path, zzaExportSuffix) && r.URL.Path != zzaExportSuffix && r.Method == http.MethodGet {
+		name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), zzaExportSuffix)
+		s.handleZZAExport(w, r, name)
+		return
+	}
 	if strings.HasSuffix(r.URL.Path, ".zip") && r.Method == http.MethodGet {
 		name := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), ".zip")
 		s.handleTemplateZip(w, name)
@@ -177,6 +206,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // StartCleanup delegates to the cache's cleanup goroutine.
 func (s *Server) StartCleanup(ctx context.Context, interval time.Duration) {
+	s.zzaCache.StartCleanup(ctx, interval)
 	s.cache.StartCleanup(ctx, interval)
 }
 
@@ -334,6 +364,8 @@ type detailData struct {
 	HasDefault    bool
 	EditorEnabled bool
 	NativeSave    bool        // downloads go to the desktop app's save dialog
+	ZZAExportable bool        // "Für ZZA exportieren" is offered (compatible, or not known right now)
+	ZZAReasons    []string    // why the template is not ZZA-compatible
 	Animated      bool        // template has splitflap layers (GIF output is animated)
 	Form          []formGroup // input fields the template actually uses; nil if unavailable
 }
@@ -379,6 +411,12 @@ func (s *Server) loadDetailData(templateName string) (detailData, error) {
 		EditorEnabled: s.editorEnabled,
 		NativeSave:    s.nativeSave,
 		Animated:      tmpl.IsAnimated(),
+	}
+	// Offer the ZZA export unless the template is known to be incompatible.
+	if ok, reasons, known := s.zzaCompat(templateName); known && !ok {
+		d.ZZAReasons = reasons
+	} else {
+		d.ZZAExportable = true
 	}
 	if len(jsonBytes) == 0 {
 		return d, nil

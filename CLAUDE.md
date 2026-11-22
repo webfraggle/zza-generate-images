@@ -13,7 +13,7 @@ Dual-Build aus einer Go-Codebase:
 
 Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/devicerender`, `internal/devpreview`, `internal/mcp`, `internal/watch`, fsnotify, oksvg und das MCP-SDK nicht importieren (Prüfung: `CGO_ENABLED=0 go build ./cmd/zza-server && go list -deps ./cmd/zza-server | grep -E 'fsnotify|modelcontextprotocol|oksvg|rasterx|internal/mcp|internal/watch|internal/devicerender|internal/devpreview'` muss leer sein). Desktop-Build bringt den Editor zurück, ohne Token-Flow — bindet auf `127.0.0.1`.
 
-**Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health` (`{"status":"ok","version":"vX.Y.Z"}`, wie modellbahn-api; `DEPLOY=1 ./build.sh` wartet darauf).
+**Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /{template}/zza.zip` (ZZA-Paket wie `zza export`, über `internal/devexport`; 422 mit „nicht ZZA-kompatibel: …“, 503 bei belegten Export-Plätzen; eigener Cache im Ordner `zza/` des `CACHE_DIR`), `GET /health` (`{"status":"ok","version":"vX.Y.Z"}`, wie modellbahn-api; `DEPLOY=1 ./build.sh` wartet darauf).
 
 **Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`), `GET /edit/{template}/zza-export` (ZZA-Paket `<template>-zza.zip` wie `zza export`, Knopf „Für ZZA exportieren“ im Editor und auf der Detailseite; Fehler wie zza-render), `GET /edit/{template}/events` (Long-Poll für externe Dateiänderungen, 25 s). Nur im GUI-Fenster: `POST /edit/_desktop/save-file?name=…` (nativer „Speichern unter“-Dialog über `desktop.Saver`, weil die Wails-WebView Downloads ignoriert; die Seiten nutzen dafür `web/static/save.js`, im Browser bleibt es ein normaler Download).
 
@@ -57,7 +57,7 @@ build.sh                 # Wails-Cross-Compile + Docker-Multi-Arch
 
 ## Konfiguration (Server-Build)
 
-Env-Vars (nur Server liest sie): `PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`. Desktop-Build hat keine Env-Vars, alles über CLI-Flags (`--templates-dir`, `--port`).
+Env-Vars (nur Server liest sie): `PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MAX_AGE_HOURS`, `CACHE_MAX_SIZE_MB`, `ZZA_CACHE_MAX_SIZE_MB` (Cache der ZZA-Pakete, Standard 50). Desktop-Build hat keine Env-Vars, alles über CLI-Flags (`--templates-dir`, `--port`).
 
 ## Versionierung & Build
 

@@ -54,8 +54,13 @@
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Template-Source herunterladen
         </a>
-        {{if .EditorEnabled}}
+        {{if .ZZAExportable}}
         <button type="button" id="zza-export-btn" class="tbtn" title="Lädt das Template als Paket für den Zugzielanzeiger herunter (ZIP, in der Weboberfläche des ZZA unter Templates einspielen)">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Für ZZA exportieren
+        </button>
+        {{else}}
+        <button type="button" id="zza-export-btn" class="tbtn" disabled title="Nicht ZZA-kompatibel:{{range .ZZAReasons}}&#10;{{.}}{{end}}">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Für ZZA exportieren
         </button>
@@ -426,15 +431,15 @@
       });
     }
 
-    {{if .EditorEnabled}}
-    // "Für ZZA exportieren" (desktop only): fetch the package so a 422 (not
-    // ZZA-compatible) shows its reasons under the preview instead of a text page.
+    {{if .ZZAExportable}}
+    // "Für ZZA exportieren": fetch the package so an error (422 not
+    // ZZA-compatible, 503 busy) shows under the preview instead of a text page.
     const exportBtn = $("zza-export-btn");
     exportBtn.addEventListener("click", async () => {
       exportBtn.disabled = true;
       showError("");
       try {
-        const res = await fetch("/edit/" + templateName + "/zza-export");
+        const res = await fetch("/" + templateName + "/zza.zip");
         if (!res.ok) { showError((await res.text()).trim()); return; }
         await download(await res.blob(), templateName + "-zza.zip");
       } catch (e) {

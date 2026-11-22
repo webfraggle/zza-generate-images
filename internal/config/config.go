@@ -13,6 +13,9 @@ type Config struct {
 	CacheDir         string
 	CacheMaxAgeHours int
 	CacheMaxSizeMB   int64
+	// ZZACacheMaxSizeMB limits the cache of ZZA packages (GET /{template}/zza.zip),
+	// a folder of its own inside CacheDir. 0 means the server's default (50).
+	ZZACacheMaxSizeMB int64
 }
 
 // Load reads configuration from environment variables and applies defaults.
@@ -22,13 +25,15 @@ type Config struct {
 //	CACHE_DIR            default "./cache"
 //	CACHE_MAX_AGE_HOURS  default 24
 //	CACHE_MAX_SIZE_MB    default 500
+//	ZZA_CACHE_MAX_SIZE_MB  default 50
 func Load() *Config {
 	return &Config{
-		Port:             envStr("PORT", "8080"),
-		TemplatesDir:     envStr("TEMPLATES_DIR", "./templates"),
-		CacheDir:         envStr("CACHE_DIR", "./cache"),
-		CacheMaxAgeHours: envInt("CACHE_MAX_AGE_HOURS", 24),
-		CacheMaxSizeMB:   int64(envInt("CACHE_MAX_SIZE_MB", 500)),
+		Port:              envStr("PORT", "8080"),
+		TemplatesDir:      envStr("TEMPLATES_DIR", "./templates"),
+		CacheDir:          envStr("CACHE_DIR", "./cache"),
+		CacheMaxAgeHours:  envInt("CACHE_MAX_AGE_HOURS", 24),
+		CacheMaxSizeMB:    int64(envInt("CACHE_MAX_SIZE_MB", 500)),
+		ZZACacheMaxSizeMB: int64(envInt("ZZA_CACHE_MAX_SIZE_MB", 50)),
 	}
 }
 
