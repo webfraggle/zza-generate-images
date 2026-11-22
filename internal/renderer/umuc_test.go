@@ -51,9 +51,17 @@ func reddish(img *image.NRGBA, x, y int) bool {
 func umucMinuteTexts(t *testing.T, r *Renderer, tmpl *Template, data map[string]interface{}) []string {
 	t.Helper()
 	e := r.newEvaluator(tmpl, data)
+	// Since v2.2 the template draws every text twice at the same place (denser
+	// anti-aliasing); one entry per row.
 	var out []string
+	seen := map[int]bool{}
 	for _, l := range tmpl.Layers {
 		if l.Type == "text" && l.X.Resolve(nil) == 238 {
+			y := l.Y.Resolve(nil)
+			if seen[y] {
+				continue
+			}
+			seen[y] = true
 			out = append(out, e.Interpolate(l.Value.Resolve(e)))
 		}
 	}
