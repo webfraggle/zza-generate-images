@@ -105,6 +105,10 @@ go test ./...
   - `zza-windows-x64.zip` — Windows
 - Patch-Version in `VERSION` wird automatisch hochgezählt
 
+Nur die Desktop-ZIPs, ohne Docker-Image: `DESKTOP_ONLY=1 ./build.sh` (zählt die Version ebenfalls hoch).
+
+Ohne Schalter im Terminal gestartet, fragt `./build.sh` zuerst, was gebaut werden soll (Desktop + lokales Image, nur Desktop, mit Push, mit Deployment). Mit einem gesetzten Schalter (`DESKTOP_ONLY`, `DOCKER_PUSH`, `DEPLOY`, auch `=0`) oder ohne Terminal entfällt die Frage.
+
 Voraussetzungen für die Desktop-Builds:
 - [Wails CLI](https://wails.io/docs/gettingstarted/installation) (`go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.3`)
 - Xcode Command Line Tools (`xcode-select --install`)
@@ -131,6 +135,10 @@ DOCKER_PUSH=1 ./build.sh
 
 Pusht ein Multi-Arch-Image (`linux/arm64`+`linux/amd64`) mit Versions-Tag (aus `VERSION`) und `latest`.
 
+`DOCKER_PUSH=1` und `DEPLOY=1` lassen zuerst `go vet ./...` und `go test ./...` laufen (gut eine Minute). Schlägt etwas fehl, bricht das Skript ab, bevor `VERSION` hochgezählt oder irgendetwas gebaut wird. Ein einfaches `./build.sh` läuft ohne Tests.
+
+Vor dem Push prüft `scripts/scan-image.sh` das Image mit Trivy auf bekannte Sicherheitslücken (alpine-Pakete und Go-Binary). Das Skript listet alle bekannten Lücken auf und bricht nur ab, wenn es für eine Lücke der Stufe HIGH oder CRITICAL bereits einen Fix gibt; dann wird nichts gepusht und nicht deployt. Meist hilft ein neuer Lauf (das Image zieht bei jedem Build die aktuellen alpine-Pakete), sonst ein neueres Basis-Image oder Go-Modul. Trivy läuft als Container, es muss nichts installiert werden. `SKIP_SCAN=1 DOCKER_PUSH=1 ./build.sh` pusht ohne Scan.
+
 ## Deployment auf der VM (gen.yuv.de)
 
 Voraussetzung: Traefik läuft bereits (via modellbahn-api).
@@ -141,13 +149,16 @@ Voraussetzung: Traefik läuft bereits (via modellbahn-api).
 DEPLOY=1 ./build.sh
 ```
 
-baut wie `DOCKER_PUSH=1 ./build.sh` (Desktop-ZIPs + Multi-Arch-Image mit Versions-Tag und `latest`), führt danach auf der VM in `~/zza-generate-images` `docker compose pull && docker compose up -d` aus und wartet, bis `https://gen.yuv.de/health` die neue Version meldet (`{"status":"ok","version":"vX.Y.Z"}`). Schlägt ein Build-Schritt fehl, wird nicht deployt. SSH-Login und laufendes Docker werden vor dem Hochzählen von `VERSION` geprüft.
+baut wie `DOCKER_PUSH=1 ./build.sh` (Desktop-ZIPs + Multi-Arch-Image mit Versions-Tag und `latest`), überträgt danach `docker-compose.ionos.yml` als `~/zza-generate-images/docker-compose.yml` auf die VM (nur wenn sie sich geändert hat), führt dort `docker compose pull && docker compose up -d` aus, löscht die abgelösten Images (`docker image prune -f`) und wartet, bis `https://gen.yuv.de/health` die neue Version meldet (`{"status":"ok","version":"vX.Y.Z"}`). Schlägt ein Build-Schritt fehl, wird nicht deployt. SSH-Login, laufendes Docker und die Tests werden vor dem Hochzählen von `VERSION` geprüft.
+
+Hat sich die Compose-Datei geändert, zeigt das Skript die Unterschiede (Server → lokal), prüft die neue Datei auf der VM mit `docker compose config` und ersetzt die alte erst danach; die alte bleibt als `docker-compose.yml.bak` liegen. Ist die neue Datei ungültig oder klappt die Übertragung nicht, bricht der Deploy ab und auf der VM bleibt alles beim Alten. Andere Dateien überträgt das Skript nicht, insbesondere nie die `.env` und nie `templates/`.
 
 Die Anmeldung läuft über deinen SSH-Schlüssel, es wird kein Passwort hinterlegt. Ziel ist der Alias `modellbahn-vm` aus `~/.ssh/config` – derselbe wie bei modellbahn-api (Einrichtung dort im README, Abschnitt „Deployment per build.sh“). Anderer Alias: `DEPLOY_SSH=… DEPLOY=1 ./build.sh`.
 
 Manuell geht das Update weiterhin so:
 
 ```bash
+scp docker-compose.ionos.yml modellbahn-vm:zza-generate-images/docker-compose.yml
 ssh modellbahn-vm "cd ~/zza-generate-images && docker compose pull && docker compose up -d"
 ```
 

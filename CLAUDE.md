@@ -15,7 +15,7 @@ Server-Build ist CGO-frei, schlank, ohne Auth/DB/SMTP. Er darf `internal/devicer
 
 **Routen Server:** `GET /`, `GET /{template}`, `GET /{template}/preview`, `POST /{template}/render` (jeweils `?format=gif` für animiertes GIF, Standard PNG), `GET /{template}.zip`, `GET /health` (`{"status":"ok","version":"vX.Y.Z"}`, wie modellbahn-api; `DEPLOY=1 ./build.sh` wartet darauf).
 
-**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`), `GET /edit/{template}/zza-export` (ZZA-Paket `<template>-zza.zip` wie `zza export`, Knopf „Für ZZA exportieren“ im Editor und auf der Detailseite; Fehler wie zza-render), `GET /edit/{template}/events` (Long-Poll für externe Dateiänderungen, 25 s).
+**Routen Desktop (zusätzlich):** `GET /edit/{template}`, `GET/POST /edit/{template}/files|file/{name}|save|upload`, `DELETE /edit/{template}/file/{name}`, `POST /edit/{template}/zza-render[?format=gif]` (ZZA-Vorschau über `internal/devpreview`, Body = Zugdaten-JSON; 422 mit „nicht ZZA-kompatibel: …“; Registrierung über `server.EditorRoute`), `GET /edit/{template}/zza-export` (ZZA-Paket `<template>-zza.zip` wie `zza export`, Knopf „Für ZZA exportieren“ im Editor und auf der Detailseite; Fehler wie zza-render), `GET /edit/{template}/events` (Long-Poll für externe Dateiänderungen, 25 s). Nur im GUI-Fenster: `POST /edit/_desktop/save-file?name=…` (nativer „Speichern unter“-Dialog über `desktop.Saver`, weil die Wails-WebView Downloads ignoriert; die Seiten nutzen dafür `web/static/save.js`, im Browser bleibt es ein normaler Download).
 
 **Desktop-Subcommands:** `serve`, `render`, `export` (ZZA-Paket), `version`, `mcp` (MCP-Server über stdio für Claude Desktop / Claude Code, 19 Tools; stdout gehört nur dem Protokoll, Logs über `log` nach stderr; `write_file`/`create_template` lassen nur Latin-1 zu). Anleitung: `docs/user-guide-templates.md` → „KI-Assistent (MCP)"; Client-Config im Repo: `.mcp.json`.
 
@@ -74,7 +74,7 @@ Env-Vars (nur Server liest sie): `PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MA
 4. Feature-Branch, Subagent-driven implementation mit Spec- und Code-Quality-Review pro Task.
 5. Vor Merge: security-reviewer + code-reviewer auf den Branch-Diff.
 6. Merge → develop → push.
-7. Optional: `DOCKER_PUSH=1 ./build.sh` für Multi-Arch-Push, `DEPLOY=1 ./build.sh` zusätzlich mit Deployment auf der VM (SSH-Alias `modellbahn-vm`, `~/zza-generate-images`), `gh release create` für Desktop-ZIPs.
+7. Optional: `DOCKER_PUSH=1 ./build.sh` für Multi-Arch-Push (davor `go vet` + `go test`, dann CVE-Scan mit Trivy über `scripts/scan-image.sh`, `SKIP_SCAN=1` überspringt ihn), `DEPLOY=1 ./build.sh` zusätzlich mit Deployment auf der VM (SSH-Alias `modellbahn-vm`, `~/zza-generate-images`; überträgt `docker-compose.ionos.yml` als `docker-compose.yml`, wenn geändert, nie `.env` oder `templates/`), `gh release create` für Desktop-ZIPs.
 
 ## Deployment
 
