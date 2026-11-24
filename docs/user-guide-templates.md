@@ -935,7 +935,7 @@ Beschreibe in normalen Worten, was du willst. Die KI liest zuerst Spezifikation 
 - „Mach die Zielzeile größer und teste mit einem langen Zielnamen.“
 - „Lege die Schrift Roboto Bold in `test-105-v1` an und schreib ‚Gleis 6‘ damit ins weiße Feld.“
 
-Template-Namen müssen auf `-105-v1` enden; fehlt das, ergänzt oder erfragt die KI es.
+Template-Namen müssen auf `-105-v1` enden; fehlt das, ergänzt oder erfragt die KI es. Sie dürfen höchstens 24 Zeichen lang sein (17 vor `-105-v1`), sonst kann der Anzeiger das Template nicht installieren.
 
 Wichtig: Fotos gibst du **als lokalen Dateipfad** an, nicht als Chat-Anhang. Die KI kann die Bytes eines Anhangs nicht zuverlässig weitergeben; sie importiert die Datei über `import_image` direkt von der Platte. Den Pfad kopierst du im Finder mit Alt + Rechtsklick „… als Pfadname kopieren“, in Windows mit Umschalt + Rechtsklick „Als Pfad kopieren“.
 

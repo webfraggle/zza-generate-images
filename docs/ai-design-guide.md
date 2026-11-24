@@ -12,6 +12,9 @@ Regel widerspricht, folge dem Nutzer und sage ihm, welche Regel du dafür brichs
   **240×120 px**, das Template-Bild umfasst beide Seiten: Canvas **240×240**.
 - Jeder Template-Name endet auf **`-105-v1`**, z. B. `berlin-sbahn-105-v1`
   (Kleinbuchstaben, Ziffern, Bindestriche).
+- Der Name ist **höchstens 24 Zeichen** lang, also höchstens 17 Zeichen vor `-105-v1`.
+  Längere Namen kann der Anzeiger nicht installieren; `create_template` lehnt sie ab.
+  Kürze lange Namen: `london-tube-105-v1` statt `london-underground-105-v1`.
 - `create_template` legt Templates nur mit diesem Suffix an; `write_file` lehnt jedes
   `template.yaml` ab, dessen `meta.canvas` nicht 240×240 ist. Versuche keine andere
   Größe — sie wäre auf dem Gerät unbrauchbar.

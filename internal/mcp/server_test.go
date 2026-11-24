@@ -37,7 +37,7 @@ func TestNewServer_Instructions(t *testing.T) {
 		"list_fonts -> add_font", "text layers need a font", "the starter has none",
 		"svg_to_png", "import_image", "perspective_correct", "sample_colors", "crop_image",
 		"color_to_alpha", "quantize_colors", "must exist before write_file",
-		"Latin-1", "1.5 MiB", "15 M operations", `"device:"`} {
+		"Latin-1", "max 24 characters", "1.5 MiB", "15 M operations", `"device:"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("instructions lack %q", want)
 		}

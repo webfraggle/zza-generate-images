@@ -14,6 +14,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
 
+	"github.com/webfraggle/zza-generate-images/internal/devexport"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 )
@@ -27,7 +28,7 @@ const (
 )
 
 type createTemplateIn struct {
-	Name        string `json:"name" jsonschema:"template name, lowercase letters, digits and hyphens, ending in -105-v1"`
+	Name        string `json:"name" jsonschema:"template name, lowercase letters, digits and hyphens, ending in -105-v1, at most 24 characters in total"`
 	Title       string `json:"title,omitempty" jsonschema:"display title (meta.name); defaults to the name"`
 	Description string `json:"description,omitempty" jsonschema:"short description (meta.description)"`
 }
@@ -87,7 +88,7 @@ type importImageOut struct {
 func registerWriteTools(s *sdk.Server, e *env) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "create_template",
-		Description: `Creates a new template from the starter (canvas 240x240, mirrored front/back layout). Name: lowercase letters, digits and hyphens, must end in "-105-v1", e.g. "berlin-sbahn-105-v1". Title and description: Latin-1 characters only. Returns a preview image.`,
+		Description: `Creates a new template from the starter (canvas 240x240, mirrored front/back layout). Name: lowercase letters, digits and hyphens, must end in "-105-v1" and be at most 24 characters long in total (17 before the suffix), e.g. "berlin-sbahn-105-v1". Title and description: Latin-1 characters only. Returns a preview image.`,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in createTemplateIn) (*sdk.CallToolResult, createTemplateOut, error) {
 		return e.createTemplate(in)
 	})
@@ -135,6 +136,10 @@ func (e *env) createTemplate(in createTemplateIn) (*sdk.CallToolResult, createTe
 	}
 	if !strings.HasSuffix(in.Name, templateSuffix) {
 		return nil, zero, fmt.Errorf(`template names must end in "%s" (only 1.05" displays are supported)`, templateSuffix)
+	}
+	if len(in.Name) > devexport.MaxNameLen {
+		return nil, zero, fmt.Errorf(`template name too long: %q has %d characters, the display allows at most %d (%d before "%s")`,
+			in.Name, len(in.Name), devexport.MaxNameLen, devexport.MaxNameLen-len(templateSuffix), templateSuffix)
 	}
 	if len([]rune(in.Title)) > maxMetaTitleLen {
 		return nil, zero, fmt.Errorf("title too long (max %d characters)", maxMetaTitleLen)

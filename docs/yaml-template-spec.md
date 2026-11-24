@@ -868,6 +868,7 @@ Ein Template läuft auch direkt auf dem Controller (ZZA), wenn es kompatibel ist
 
 Bedingungen:
 
+- **Template-Name höchstens 24 Zeichen.** Der Controller installiert ein Paket über den Ordner `tpl_<name>.new`, und sein Dateisystem erlaubt 32 Zeichen je Name. Längere Namen meldet der Export als nicht kompatibel; das Template muss dann umbenannt werden.
 - **Canvas 240 × 240.** Andere Größen werden abgelehnt. `canvas.colors` gilt nur für die GIF-Ausgabe und wird ignoriert.
 - **Konstanten nur Latin-1** (U+0000–U+00FF). Das gilt auch für die festen Textteile außerhalb von `{{…}}` in interpolierten Texten. Zeichen, die erst zur Laufzeit aus den Zugdaten kommen, sind ausgenommen: Das Gerät zeichnet alles über U+00FF als `?`.
 - **Konstante `match`-Muster.** Das Muster einer `match(…)`-Funktion muss ein Literal in Anführungszeichen sein, kein `{{…}}` und keine Variable, denn das Gerät kann zur Laufzeit keine Regex kompilieren. Ungültige Muster (nach Go-`regexp`) werden abgelehnt.

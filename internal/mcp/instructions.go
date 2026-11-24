@@ -5,7 +5,7 @@ const serverInstructions = `zza builds images for a model-railway departure disp
 Before creating or changing a template, call get_template_spec and get_design_guide and read them fully.
 
 Hard rules:
-- Only 1.05" displays: canvas 240x240, template names end in "-105-v1".
+- Only 1.05" displays: canvas 240x240, template names end in "-105-v1", max 24 characters in total.
 - The image holds both sides of the display: top half (y 0-119) = side A, bottom half (y 120-239) = side B.
   Elements that belong to one end of the device (platform number, clock) sit on the OUTSIDE:
   left in the top half, right in the bottom half. Build the bottom half with several copy layers

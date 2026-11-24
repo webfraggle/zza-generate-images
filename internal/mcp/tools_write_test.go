@@ -80,6 +80,8 @@ func TestCreateTemplate_Rules(t *testing.T) {
 	requireToolError(t, callTool(t, cs, "create_template", map[string]any{"name": "test"}),
 		`template names must end in "-105-v1" (only 1.05" displays are supported)`)
 	requireToolError(t, callTool(t, cs, "create_template", map[string]any{"name": "Bad-105-v1"}), "invalid characters")
+	requireToolError(t, callTool(t, cs, "create_template", map[string]any{"name": "london-underground-105-v1"}),
+		`template name too long: "london-underground-105-v1" has 25 characters, the display allows at most 24 (17 before "-105-v1")`)
 	requireToolError(t, callTool(t, cs, "create_template", map[string]any{"name": "sbb-105-v1"}), `template "sbb-105-v1" already exists`)
 }
 
