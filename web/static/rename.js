@@ -12,7 +12,7 @@
     dlg.innerHTML =
       '<form method="dialog" novalidate>' +
       '<p><label for="rename-input">Neuer Name des Templates</label></p>' +
-      '<input id="rename-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+      '<input id="rename-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
       '<p class="rename-hint"><span id="rename-count"></span> · Kleinbuchstaben, Ziffern und Bindestriche. ' +
       'Der Name steht in der Adresse und im ZZA-Paket; der Titel in <code>meta.name</code> bleibt.</p>' +
       '<p id="rename-error" class="error-text" hidden></p>' +
@@ -30,12 +30,25 @@
     const error = dlg.querySelector("#rename-error");
     const ok    = dlg.querySelector("#rename-ok");
 
+    // Why the name cannot be used, or "" when it can. The button is never
+    // disabled without this text being shown.
+    function reason(v) {
+      if (v === "") return "Bitte einen Namen eingeben.";
+      const bad = [...new Set(v.replace(/[a-z0-9-]/g, ""))].map((c) => (c === " " ? "Leerzeichen" : "„" + c + "“"));
+      if (bad.length) return "Nicht erlaubt: " + bad.join(", ") + ". Nur Kleinbuchstaben, Ziffern und Bindestriche.";
+      if (v.length > MAX) return "Zu lang: " + v.length + " Zeichen, höchstens " + MAX + ".";
+      if (v === name) return "Das ist der bisherige Name.";
+      return "";
+    }
+
     function check() {
       const v = input.value.trim();
       count.textContent = v.length + " von höchstens " + MAX + " Zeichen";
       count.className = v.length > MAX ? "error-text" : "";
-      ok.disabled = !/^[a-z0-9-]+$/.test(v) || v.length > MAX || v === name;
-      error.hidden = true;
+      const why = reason(v);
+      ok.disabled = why !== "";
+      error.textContent = why;
+      error.hidden = why === "" || v === name;
     }
 
     input.value = name;

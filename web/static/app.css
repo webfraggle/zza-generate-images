@@ -255,7 +255,9 @@ header {
 }
 
 .btn-primary  { background: var(--brand); color: #fff; }
-.btn-primary:hover { background: var(--brand-dark); }
+.btn-primary:hover:not(:disabled) { background: var(--brand-dark); }
+/* A disabled button must look disabled (rename dialog: name not valid yet). */
+.btn:disabled { cursor: default; opacity: .4; filter: grayscale(1); }
 
 .btn-danger   { background: var(--red); color: #fff; }
 .btn-danger:hover { opacity: .85; }
