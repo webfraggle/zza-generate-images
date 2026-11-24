@@ -3,6 +3,8 @@ package editor
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -42,6 +44,42 @@ func (h *FSHandlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /edit/{template}/save", h.Save)
 	mux.HandleFunc("POST /edit/{template}/upload", h.Upload)
 	mux.HandleFunc("DELETE /edit/{template}/file/{filename}", h.DeleteFile)
+	mux.HandleFunc("POST /edit/{template}/rename", h.Rename)
+}
+
+// Rename renames the template to the name in the JSON body {"name": "..."}.
+// 200 {"name": new}; 400 (characters, length), 404 and 409 (name taken) carry
+// a German text for the rename dialog.
+func (h *FSHandlers) Rename(w http.ResponseWriter, r *http.Request) {
+	name, ok := h.requireTemplate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	newName := strings.TrimSpace(req.Name)
+	switch err := RenameTemplate(h.TemplatesDir, name, newName); {
+	case err == nil:
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"name": newName})
+	case errors.Is(err, ErrInvalidName):
+		http.Error(w, "Name ungültig: nur Kleinbuchstaben, Ziffern und Bindestriche.", http.StatusBadRequest)
+	case errors.Is(err, ErrNameTooLong):
+		http.Error(w, fmt.Sprintf("Name zu lang (%d Zeichen, höchstens %d): Längere Namen kann der Anzeiger nicht installieren.",
+			len(newName), MaxTemplateNameLen), http.StatusBadRequest)
+	case errors.Is(err, ErrTemplateExists):
+		http.Error(w, "Ein Template mit diesem Namen gibt es schon.", http.StatusConflict)
+	case errors.Is(err, ErrTemplateNotFound):
+		http.Error(w, "Template nicht gefunden.", http.StatusNotFound)
+	default:
+		log.Printf("editor: rename %q -> %q: %v", name, newName, err)
+		http.Error(w, "Umbenennen fehlgeschlagen.", http.StatusInternalServerError)
+	}
 }
 
 func (h *FSHandlers) ListFiles(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +143,10 @@ func (h *FSHandlers) Save(w http.ResponseWriter, r *http.Request) {
 	// Empty content bypasses the gate on purpose — truncation is a valid edit;
 	// the render pipeline will surface the missing-fields error on next load.
 	if len(req.Content) > 0 && hasYAMLExt(req.Filename) {
-		var probe any
+		// A yaml.Node only checks the syntax. Decoding into a Go value would also
+		// refuse repeated mapping keys, and the template language repeats
+		// "elif"/"then" in conditional values.
+		var probe yaml.Node
 		if err := yaml.Unmarshal([]byte(req.Content), &probe); err != nil {
 			http.Error(w, "invalid YAML: "+err.Error(), http.StatusBadRequest)
 			return
@@ -179,22 +220,41 @@ func (h *FSHandlers) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, MaxUploadBytes+512)
-	if err := r.ParseMultipartForm(MaxUploadBytes); err != nil {
-		http.Error(w, "request too large or invalid", http.StatusBadRequest)
-		return
-	}
-	f, header, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "missing file field", http.StatusBadRequest)
-		return
-	}
-	defer f.Close()
 
-	if err := UploadFile(h.TemplatesDir, name, header.Filename, f); err != nil {
+	// Two forms: the file as the raw request body with ?name=<file name> (what
+	// the editor page sends), or a multipart form with the field "file". The
+	// app window's web view (WKWebView) delivers a form with a file as an empty
+	// body, so the page cannot use the form.
+	var (
+		filename string
+		content  io.Reader
+	)
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+		filename = r.URL.Query().Get("name")
+		if filename == "" {
+			http.Error(w, "missing file name", http.StatusBadRequest)
+			return
+		}
+		content = r.Body
+	} else {
+		if err := r.ParseMultipartForm(MaxUploadBytes); err != nil {
+			http.Error(w, "request too large or invalid", http.StatusBadRequest)
+			return
+		}
+		f, header, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "missing file field", http.StatusBadRequest)
+			return
+		}
+		defer f.Close()
+		filename, content = header.Filename, f
+	}
+
+	if err := UploadFile(h.TemplatesDir, name, filename, content); err != nil {
 		if errors.Is(err, ErrForbidden) || errors.Is(err, ErrInvalidName) {
 			http.Error(w, "file type not allowed", http.StatusForbidden)
 		} else {
-			log.Printf("editor: upload %q/%q: %v", name, header.Filename, err)
+			log.Printf("editor: upload %q/%q: %v", name, filename, err)
 			http.Error(w, "upload failed", http.StatusInternalServerError)
 		}
 		return

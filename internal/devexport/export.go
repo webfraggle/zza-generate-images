@@ -25,6 +25,11 @@ type Package struct {
 // An incompatible template yields *Incompatible listing every reason. A file
 // that cannot be read (permissions, I/O) is a plain error, not a verdict on
 // the template: callers must not treat it as "incompatible".
+// MaxNameLen is the longest template name the controller can install. Its file
+// system allows 32 characters per name and the installation goes through the
+// folder "tpl_<name>.new" (8 characters more than the name).
+const MaxNameLen = 24
+
 func Export(templatesDir, name string) (*Package, error) {
 	tmpl, err := renderer.LoadTemplate(templatesDir, name)
 	if err != nil {
@@ -41,6 +46,9 @@ func Export(templatesDir, name string) (*Package, error) {
 		return nil, &Incompatible{Reasons: []string{"Template ungültig: " + err.Error()}}
 	}
 	a := newAnalysis(tmpl)
+	if len(name) > MaxNameLen {
+		a.reason("Template-Name %q hat %d Zeichen, das Gerät erlaubt höchstens %d Zeichen (Template umbenennen: Knopf „Umbenennen“ im Editor)", name, len(name), MaxNameLen)
+	}
 	a.check(tmpl, doc)
 
 	files := map[string][]byte{}

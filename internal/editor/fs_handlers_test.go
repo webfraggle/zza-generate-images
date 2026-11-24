@@ -106,6 +106,62 @@ func TestFSHandlers_Save_InvalidYAML(t *testing.T) {
 	}
 }
 
+func TestFSHandlers_Upload_RawBody(t *testing.T) {
+	dir := newEditorTestDir(t)
+	h := NewFSHandlers(dir, nil)
+	png := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+
+	req := httptest.NewRequest(http.MethodPost, "/edit/mine/upload?name=logo.png", bytes.NewReader(png))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.SetPathValue("template", "mine")
+	rr := httptest.NewRecorder()
+	h.Upload(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "mine", "logo.png")); err != nil || !bytes.Equal(got, png) {
+		t.Errorf("file = %v, %v", got, err)
+	}
+
+	// The same rules as for the form: a name is required, the type must be
+	// allowed, and a path is reduced to its file name (stays in the template).
+	for name, want := range map[string]int{"": http.StatusBadRequest, "evil.sh": http.StatusForbidden, "..%2Fx.png": http.StatusNoContent} {
+		req := httptest.NewRequest(http.MethodPost, "/edit/mine/upload?name="+name, bytes.NewReader(png))
+		req.SetPathValue("template", "mine")
+		rr := httptest.NewRecorder()
+		h.Upload(rr, req)
+		if rr.Code != want {
+			t.Errorf("name %q: got %d, want %d", name, rr.Code, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "x.png")); err == nil {
+		t.Error("file written outside the template folder")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mine", "x.png")); err != nil {
+		t.Errorf("x.png not in the template folder: %v", err)
+	}
+}
+
+// Conditional values repeat the keys "elif" and "then" in one mapping; that is
+// the template language, not a YAML error.
+func TestFSHandlers_Save_ElifChainIsValid(t *testing.T) {
+	dir := newEditorTestDir(t)
+	h := NewFSHandlers(dir, nil)
+	content := "layers:\n  - type: text\n    value:\n      if: \"a\"\n      then: \"1\"\n      elif: \"b\"\n      then: \"2\"\n      elif: \"c\"\n      then: \"3\"\n      else: \"4\"\n"
+	body, _ := json.Marshal(map[string]string{"filename": "template.yaml", "content": content})
+	req := httptest.NewRequest(http.MethodPost, "/edit/mine/save", bytes.NewReader(body))
+	req.SetPathValue("template", "mine")
+	rr := httptest.NewRecorder()
+	h.Save(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "mine", "template.yaml"))
+	if err != nil || string(got) != content {
+		t.Errorf("file = %q, %v", got, err)
+	}
+}
+
 func TestFSHandlers_Upload(t *testing.T) {
 	dir := newEditorTestDir(t)
 	h := NewFSHandlers(dir, nil)
@@ -302,5 +358,74 @@ func TestFSHandlers_DeleteProtectedRefused(t *testing.T) {
 	h.DeleteFile(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("template.yaml delete should be forbidden, got %d", rr.Code)
+	}
+}
+
+func postRename(h *FSHandlers, tmpl, newName string) *httptest.ResponseRecorder {
+	body, _ := json.Marshal(map[string]string{"name": newName})
+	req := httptest.NewRequest(http.MethodPost, "/edit/"+tmpl+"/rename", bytes.NewReader(body))
+	req.SetPathValue("template", tmpl)
+	rr := httptest.NewRecorder()
+	h.Rename(rr, req)
+	return rr
+}
+
+func TestFSHandlers_Rename(t *testing.T) {
+	dir := newEditorTestDir(t)
+	h := NewFSHandlers(dir, nil)
+
+	rr := postRename(h, "mine", "yours-105-v1")
+	if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"name":"yours-105-v1"`) {
+		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "yours-105-v1", "template.yaml")); err != nil {
+		t.Errorf("renamed template missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mine")); !os.IsNotExist(err) {
+		t.Errorf("old folder still there: %v", err)
+	}
+}
+
+func TestFSHandlers_Rename_Refusals(t *testing.T) {
+	dir := newEditorTestDir(t)
+	if err := os.MkdirAll(filepath.Join(dir, "taken"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h := NewFSHandlers(dir, nil)
+	cases := []struct {
+		from, to string
+		code     int
+		msg      string
+	}{
+		{"mine", "taken", http.StatusConflict, "gibt es schon"},
+		{"mine", "mine", http.StatusConflict, "gibt es schon"},
+		{"mine", "Bad_Name", http.StatusBadRequest, "Kleinbuchstaben"},
+		{"mine", "../evil", http.StatusBadRequest, "Kleinbuchstaben"},
+		{"mine", "", http.StatusBadRequest, "Kleinbuchstaben"},
+		{"mine", "london-underground-105-v1", http.StatusBadRequest, "25 Zeichen, höchstens 24"},
+		{"gone", "new-name", http.StatusNotFound, ""},
+	}
+	for _, c := range cases {
+		rr := postRename(h, c.from, c.to)
+		if rr.Code != c.code || !strings.Contains(rr.Body.String(), c.msg) {
+			t.Errorf("%s -> %q: got %d %q, want %d with %q", c.from, c.to, rr.Code, rr.Body.String(), c.code, c.msg)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mine", "template.yaml")); err != nil {
+		t.Errorf("template must be untouched: %v", err)
+	}
+	if ents, _ := os.ReadDir(dir); len(ents) != 2 {
+		t.Errorf("folders = %v, want mine and taken", ents)
+	}
+}
+
+// A symlinked template folder is not renamed (it may point outside the templates folder).
+func TestFSHandlers_Rename_Symlink(t *testing.T) {
+	dir := newEditorTestDir(t)
+	if err := os.Symlink(filepath.Join(dir, "mine"), filepath.Join(dir, "link")); err != nil {
+		t.Skip(err)
+	}
+	if rr := postRename(NewFSHandlers(dir, nil), "link", "other"); rr.Code != http.StatusNotFound {
+		t.Errorf("got %d: %s", rr.Code, rr.Body.String())
 	}
 }

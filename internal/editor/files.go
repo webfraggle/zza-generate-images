@@ -31,6 +31,10 @@ var (
 	ErrFileNotFound = errors.New("editor: file not found")
 	ErrForbidden    = errors.New("editor: access denied")
 	ErrInvalidName  = errors.New("editor: invalid filename")
+	// Errors of RenameTemplate.
+	ErrTemplateNotFound = errors.New("editor: template not found")
+	ErrTemplateExists   = errors.New("editor: template already exists")
+	ErrNameTooLong      = errors.New("editor: template name too long")
 	// ErrVersionConflict is returned by WriteTextFileIfMatch when the file
 	// changed since the caller read it.
 	ErrVersionConflict = errors.New("editor: version conflict")

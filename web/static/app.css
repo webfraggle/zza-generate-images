@@ -255,7 +255,9 @@ header {
 }
 
 .btn-primary  { background: var(--brand); color: #fff; }
-.btn-primary:hover { background: var(--brand-dark); }
+.btn-primary:hover:not(:disabled) { background: var(--brand-dark); }
+/* A disabled button must look disabled (rename dialog: name not valid yet). */
+.btn:disabled { cursor: default; opacity: .4; filter: grayscale(1); }
 
 .btn-danger   { background: var(--red); color: #fff; }
 .btn-danger:hover { opacity: .85; }
@@ -581,10 +583,28 @@ a.brand:hover { color: var(--brand); }
 .tbtn:last-child { border-right: none; }
 a.tbtn { text-decoration: none; }
 /* Small replay button in the housing corner (animated templates). */
-.replay-btn {
+.housing-tools {
   position: absolute;
   top: 10px;
   right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Preview engine choice (desktop app). */
+.engine-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .8rem;
+  color: var(--text-mid);
+}
+.engine-choice select {
+  font: inherit; height: 32px; padding: 0 8px;
+  border: 1px solid var(--housing-line); border-radius: 16px;
+  background: var(--housing-2); color: var(--ink);
+}
+.replay-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1462,7 +1482,10 @@ body.editor-page {
 .external-change[hidden] { display: none; }
 .external-change span { flex: 1; }
 
-#conflict-dialog {
+#conflict-dialog,
+#delete-dialog,
+#rename-dialog {
+  margin: auto;  /* the global margin reset would pin a modal dialog to the top left */
   max-width: 420px;
   padding: 20px 24px;
   border: 1px solid var(--border-strong);
@@ -1472,10 +1495,25 @@ body.editor-page {
   font-size: .9rem;
   line-height: 1.5;
 }
-#conflict-dialog::backdrop { background: rgba(0, 0, 0, .45); }
-#conflict-dialog .dialog-actions {
+#conflict-dialog::backdrop,
+#delete-dialog::backdrop,
+#rename-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+#conflict-dialog .dialog-actions,
+#delete-dialog .dialog-actions,
+#rename-dialog .dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
 }
+
+/* Rename dialog (desktop app): editor and preview page. */
+#rename-dialog { width: 420px; font-family: var(--font-body, inherit); }
+#rename-dialog p { margin: 0 0 8px; }
+#rename-dialog input {
+  width: 100%; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: .9rem; padding: 7px 9px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-color);
+}
+#rename-dialog .rename-hint { margin-top: 8px; font-size: .78rem; color: var(--text-mid); }
