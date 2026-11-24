@@ -128,7 +128,8 @@
             <dt>Template</dt><dd>{{.Name}}</dd>
           </dl>
           <div class="dev-actions">
-            {{if .EditorEnabled}}<a href="/edit/{{.Name}}" class="btn btn-level2">Im Editor öffnen</a>{{end}}
+            {{if .EditorEnabled}}<a href="/edit/{{.Name}}" class="btn btn-level2">Im Editor öffnen</a>
+            <button type="button" id="rename-btn" class="btn btn-level2" title="Template umbenennen (Name in Adresse und ZZA-Paket, höchstens 24 Zeichen)">Umbenennen</button>{{end}}
           </div>
         </div>
       </details>
@@ -137,6 +138,7 @@
 
   {{if .NativeSave}}<script>window.ZZA_NATIVE_SAVE = true;</script>{{end}}
   <script src="/static/save.js"></script>
+  {{if .EditorEnabled}}<script src="/static/rename.js"></script>{{end}}
   <script>
   (() => {
     const templateName = "{{.Name}}";
@@ -487,6 +489,8 @@
     {{end}}
 
     {{if .EditorEnabled}}
+    $("rename-btn").addEventListener("click", () => window.zzaRename(templateName, (n) => "/" + n));
+
     // ── External changes (desktop app) ────────────────────────────────────
     // Files changed outside this page (the AI over MCP, another editor): show
     // the new state. New example data reload the page while the user has not

@@ -13,6 +13,7 @@
   <a href="/{{.TemplateName}}">← Vorschau</a>
   <h1>Editor</h1>
   <span class="editor-template-name">{{.TemplateName}}</span>
+  <button id="rename-btn" class="btn btn-sm btn-level2" type="button" title="Template umbenennen (Name in Adresse und ZZA-Paket, höchstens 24 Zeichen)">Umbenennen</button>
 </header>
 
 <div class="editor-3col">
@@ -116,6 +117,7 @@
 
 {{if .NativeSave}}<script>window.ZZA_NATIVE_SAVE = true;</script>{{end}}
 <script src="/static/save.js"></script>
+<script src="/static/rename.js"></script>
 <script type="module">
 // ── CDN imports (CodeMirror 6) ────────────────────────────────────────────────
 // EditorView constructor accepts doc+extensions directly — no EditorState needed.
@@ -525,6 +527,18 @@ document.getElementById('delete-confirm').addEventListener('click', async () => 
   if (currentFile === name) openFile('template.yaml');
   await loadFiles();
 });
+
+// ── Rename ────────────────────────────────────────────────────────────────────
+document.getElementById('rename-btn').addEventListener('click', () => {
+  if (dirty() && !renameUnsavedNoted) {
+    // No confirm() in the app window: say it once, the second click goes on.
+    renameUnsavedNoted = true;
+    showSaveStatus('Ungespeicherte Änderungen gehen beim Umbenennen verloren. Erst speichern, oder noch einmal auf „Umbenennen“ klicken.', true);
+    return;
+  }
+  window.zzaRename(TEMPLATE, n => '/edit/' + n);
+});
+let renameUnsavedNoted = false;
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 tabYaml.addEventListener('click',  () => switchTab('yaml'));

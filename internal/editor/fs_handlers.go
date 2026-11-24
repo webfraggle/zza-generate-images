@@ -3,6 +3,7 @@ package editor
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -43,6 +44,42 @@ func (h *FSHandlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /edit/{template}/save", h.Save)
 	mux.HandleFunc("POST /edit/{template}/upload", h.Upload)
 	mux.HandleFunc("DELETE /edit/{template}/file/{filename}", h.DeleteFile)
+	mux.HandleFunc("POST /edit/{template}/rename", h.Rename)
+}
+
+// Rename renames the template to the name in the JSON body {"name": "..."}.
+// 200 {"name": new}; 400 (characters, length), 404 and 409 (name taken) carry
+// a German text for the rename dialog.
+func (h *FSHandlers) Rename(w http.ResponseWriter, r *http.Request) {
+	name, ok := h.requireTemplate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	newName := strings.TrimSpace(req.Name)
+	switch err := RenameTemplate(h.TemplatesDir, name, newName); {
+	case err == nil:
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"name": newName})
+	case errors.Is(err, ErrInvalidName):
+		http.Error(w, "Name ungültig: nur Kleinbuchstaben, Ziffern und Bindestriche.", http.StatusBadRequest)
+	case errors.Is(err, ErrNameTooLong):
+		http.Error(w, fmt.Sprintf("Name zu lang (%d Zeichen, höchstens %d): Längere Namen kann der Anzeiger nicht installieren.",
+			len(newName), MaxTemplateNameLen), http.StatusBadRequest)
+	case errors.Is(err, ErrTemplateExists):
+		http.Error(w, "Ein Template mit diesem Namen gibt es schon.", http.StatusConflict)
+	case errors.Is(err, ErrTemplateNotFound):
+		http.Error(w, "Template nicht gefunden.", http.StatusNotFound)
+	default:
+		log.Printf("editor: rename %q -> %q: %v", name, newName, err)
+		http.Error(w, "Umbenennen fehlgeschlagen.", http.StatusInternalServerError)
+	}
 }
 
 func (h *FSHandlers) ListFiles(w http.ResponseWriter, r *http.Request) {

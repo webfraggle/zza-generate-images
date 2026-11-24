@@ -47,7 +47,7 @@ func Export(templatesDir, name string) (*Package, error) {
 	}
 	a := newAnalysis(tmpl)
 	if len(name) > MaxNameLen {
-		a.reason("Template-Name %q hat %d Zeichen, das Gerät erlaubt höchstens %d Zeichen (Template umbenennen)", name, len(name), MaxNameLen)
+		a.reason("Template-Name %q hat %d Zeichen, das Gerät erlaubt höchstens %d Zeichen (Template umbenennen: Knopf „Umbenennen“ im Editor)", name, len(name), MaxNameLen)
 	}
 	a.check(tmpl, doc)
 

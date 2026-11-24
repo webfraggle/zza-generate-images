@@ -33,6 +33,15 @@ type createTemplateIn struct {
 	Description string `json:"description,omitempty" jsonschema:"short description (meta.description)"`
 }
 
+type renameTemplateIn struct {
+	Template string `json:"template" jsonschema:"current template name"`
+	Name     string `json:"name" jsonschema:"new template name, lowercase letters, digits and hyphens, ending in -105-v1, at most 24 characters in total"`
+}
+
+type renameTemplateOut struct {
+	Template string `json:"template"`
+}
+
 type createTemplateOut struct {
 	Template string            `json:"template"`
 	Files    []editor.FileInfo `json:"files"`
@@ -94,6 +103,14 @@ func registerWriteTools(s *sdk.Server, e *env) {
 	})
 
 	sdk.AddTool(s, &sdk.Tool{
+		Name:        "rename_template",
+		Description: `Renames a template (its folder; the title meta.name stays). Use it when a name is longer than 24 characters: the display cannot install such a template. New name: lowercase letters, digits and hyphens, must end in "-105-v1", at most 24 characters in total, not taken yet. Afterwards use the new name in all tools; tell the user that an editor or preview page of the old name must be reopened.`,
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in renameTemplateIn) (*sdk.CallToolResult, renameTemplateOut, error) {
+		out, err := e.renameTemplate(in)
+		return nil, out, err
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
 		Name:        "write_file",
 		Description: "Writes template.yaml, default.json or another .json/.yaml file of a template. Only Latin-1 characters (U+0000-U+00FF) are allowed in YAML keys/values and in JSON (the ZZA renders Latin-1 only; YAML comments are free): use - instead of en/em dashes, ' and \" instead of typographic quotes, ... instead of an ellipsis. template.yaml is validated (YAML, canvas must be 240x240, test render with default.json) and NOT saved if invalid — the error explains why. Pass expected_version from read_template/read_file to avoid overwriting edits made in the editor meanwhile. Returns the new version and warnings (design issues, unknown keys = likely typos, \"device:\" = would fail on the ZZA: too much memory for the QUAD (1.5 MiB per track) or a render step above the work limit). Fix device warnings before finishing. Call render_preview afterwards.",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in writeFileIn) (*sdk.CallToolResult, writeFileOut, error) {
@@ -129,17 +146,44 @@ func (e *env) scrubErr(err error, limit int) string {
 	return s
 }
 
+// checkNewTemplateName applies the rules for the name of a new or renamed template.
+func checkNewTemplateName(name string) error {
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		return fmt.Errorf("invalid template name: %s", strings.TrimPrefix(err.Error(), "renderer: "))
+	}
+	if !strings.HasSuffix(name, templateSuffix) {
+		return fmt.Errorf(`template names must end in "%s" (only 1.05" displays are supported)`, templateSuffix)
+	}
+	if len(name) > devexport.MaxNameLen {
+		return fmt.Errorf(`template name too long: %q has %d characters, the display allows at most %d (%d before "%s")`,
+			name, len(name), devexport.MaxNameLen, devexport.MaxNameLen-len(templateSuffix), templateSuffix)
+	}
+	return nil
+}
+
+func (e *env) renameTemplate(in renameTemplateIn) (renameTemplateOut, error) {
+	var zero renameTemplateOut
+	if err := checkNewTemplateName(in.Name); err != nil {
+		return zero, err
+	}
+	e.writeMu.Lock()
+	defer e.writeMu.Unlock()
+	switch err := editor.RenameTemplate(e.templatesDir, in.Template, in.Name); {
+	case err == nil:
+		return renameTemplateOut{Template: in.Name}, nil
+	case errors.Is(err, editor.ErrTemplateNotFound):
+		return zero, fmt.Errorf("template %q not found", in.Template)
+	case errors.Is(err, editor.ErrTemplateExists):
+		return zero, fmt.Errorf("template %q already exists", in.Name)
+	default:
+		return zero, fmt.Errorf("cannot rename template %q", in.Template)
+	}
+}
+
 func (e *env) createTemplate(in createTemplateIn) (*sdk.CallToolResult, createTemplateOut, error) {
 	var zero createTemplateOut
-	if err := renderer.ValidateTemplateName(in.Name); err != nil {
-		return nil, zero, fmt.Errorf("invalid template name: %s", strings.TrimPrefix(err.Error(), "renderer: "))
-	}
-	if !strings.HasSuffix(in.Name, templateSuffix) {
-		return nil, zero, fmt.Errorf(`template names must end in "%s" (only 1.05" displays are supported)`, templateSuffix)
-	}
-	if len(in.Name) > devexport.MaxNameLen {
-		return nil, zero, fmt.Errorf(`template name too long: %q has %d characters, the display allows at most %d (%d before "%s")`,
-			in.Name, len(in.Name), devexport.MaxNameLen, devexport.MaxNameLen-len(templateSuffix), templateSuffix)
+	if err := checkNewTemplateName(in.Name); err != nil {
+		return nil, zero, err
 	}
 	if len([]rune(in.Title)) > maxMetaTitleLen {
 		return nil, zero, fmt.Errorf("title too long (max %d characters)", maxMetaTitleLen)

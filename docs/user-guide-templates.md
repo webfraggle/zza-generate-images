@@ -867,12 +867,12 @@ Die ZZA-Vorschau gibt es nur in der Desktop-App, nicht im Server-Build.
 
 Mit `zza mcp` kann eine KI (Claude Desktop oder Claude Code) Templates für den 1,05"-Zugzielanzeiger direkt in deinem Templates-Ordner bauen und ändern: Sie liest die Spezifikation und den Design-Leitfaden, legt Templates an, schreibt `template.yaml`, importiert Bilder und prüft jedes Ergebnis an einer Vorschau. Der Server läuft lokal als Unterprozess des KI-Clients (stdio), ohne Netzzugriff und ohne Token.
 
-Die KI hat 19 Werkzeuge:
+Die KI hat 20 Werkzeuge:
 
 | Gruppe | Werkzeuge |
 |---|---|
 | Lesen | `get_template_spec`, `get_design_guide`, `list_templates`, `read_template`, `read_file` |
-| Schreiben | `create_template`, `write_file`, `upload_image`, `import_image` |
+| Schreiben | `create_template`, `rename_template`, `write_file`, `upload_image`, `import_image` |
 | Vorschau | `render_preview` (PNG oder GIF-Kontaktbogen, mit optionalen Testdaten) |
 | Vektorgrafik | `svg_to_png` |
 | Foto-Werkzeuge | `perspective_correct`, `crop_image`, `resize_image`, `quantize_colors`, `color_to_alpha`, `sample_colors` |
@@ -935,7 +935,7 @@ Beschreibe in normalen Worten, was du willst. Die KI liest zuerst Spezifikation 
 - „Mach die Zielzeile größer und teste mit einem langen Zielnamen.“
 - „Lege die Schrift Roboto Bold in `test-105-v1` an und schreib ‚Gleis 6‘ damit ins weiße Feld.“
 
-Template-Namen müssen auf `-105-v1` enden; fehlt das, ergänzt oder erfragt die KI es. Sie dürfen höchstens 24 Zeichen lang sein (17 vor `-105-v1`), sonst kann der Anzeiger das Template nicht installieren.
+Template-Namen müssen auf `-105-v1` enden; fehlt das, ergänzt oder erfragt die KI es. Sie dürfen höchstens 24 Zeichen lang sein (17 vor `-105-v1`), sonst kann der Anzeiger das Template nicht installieren. Ein zu langer Name lässt sich nachträglich kürzen: im Editor oder auf der Vorschauseite über „Umbenennen“, oder die KI macht es mit `rename_template`. Umbenannt wird der Ordner des Templates; der Titel (`meta.name`) bleibt.
 
 Wichtig: Fotos gibst du **als lokalen Dateipfad** an, nicht als Chat-Anhang. Die KI kann die Bytes eines Anhangs nicht zuverlässig weitergeben; sie importiert die Datei über `import_image` direkt von der Platte. Den Pfad kopierst du im Finder mit Alt + Rechtsklick „… als Pfadname kopieren“, in Windows mit Umschalt + Rechtsklick „Als Pfad kopieren“.
 

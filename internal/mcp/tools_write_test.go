@@ -85,6 +85,27 @@ func TestCreateTemplate_Rules(t *testing.T) {
 	requireToolError(t, callTool(t, cs, "create_template", map[string]any{"name": "sbb-105-v1"}), `template "sbb-105-v1" already exists`)
 }
 
+func TestRenameTemplate(t *testing.T) {
+	dir := copyTemplates(t, "sbb-105-v1", "oebb-105-v1")
+	cs := newSession(t, dir)
+	res := callTool(t, cs, "rename_template", map[string]any{"template": "sbb-105-v1", "name": "swiss-105-v1"})
+	requireOK(t, res)
+	if !strings.Contains(resultText(res), `"template":"swiss-105-v1"`) {
+		t.Errorf("result %s", resultText(res))
+	}
+	if _, err := os.Stat(filepath.Join(dir, "swiss-105-v1", "template.yaml")); err != nil {
+		t.Errorf("renamed template missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sbb-105-v1")); !os.IsNotExist(err) {
+		t.Errorf("old folder still there: %v", err)
+	}
+
+	requireToolError(t, callTool(t, cs, "rename_template", map[string]any{"template": "swiss-105-v1", "name": "oebb-105-v1"}), `template "oebb-105-v1" already exists`)
+	requireToolError(t, callTool(t, cs, "rename_template", map[string]any{"template": "swiss-105-v1", "name": "swiss"}), `must end in "-105-v1"`)
+	requireToolError(t, callTool(t, cs, "rename_template", map[string]any{"template": "swiss-105-v1", "name": "london-underground-105-v1"}), "25 characters, the display allows at most 24")
+	requireToolError(t, callTool(t, cs, "rename_template", map[string]any{"template": "nope-105-v1", "name": "x-105-v1"}), `template "nope-105-v1" not found`)
+}
+
 func readDisk(t *testing.T, dir, tmpl, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, tmpl, name))
