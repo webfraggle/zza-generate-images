@@ -15,6 +15,9 @@ set -euo pipefail
 #     ./build.sh                  → asks what to build (default without a terminal:
 #                                   desktop binaries + local Docker image, current arch)
 #     DESKTOP_ONLY=1 ./build.sh   → desktop binaries only (no Docker image)
+#     MAC_SIGN_IDENTITY="…"       → certificate that signs zza.app (default "ZZA Local
+#                                   Signing", created by scripts/mac-signing-cert.sh;
+#                                   without it the app is signed ad hoc)
 #
 #   Started in a terminal without any of these switches, the script asks which
 #   of the four it should do. DEPLOY=0 ./build.sh (or any switch set) skips the
@@ -202,6 +205,33 @@ REPO_ROOT="$(pwd)"
 RELEASE_DIR="$OUTDIR/release"
 mkdir -p "$RELEASE_DIR"
 
+# Signs the whole .app bundle. Wails leaves only the linker's ad-hoc signature
+# on the executable (identifier "a.out", bundle not sealed).
+#
+# With the certificate from scripts/mac-signing-cert.sh (MAC_SIGN_IDENTITY,
+# default "ZZA Local Signing") every build has the same identity, so macOS
+# keeps the app's privacy permissions (Documents, Downloads, ...) across
+# builds. Without it the bundle is signed ad hoc: a proper signature, but each
+# build is a new app to macOS and it asks again.
+MAC_SIGN_IDENTITY="${MAC_SIGN_IDENTITY:-ZZA Local Signing}"
+mac_sign_noted=0
+sign_mac_app() {
+    local app="$1" identity="-"
+    if security find-identity -v -p codesigning 2>/dev/null | grep -qF "\"$MAC_SIGN_IDENTITY\""; then
+        identity="$MAC_SIGN_IDENTITY"
+    elif [[ "$mac_sign_noted" == 0 ]]; then
+        mac_sign_noted=1
+        echo "  Note: no certificate \"$MAC_SIGN_IDENTITY\" — signing ad hoc. macOS then asks for folder"
+        echo "        access again after every build; scripts/mac-signing-cert.sh creates the certificate."
+    fi
+    if ! codesign --force --deep --sign "$identity" "$app" 2>"$REPO_ROOT/$OUTDIR/codesign.log" ||
+       ! codesign --verify --deep --strict "$app" 2>>"$REPO_ROOT/$OUTDIR/codesign.log"; then
+        echo "  FAILED: signing $app (see $OUTDIR/codesign.log)"
+        return 1
+    fi
+    [[ "$identity" == "-" ]] || echo "  Signed with \"$identity\""
+}
+
 build_desktop() {
     local target_os="$1" target_arch="$2" zip_name="$3"
     local wails_platform="${target_os}/${target_arch}"
@@ -253,6 +283,7 @@ build_desktop() {
     case "$target_os" in
         darwin)
             cp -R "$build_dir/zza.app" "$staging/"
+            sign_mac_app "$staging/zza.app" || { failed=$((failed+1)); return; }
             ;;
         windows)
             cp "$build_dir/zza.exe" "$staging/"

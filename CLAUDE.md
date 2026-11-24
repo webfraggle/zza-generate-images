@@ -65,6 +65,7 @@ Env-Vars (nur Server liest sie): `PORT`, `TEMPLATES_DIR`, `CACHE_DIR`, `CACHE_MA
 - Version landet via `-ldflags -X` in `internal/version.Version`.
 - Docker-Image-Tag = Version + `latest`.
 - HTML-Seiten zeigen die Version unten links.
+- macOS: `build.sh` signiert `zza.app` als ganzes Paket. Mit dem Zertifikat „ZZA Local Signing“ (einmal je Mac über `scripts/mac-signing-cert.sh` anlegen, anderer Name über `MAC_SIGN_IDENTITY`) behält macOS die Ordner-Freigaben der App über Builds hinweg; ohne Zertifikat wird ad hoc signiert und macOS fragt nach jedem Build erneut. Gegen die Gatekeeper-Warnung bei anderen Nutzern hilft nur eine Apple Developer ID.
 
 ## Workflow für neue Features
 
