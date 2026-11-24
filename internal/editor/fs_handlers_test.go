@@ -106,6 +106,62 @@ func TestFSHandlers_Save_InvalidYAML(t *testing.T) {
 	}
 }
 
+func TestFSHandlers_Upload_RawBody(t *testing.T) {
+	dir := newEditorTestDir(t)
+	h := NewFSHandlers(dir, nil)
+	png := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+
+	req := httptest.NewRequest(http.MethodPost, "/edit/mine/upload?name=logo.png", bytes.NewReader(png))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.SetPathValue("template", "mine")
+	rr := httptest.NewRecorder()
+	h.Upload(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "mine", "logo.png")); err != nil || !bytes.Equal(got, png) {
+		t.Errorf("file = %v, %v", got, err)
+	}
+
+	// The same rules as for the form: a name is required, the type must be
+	// allowed, and a path is reduced to its file name (stays in the template).
+	for name, want := range map[string]int{"": http.StatusBadRequest, "evil.sh": http.StatusForbidden, "..%2Fx.png": http.StatusNoContent} {
+		req := httptest.NewRequest(http.MethodPost, "/edit/mine/upload?name="+name, bytes.NewReader(png))
+		req.SetPathValue("template", "mine")
+		rr := httptest.NewRecorder()
+		h.Upload(rr, req)
+		if rr.Code != want {
+			t.Errorf("name %q: got %d, want %d", name, rr.Code, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "x.png")); err == nil {
+		t.Error("file written outside the template folder")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mine", "x.png")); err != nil {
+		t.Errorf("x.png not in the template folder: %v", err)
+	}
+}
+
+// Conditional values repeat the keys "elif" and "then" in one mapping; that is
+// the template language, not a YAML error.
+func TestFSHandlers_Save_ElifChainIsValid(t *testing.T) {
+	dir := newEditorTestDir(t)
+	h := NewFSHandlers(dir, nil)
+	content := "layers:\n  - type: text\n    value:\n      if: \"a\"\n      then: \"1\"\n      elif: \"b\"\n      then: \"2\"\n      elif: \"c\"\n      then: \"3\"\n      else: \"4\"\n"
+	body, _ := json.Marshal(map[string]string{"filename": "template.yaml", "content": content})
+	req := httptest.NewRequest(http.MethodPost, "/edit/mine/save", bytes.NewReader(body))
+	req.SetPathValue("template", "mine")
+	rr := httptest.NewRecorder()
+	h.Save(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("got %d: %s", rr.Code, rr.Body.String())
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "mine", "template.yaml"))
+	if err != nil || string(got) != content {
+		t.Errorf("file = %q, %v", got, err)
+	}
+}
+
 func TestFSHandlers_Upload(t *testing.T) {
 	dir := newEditorTestDir(t)
 	h := NewFSHandlers(dir, nil)

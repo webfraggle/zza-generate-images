@@ -337,7 +337,9 @@ async function saveFile(force = false) {
     setTimeout(hideSaveStatus, 2500);
     schedulePreview(); // re-render after every save (YAML or JSON)
   } else {
-    showSaveStatus('Fehler beim Speichern.', true);
+    // The server says why (e.g. "invalid YAML: yaml: line 12: …").
+    const why = (await res.text().catch(() => '')).trim();
+    showSaveStatus('Fehler beim Speichern' + (why ? ': ' + why : '.'), true);
   }
 }
 
@@ -459,10 +461,20 @@ uploadInput.addEventListener('change', async e => {
   if (!file) return;
 
   showUploadStatus('Wird hochgeladen…', false);
-  const fd = new FormData();
-  fd.append('file', file);
-
-  const res = await fetch(`/edit/${TEMPLATE}/upload`, { method: 'POST', body: fd });
+  // The file as raw bytes (ArrayBuffer), not as a form: the app window's web
+  // view delivers a form with a file (and a Blob) as an empty body.
+  let res;
+  try {
+    res = await fetch(`/edit/${TEMPLATE}/upload?name=` + encodeURIComponent(file.name), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: await file.arrayBuffer(),
+    });
+  } catch (err) {
+    showUploadStatus('Fehler: ' + err.message, true);
+    e.target.value = '';
+    return;
+  }
   if (res.ok) {
     showUploadStatus('Hochgeladen ✓', false);
     setTimeout(hideUploadStatus, 2500);
