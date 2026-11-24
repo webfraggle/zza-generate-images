@@ -20,7 +20,7 @@ func TestNewServer_ListsReadTools(t *testing.T) {
 			t.Errorf("tool %s has empty description", tool.Name)
 		}
 	}
-	for _, want := range []string{"get_template_spec", "get_design_guide", "list_templates", "read_template", "read_file", "create_template", "write_file", "upload_image", "import_image", "render_preview"} {
+	for _, want := range []string{"get_template_spec", "get_design_guide", "list_templates", "read_template", "read_file", "create_template", "rename_template", "write_file", "upload_image", "import_image", "render_preview"} {
 		if !have[want] {
 			t.Errorf("missing tool %s (have %v)", want, have)
 		}
@@ -37,7 +37,7 @@ func TestNewServer_Instructions(t *testing.T) {
 		"list_fonts -> add_font", "text layers need a font", "the starter has none",
 		"svg_to_png", "import_image", "perspective_correct", "sample_colors", "crop_image",
 		"color_to_alpha", "quantize_colors", "must exist before write_file",
-		"Latin-1", "1.5 MiB", "15 M operations", `"device:"`} {
+		"Latin-1", "max 24 characters", "1.5 MiB", "15 M operations", `"device:"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("instructions lack %q", want)
 		}

@@ -1481,7 +1481,9 @@ body.editor-page {
 .external-change span { flex: 1; }
 
 #conflict-dialog,
-#delete-dialog {
+#delete-dialog,
+#rename-dialog {
+  margin: auto;  /* the global margin reset would pin a modal dialog to the top left */
   max-width: 420px;
   padding: 20px 24px;
   border: 1px solid var(--border-strong);
@@ -1492,11 +1494,24 @@ body.editor-page {
   line-height: 1.5;
 }
 #conflict-dialog::backdrop,
-#delete-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+#delete-dialog::backdrop,
+#rename-dialog::backdrop { background: rgba(0, 0, 0, .45); }
 #conflict-dialog .dialog-actions,
-#delete-dialog .dialog-actions {
+#delete-dialog .dialog-actions,
+#rename-dialog .dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
 }
+
+/* Rename dialog (desktop app): editor and preview page. */
+#rename-dialog { width: 420px; font-family: var(--font-body, inherit); }
+#rename-dialog p { margin: 0 0 8px; }
+#rename-dialog input {
+  width: 100%; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: .9rem; padding: 7px 9px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text-color);
+}
+#rename-dialog .rename-hint { margin-top: 8px; font-size: .78rem; color: var(--text-mid); }

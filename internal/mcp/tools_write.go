@@ -14,6 +14,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"gopkg.in/yaml.v3"
 
+	"github.com/webfraggle/zza-generate-images/internal/devexport"
 	"github.com/webfraggle/zza-generate-images/internal/editor"
 	"github.com/webfraggle/zza-generate-images/internal/renderer"
 )
@@ -27,9 +28,18 @@ const (
 )
 
 type createTemplateIn struct {
-	Name        string `json:"name" jsonschema:"template name, lowercase letters, digits and hyphens, ending in -105-v1"`
+	Name        string `json:"name" jsonschema:"template name, lowercase letters, digits and hyphens, ending in -105-v1, at most 24 characters in total"`
 	Title       string `json:"title,omitempty" jsonschema:"display title (meta.name); defaults to the name"`
 	Description string `json:"description,omitempty" jsonschema:"short description (meta.description)"`
+}
+
+type renameTemplateIn struct {
+	Template string `json:"template" jsonschema:"current template name"`
+	Name     string `json:"name" jsonschema:"new template name, lowercase letters, digits and hyphens, ending in -105-v1, at most 24 characters in total"`
+}
+
+type renameTemplateOut struct {
+	Template string `json:"template"`
 }
 
 type createTemplateOut struct {
@@ -87,9 +97,17 @@ type importImageOut struct {
 func registerWriteTools(s *sdk.Server, e *env) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "create_template",
-		Description: `Creates a new template from the starter (canvas 240x240, mirrored front/back layout). Name: lowercase letters, digits and hyphens, must end in "-105-v1", e.g. "berlin-sbahn-105-v1". Title and description: Latin-1 characters only. Returns a preview image.`,
+		Description: `Creates a new template from the starter (canvas 240x240, mirrored front/back layout). Name: lowercase letters, digits and hyphens, must end in "-105-v1" and be at most 24 characters long in total (17 before the suffix), e.g. "berlin-sbahn-105-v1". Title and description: Latin-1 characters only. Returns a preview image.`,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in createTemplateIn) (*sdk.CallToolResult, createTemplateOut, error) {
 		return e.createTemplate(in)
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "rename_template",
+		Description: `Renames a template (its folder; the title meta.name stays). Use it when a name is longer than 24 characters: the display cannot install such a template. New name: lowercase letters, digits and hyphens, must end in "-105-v1", at most 24 characters in total, not taken yet. Afterwards use the new name in all tools; tell the user that an editor or preview page of the old name must be reopened.`,
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in renameTemplateIn) (*sdk.CallToolResult, renameTemplateOut, error) {
+		out, err := e.renameTemplate(in)
+		return nil, out, err
 	})
 
 	sdk.AddTool(s, &sdk.Tool{
@@ -128,13 +146,44 @@ func (e *env) scrubErr(err error, limit int) string {
 	return s
 }
 
+// checkNewTemplateName applies the rules for the name of a new or renamed template.
+func checkNewTemplateName(name string) error {
+	if err := renderer.ValidateTemplateName(name); err != nil {
+		return fmt.Errorf("invalid template name: %s", strings.TrimPrefix(err.Error(), "renderer: "))
+	}
+	if !strings.HasSuffix(name, templateSuffix) {
+		return fmt.Errorf(`template names must end in "%s" (only 1.05" displays are supported)`, templateSuffix)
+	}
+	if len(name) > devexport.MaxNameLen {
+		return fmt.Errorf(`template name too long: %q has %d characters, the display allows at most %d (%d before "%s")`,
+			name, len(name), devexport.MaxNameLen, devexport.MaxNameLen-len(templateSuffix), templateSuffix)
+	}
+	return nil
+}
+
+func (e *env) renameTemplate(in renameTemplateIn) (renameTemplateOut, error) {
+	var zero renameTemplateOut
+	if err := checkNewTemplateName(in.Name); err != nil {
+		return zero, err
+	}
+	e.writeMu.Lock()
+	defer e.writeMu.Unlock()
+	switch err := editor.RenameTemplate(e.templatesDir, in.Template, in.Name); {
+	case err == nil:
+		return renameTemplateOut{Template: in.Name}, nil
+	case errors.Is(err, editor.ErrTemplateNotFound):
+		return zero, fmt.Errorf("template %q not found", in.Template)
+	case errors.Is(err, editor.ErrTemplateExists):
+		return zero, fmt.Errorf("template %q already exists", in.Name)
+	default:
+		return zero, fmt.Errorf("cannot rename template %q", in.Template)
+	}
+}
+
 func (e *env) createTemplate(in createTemplateIn) (*sdk.CallToolResult, createTemplateOut, error) {
 	var zero createTemplateOut
-	if err := renderer.ValidateTemplateName(in.Name); err != nil {
-		return nil, zero, fmt.Errorf("invalid template name: %s", strings.TrimPrefix(err.Error(), "renderer: "))
-	}
-	if !strings.HasSuffix(in.Name, templateSuffix) {
-		return nil, zero, fmt.Errorf(`template names must end in "%s" (only 1.05" displays are supported)`, templateSuffix)
+	if err := checkNewTemplateName(in.Name); err != nil {
+		return nil, zero, err
 	}
 	if len([]rune(in.Title)) > maxMetaTitleLen {
 		return nil, zero, fmt.Errorf("title too long (max %d characters)", maxMetaTitleLen)

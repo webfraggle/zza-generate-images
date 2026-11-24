@@ -181,6 +181,28 @@ func TestIncompatibleReasons(t *testing.T) {
 	}
 }
 
+// The controller installs a package through the folder tpl_<name>.new and its
+// file system allows 32 characters per name: longer template names fail there.
+func TestNameTooLongForDevice(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{strings.Repeat("a", MaxNameLen), strings.Repeat("a", MaxNameLen+1)} {
+		if err := os.CopyFS(filepath.Join(root, name), os.DirFS("../../templates/sbb-105-v1")); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Export(root, name)
+		if len(name) <= MaxNameLen {
+			if err != nil {
+				t.Errorf("%d characters: %v", len(name), err)
+			}
+			continue
+		}
+		inc, ok := err.(*Incompatible)
+		if !ok || !strings.Contains(strings.Join(inc.Reasons, "\n"), "höchstens 24 Zeichen") {
+			t.Errorf("%d characters: err = %v, want the name length reason", len(name), err)
+		}
+	}
+}
+
 func TestRegexTooBig(t *testing.T) {
 	pat := strings.Repeat("(ab|cd)", 600)
 	dir, name := writeTemplate(t, canvas240,
