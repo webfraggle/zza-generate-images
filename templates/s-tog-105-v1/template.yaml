@@ -1,0 +1,336 @@
+meta:
+  name: "S-tog København 1.05\""
+  description: "Kopenhagener S-Bahn (S-tog), Entwurf: Spor aussen, drei Abfahrten mit Linienbuchstabe im Farbkreis, Ziel und Minuten, Uhr"
+  author: ""
+  version: "1.1"
+  instructions: |
+    Entwurf aus dem Gedächtnis im Stil der Kopenhagener S-Bahn (S-tog).
+    Außen: "Spor" und Gleis (gleis). Innen oben "Afgange" und die Uhr.
+    Drei Abfahrten (zug1-zug3): Linienbuchstabe aus nr im Farbkreis
+    (A blau, B grün, Bx hellgrün, C orange, E lila, F gelb, H rot, sonst grau),
+    Ziel und Minuten. Countdown wie umuc/nyc relativ zu Zug 1 (Zug 1 = 2 Min.),
+    Verspätung (abw) wird aufaddiert. Ein Hinweis (zug1.hinweis) ersetzt die
+    dritte Zeile.
+  canvas:
+    width: 240
+    height: 240
+
+# Seite A oben, Seite B gespiegelt: Spor-Block außen (oben x 0-39, unten
+# x 200-239), Inhalt oben x 40-239, unten x 0-199.
+# Farben: Grund #141414, Spor-Block #262626, Linien #2e2e2e, Text weiß,
+# Grau #9a9a9a, Hinweis gelb #ffc61e. Linienfarben siehe instructions.
+# Kreise: farbiges rect + kreis-maske.png (Grundfarbe mit runder Aussparung).
+# Zeilen y 20-51 / 53-84 / 86-119; Kreis, Buchstabe, Ziel und Minuten per
+# Pixelmessung auf die Zeilenmitte gesetzt. Spor-Block mittig (y 60).
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 120
+    color: "#141414"
+
+  # ---------- Kopfzeile Inhalt ----------
+  - type: text
+    value: "Afgange"
+    x: 46
+    y: 4
+    font: bold
+    size: 11
+    color: "#9a9a9a"
+  - type: text
+    value: "{{now | format('HH:mm')}}"
+    x: 234
+    y: 3
+    align: right
+    font: bold
+    size: 13
+    color: "#ffffff"
+  - type: rect
+    x: 44
+    y: 19
+    width: 192
+    height: 1
+    color: "#2e2e2e"
+  - type: rect
+    x: 44
+    y: 52
+    width: 192
+    height: 1
+    color: "#2e2e2e"
+  - type: rect
+    x: 44
+    y: 85
+    width: 192
+    height: 1
+    color: "#2e2e2e"
+
+  # ---------- zug1 (y 20-51) ----------
+  - if: "not(isEmpty(zug1.zeit))"
+    layers:
+      - type: rect
+        x: 46
+        y: 24
+        width: 24
+        height: 24
+        color:
+          if: "equals(zug1.nr | trim | lower, 'a')"
+          then: "#00a0dc"
+          elif: "equals(zug1.nr | trim | lower, 'bx')"
+          then: "#9ccb3b"
+          elif: "equals(zug1.nr | trim | lower, 'b')"
+          then: "#4ca83d"
+          elif: "equals(zug1.nr | trim | lower, 'c')"
+          then: "#f39200"
+          elif: "equals(zug1.nr | trim | lower, 'e')"
+          then: "#7e5ea8"
+          elif: "equals(zug1.nr | trim | lower, 'f')"
+          then: "#ffc61e"
+          elif: "equals(zug1.nr | trim | lower, 'h')"
+          then: "#e2001a"
+          else: "#6e6e6e"
+      - type: image
+        file: kreis-maske.png
+        x: 46
+        y: 24
+      - type: text
+        value: "{{zug1.nr | trim | match('^[A-Za-z]{1,2}', 0) | upper | replace('BX','Bx')}}"
+        x: 46
+        y: 28
+        width: 24
+        height: 24
+        align: center
+        valign: middle
+        font: bold
+        size: 15
+        scale_x: 0.9
+        color:
+          if: "equals(zug1.nr | trim | lower, 'f')"
+          then: "#141414"
+          else: "#ffffff"
+      - type: text
+        value: "{{zug1.vonnach}}"
+        x: 77
+        y: 30
+        font: bold
+        size: 17
+        scale_x: 0.85
+        color: "#ffffff"
+      - type: rect
+        x: 186
+        y: 21
+        width: 54
+        height: 31
+        color: "#141414"
+      - type: text
+        value:
+          if: "greaterThan(zug1.abw, 0)"
+          then: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2) | add(zug1.abw)}} min"
+          else: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2)}} min"
+        x: 234
+        y: 31
+        align: right
+        font: bold
+        size: 14
+        color: "#ffffff"
+  # ---------- zug2 (y 53-84) ----------
+  - if: "not(isEmpty(zug2.zeit))"
+    layers:
+      - type: rect
+        x: 46
+        y: 57
+        width: 24
+        height: 24
+        color:
+          if: "equals(zug2.nr | trim | lower, 'a')"
+          then: "#00a0dc"
+          elif: "equals(zug2.nr | trim | lower, 'bx')"
+          then: "#9ccb3b"
+          elif: "equals(zug2.nr | trim | lower, 'b')"
+          then: "#4ca83d"
+          elif: "equals(zug2.nr | trim | lower, 'c')"
+          then: "#f39200"
+          elif: "equals(zug2.nr | trim | lower, 'e')"
+          then: "#7e5ea8"
+          elif: "equals(zug2.nr | trim | lower, 'f')"
+          then: "#ffc61e"
+          elif: "equals(zug2.nr | trim | lower, 'h')"
+          then: "#e2001a"
+          else: "#6e6e6e"
+      - type: image
+        file: kreis-maske.png
+        x: 46
+        y: 57
+      - type: text
+        value: "{{zug2.nr | trim | match('^[A-Za-z]{1,2}', 0) | upper | replace('BX','Bx')}}"
+        x: 46
+        y: 61
+        width: 24
+        height: 24
+        align: center
+        valign: middle
+        font: bold
+        size: 15
+        scale_x: 0.9
+        color:
+          if: "equals(zug2.nr | trim | lower, 'f')"
+          then: "#141414"
+          else: "#ffffff"
+      - type: text
+        value: "{{zug2.vonnach}}"
+        x: 77
+        y: 63
+        font: bold
+        size: 17
+        scale_x: 0.85
+        color: "#ffffff"
+      - type: rect
+        x: 186
+        y: 54
+        width: 54
+        height: 31
+        color: "#141414"
+      - type: text
+        value:
+          if: "greaterThan(zug2.abw, 0)"
+          then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2) | add(zug2.abw)}} min"
+          else: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2)}} min"
+        x: 234
+        y: 64
+        align: right
+        font: bold
+        size: 14
+        color: "#ffffff"
+  # ---------- zug3 (y 86-119) ----------
+  - if: "and(not(isEmpty(zug3.zeit)), isEmpty(zug1.hinweis | trim))"
+    layers:
+      - type: rect
+        x: 46
+        y: 91
+        width: 24
+        height: 24
+        color:
+          if: "equals(zug3.nr | trim | lower, 'a')"
+          then: "#00a0dc"
+          elif: "equals(zug3.nr | trim | lower, 'bx')"
+          then: "#9ccb3b"
+          elif: "equals(zug3.nr | trim | lower, 'b')"
+          then: "#4ca83d"
+          elif: "equals(zug3.nr | trim | lower, 'c')"
+          then: "#f39200"
+          elif: "equals(zug3.nr | trim | lower, 'e')"
+          then: "#7e5ea8"
+          elif: "equals(zug3.nr | trim | lower, 'f')"
+          then: "#ffc61e"
+          elif: "equals(zug3.nr | trim | lower, 'h')"
+          then: "#e2001a"
+          else: "#6e6e6e"
+      - type: image
+        file: kreis-maske.png
+        x: 46
+        y: 91
+      - type: text
+        value: "{{zug3.nr | trim | match('^[A-Za-z]{1,2}', 0) | upper | replace('BX','Bx')}}"
+        x: 46
+        y: 95
+        width: 24
+        height: 24
+        align: center
+        valign: middle
+        font: bold
+        size: 15
+        scale_x: 0.9
+        color:
+          if: "equals(zug3.nr | trim | lower, 'f')"
+          then: "#141414"
+          else: "#ffffff"
+      - type: text
+        value: "{{zug3.vonnach}}"
+        x: 77
+        y: 97
+        font: bold
+        size: 17
+        scale_x: 0.85
+        color: "#ffffff"
+      - type: rect
+        x: 186
+        y: 87
+        width: 54
+        height: 31
+        color: "#141414"
+      - type: text
+        value:
+          if: "greaterThan(zug3.abw, 0)"
+          then: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2) | add(zug3.abw)}} min"
+          else: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2)}} min"
+        x: 234
+        y: 98
+        align: right
+        font: bold
+        size: 14
+        color: "#ffffff"
+  # ---------- Hinweis statt Zeile 3 ----------
+  - if: "not(isEmpty(zug1.hinweis | trim))"
+    layers:
+      - type: text
+        value: "{{zug1.hinweis | trim}}"
+        x: 46
+        y: 89
+        width: 188
+        height: 28
+        valign: middle
+        line_height: 0.95
+        font: bold
+        size: 12
+        scale_x: 0.85
+        color: "#ffc61e"
+
+  # ---------- Spor-Block außen (x 0-39), zuletzt ----------
+  - type: rect
+    x: 0
+    y: 0
+    width: 40
+    height: 120
+    color: "#262626"
+  - type: text
+    value: "Spor"
+    x: 0
+    y: 42
+    width: 40
+    align: center
+    font: regular
+    size: 11
+    color: "#9a9a9a"
+  - type: text
+    value: "{{gleis}}"
+    x: 0
+    y: 55
+    width: 40
+    align: center
+    font: bold
+    size: 34
+    scale_x: 0.8
+    color: "#ffffff"
+
+  # ---------- Untere Hälfte = Seite B, gespiegelt ----------
+  - type: copy                     # Inhalt nach links (x 40-239 -> x 0-199)
+    src_x: 40
+    src_y: 0
+    src_width: 200
+    src_height: 120
+    x: 0
+    y: 120
+  - type: copy                     # Spor außen = rechts (x 0-39 -> x 200-239)
+    src_x: 0
+    src_y: 0
+    src_width: 40
+    src_height: 120
+    x: 200
+    y: 120

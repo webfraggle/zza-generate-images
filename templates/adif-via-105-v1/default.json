@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Próximos trenes",
+    "gleis": "20",
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "A Coruña-Ferrol",
+        "nr": "ALVIA 04155",
+        "zeit": "15:00",
+        "via": "A Gudiña - Zamora",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Madrid-Chamartín",
+        "nr": "AVE 04082",
+        "zeit": "15:25",
+        "via": "Valladolid",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "León",
+        "nr": "AVANT 08261",
+        "zeit": "15:40",
+        "via": "",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

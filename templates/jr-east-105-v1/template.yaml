@@ -2,71 +2,601 @@ meta:
   name: "JR East 1.05\""
   description: "JR East Bahnsteiganzeiger (Japan): Kopfzeile je Gleis, LED-Zeilen im Wechsel Japanisch/Englisch alle 4 Sekunden"
   author: ""
-  version: "1.0"
+  version: "1.1"
+  instructions: |
+    Bahnsteiganzeiger im Stil von JR East (Vorbild: Shin-Kiba, Keiyo Line).
+    Kopfzeile nach gleis: 1 = Keiyo/Musashino Line for Soga & Nishi-Funabashi,
+    2 = Keiyo Line for Tokyo, 3 = Rinkai Line for Osaki; andere Gleise zeigen
+    die Gleisnummer und "for <Ziel von Zug 1>".
+    LED-Zeilen wechseln alle 4 s zwischen Japanisch und Englisch:
+    Zug 1 und 2 mit Gattung (nr: Local, Rapid, Commuter Rapid, Ltd. Express),
+    Zeit, Ziel und Wagenzahl (reihung, z.B. "10"); dritte Zeile zeigt den
+    Hinweis oder "Zug fährt ein".
+    Bekannte Ziele erscheinen in Kanji (Tokyo, Soga, Maihama, Shin-Urayasu,
+    Kaihimmakuhari, Nishi-Funabashi, Shin-Matsudo, Fuchu-Hommachi,
+    Minami-Funabashi, Shin-Kiba, Kazusa-Ichinomiya, Kimitsu, Osaki, Shinjuku,
+    Kawagoe, Omiya, Shin-Narashino, Chiba-Minato), alle anderen lateinisch.
   canvas:
     width: 240
     height: 240
+  animation:
+    frames: 2
+    frame_delay: 4
+    loop: true
 
-# Das Bild enthält beide Seiten des Anzeigers (1,05" = je Seite 240×120 px):
-#   Seite A = obere Hälfte (y 0–119), Seite B = untere Hälfte (y 120–239).
-# Gleis-Feld außen: oben links, unten rechts. Deshalb wird die untere Hälfte
-# gespiegelt aufgebaut (Blöcke vertauscht), nicht 1:1 kopiert.
-#
-# Text-Layer brauchen eine Schrift — unter fonts: eintragen (KI: add_font), z.B.
-# fonts:
-#   - id: bold
-#     file: Roboto-Bold.ttf
+# Frame 0 = Japanisch, Frame 1 = Englisch (anim.frame).
+# Seite A oben, Seite B gespiegelt: Gleisnummer außen (oben x 0-31, unten
+# x 208-239), Kopfbild daneben (208x44). LED-Teil y 44-119 wird 1:1 kopiert.
+# Farben: Kopf #3c3e41, Gehäuse #1c1c1c, LED-Feld #0c0c0a,
+# LED grün #66ee55, orange #ffaa22, rot #ff4433.
+# Spalten: Gattung x 8 (max 54), Zeit rechtsbündig bis x 102, Ziel x 108
+# (max 67, englisch gestaucht 0.62), Zug-Symbol x 179, Wagenzahl ab x 191.
+# Zeilen y 49 / 71 / 93.
+# LED-Schrift: DOTMBold (kräftig wie die Kanji).
+# Kanji-Bilder: Noto Sans CJK JP (SIL OFL) ohne Kantenglättung gerendert.
 
 fonts:
   - id: dot
-    file: DOTMATRI.TTF
+    file: DOTMBold.TTF
   - id: regular
     file: NimbusSanL-Reg.otf
 
 layers:
-  # ---------- Obere Hälfte = Seite A (y 0–119) ----------
-  # Hintergrund
+  # ---------- Kopf (y 0-43) ----------
   - type: rect
     x: 0
     y: 0
     width: 240
-    height: 120
-    color: "#142a9b"
+    height: 44
+    color: "#3c3e41"
+  - type: text
+    value: "{{gleis}}"
+    x: 0
+    y: 4
+    width: 32
+    align: center
+    font: regular
+    size: 36
+    scale_x: 0.8
+    color: "#d6d6d6"
+  - type: image
+    if: "equals(gleis, '1')"
+    file: hdr-1.png
+    x: 32
+    y: 0
+  - type: image
+    elif: "equals(gleis, '2')"
+    file: hdr-2.png
+    x: 32
+    y: 0
+  - type: image
+    elif: "equals(gleis, '3')"
+    file: hdr-3.png
+    x: 32
+    y: 0
+  - type: text
+    else: true
+    value: "for {{zug1.vonnach}}"
+    x: 38
+    y: 15
+    font: regular
+    size: 14
+    color: "#e6e6e6"
 
-  # Gleis-Feld (x 0–43), außen = oben links
+  # ---------- LED-Teil (y 44-119) ----------
   - type: rect
     x: 0
-    y: 0
-    width: 44
-    height: 120
-    color: "#ffffff"
+    y: 44
+    width: 240
+    height: 76
+    color: "#1c1c1c"
+  - type: rect
+    x: 4
+    y: 47
+    width: 232
+    height: 70
+    color: "#0c0c0a"
 
-  # Inhaltsfeld (x 44–239): hier Zeit, Ziel, Via, Hinweis als Text-Layer
+  # ---------- zug1 (Zeile y 49) ----------
+  - if: "not(isEmpty(zug1.zeit))"
+    layers:
+      - if: "equals(anim.frame, '0')"
+        layers:
+          - type: image
+            if: "contains(zug1.nr | lower | trim, 'commuter')"
+            file: typ-commuter.png
+            x: 8
+            y: 52
+          - type: image
+            elif: "contains(zug1.nr | lower | trim, 'rapid')"
+            file: typ-rapid.png
+            x: 8
+            y: 52
+          - type: image
+            elif: "or(contains(zug1.nr | lower | trim, 'limited'), contains(zug1.nr | lower | trim, 'ltd'))"
+            file: typ-ltdexp.png
+            x: 8
+            y: 52
+          - type: image
+            elif: "contains(zug1.nr | lower | trim, 'local')"
+            file: typ-local.png
+            x: 8
+            y: 52
+          - type: text
+            else: true
+            value: "{{zug1.nr}}"
+            x: 8
+            y: 51
+            font: dot
+            size: 19.4
+            scale_x: 0.7216
+            color: "#ffaa22"
+          - type: image
+            if: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'tokyo')"
+            file: dst-tokyo.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'soga')"
+            file: dst-soga.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'maihama')"
+            file: dst-maihama.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinurayasu')"
+            file: dst-shinurayasu.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "or(equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kaihimmakuhari'), equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kaihinmakuhari'))"
+            file: dst-kaihimmakuhari.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'nishifunabashi')"
+            file: dst-nishifunabashi.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "or(equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinmatsudo'), equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shimmatsudo'))"
+            file: dst-shinmatsudo.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "or(equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'fuchuhommachi'), equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'fuchuhonmachi'))"
+            file: dst-fuchuhommachi.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'minamifunabashi')"
+            file: dst-minamifunabashi.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinkiba')"
+            file: dst-shinkiba.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kazusaichinomiya')"
+            file: dst-kazusaichinomiya.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kimitsu')"
+            file: dst-kimitsu.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'osaki')"
+            file: dst-osaki.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinjuku')"
+            file: dst-shinjuku.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kawagoe')"
+            file: dst-kawagoe.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'omiya')"
+            file: dst-omiya.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinnarashino')"
+            file: dst-shinnarashino.png
+            x: 108
+            y: 52
+          - type: image
+            elif: "equals(zug1.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'chibaminato')"
+            file: dst-chibaminato.png
+            x: 108
+            y: 52
+          - type: text
+            else: true
+            value: "{{zug1.vonnach}}"
+            x: 108
+            y: 51
+            font: dot
+            size: 19.4
+            scale_x: 0.7216
+            color: "#ffaa22"
+      - else: true
+        layers:
+          - type: text
+            value:
+              if: "contains(zug1.nr | lower | trim, 'commuter')"
+              then: "C.Rapid"
+              elif: "contains(zug1.nr | lower | trim, 'rapid')"
+              then: "Rapid"
+              elif: "or(contains(zug1.nr | lower | trim, 'limited'), contains(zug1.nr | lower | trim, 'ltd'))"
+              then: "Ltd.Exp."
+              elif: "contains(zug1.nr | lower | trim, 'local')"
+              then: "Local"
+              else: "{{zug1.nr}}"
+            x: 8
+            y: 51
+            font: dot
+            size: 19.4
+            scale_x: 0.6
+            color:
+              if: "contains(zug1.nr | lower | trim, 'commuter')"
+              then: "#ff4433"
+              elif: "contains(zug1.nr | lower | trim, 'rapid')"
+              then: "#ffaa22"
+              elif: "or(contains(zug1.nr | lower | trim, 'limited'), contains(zug1.nr | lower | trim, 'ltd'))"
+              then: "#ff4433"
+              elif: "contains(zug1.nr | lower | trim, 'local')"
+              then: "#66ee55"
+              else: "#ffaa22"
+          - type: text
+            value: "{{zug1.vonnach}}"
+            x: 108
+            y: 51
+            font: dot
+            size: 19.4
+            scale_x: 0.62
+            color: "#ffaa22"
+      - type: rect
+        x: 63
+        y: 49
+        width: 43
+        height: 21
+        color: "#0c0c0a"
+      - type: text
+        value: "{{zug1.zeit}}"
+        x: 102
+        y: 51
+        align: right
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#66ee55"
+      - type: rect
+        x: 175
+        y: 49
+        width: 61
+        height: 21
+        color: "#0c0c0a"
+      - if: "not(isEmpty(zug1.reihung | trim))"
+        layers:
+          - type: image
+            file: zug-icon.png
+            x: 179
+            y: 53
+          - type: text
+            id: c1
+            advance: 1
+            value: "{{zug1.reihung | trim}}"
+            x: 191
+            y: 51
+            font: dot
+            size: 19.4
+            scale_x: 0.7216
+            color: "#66ee55"
+          - type: image
+            if: "equals(anim.frame, '0')"
+            file: ryo.png
+            x: "{{c1.end}}"
+            y: 52
+          - type: text
+            else: true
+            value: "cars"
+            x: "{{c1.end}}"
+            y: 51
+            font: dot
+            size: 19.4
+            scale_x: 0.55
+            color: "#66ee55"
+  # ---------- zug2 (Zeile y 71) ----------
+  - if: "not(isEmpty(zug2.zeit))"
+    layers:
+      - if: "equals(anim.frame, '0')"
+        layers:
+          - type: image
+            if: "contains(zug2.nr | lower | trim, 'commuter')"
+            file: typ-commuter.png
+            x: 8
+            y: 74
+          - type: image
+            elif: "contains(zug2.nr | lower | trim, 'rapid')"
+            file: typ-rapid.png
+            x: 8
+            y: 74
+          - type: image
+            elif: "or(contains(zug2.nr | lower | trim, 'limited'), contains(zug2.nr | lower | trim, 'ltd'))"
+            file: typ-ltdexp.png
+            x: 8
+            y: 74
+          - type: image
+            elif: "contains(zug2.nr | lower | trim, 'local')"
+            file: typ-local.png
+            x: 8
+            y: 74
+          - type: text
+            else: true
+            value: "{{zug2.nr}}"
+            x: 8
+            y: 73
+            font: dot
+            size: 19.4
+            scale_x: 0.7216
+            color: "#ffaa22"
+          - type: image
+            if: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'tokyo')"
+            file: dst-tokyo.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'soga')"
+            file: dst-soga.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'maihama')"
+            file: dst-maihama.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinurayasu')"
+            file: dst-shinurayasu.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "or(equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kaihimmakuhari'), equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kaihinmakuhari'))"
+            file: dst-kaihimmakuhari.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'nishifunabashi')"
+            file: dst-nishifunabashi.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "or(equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinmatsudo'), equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shimmatsudo'))"
+            file: dst-shinmatsudo.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "or(equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'fuchuhommachi'), equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'fuchuhonmachi'))"
+            file: dst-fuchuhommachi.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'minamifunabashi')"
+            file: dst-minamifunabashi.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinkiba')"
+            file: dst-shinkiba.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kazusaichinomiya')"
+            file: dst-kazusaichinomiya.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kimitsu')"
+            file: dst-kimitsu.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'osaki')"
+            file: dst-osaki.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinjuku')"
+            file: dst-shinjuku.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'kawagoe')"
+            file: dst-kawagoe.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'omiya')"
+            file: dst-omiya.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'shinnarashino')"
+            file: dst-shinnarashino.png
+            x: 108
+            y: 74
+          - type: image
+            elif: "equals(zug2.vonnach | lower | replace(' ','') | replace('-','') | replace('.',''), 'chibaminato')"
+            file: dst-chibaminato.png
+            x: 108
+            y: 74
+          - type: text
+            else: true
+            value: "{{zug2.vonnach}}"
+            x: 108
+            y: 73
+            font: dot
+            size: 19.4
+            scale_x: 0.7216
+            color: "#ffaa22"
+      - else: true
+        layers:
+          - type: text
+            value:
+              if: "contains(zug2.nr | lower | trim, 'commuter')"
+              then: "C.Rapid"
+              elif: "contains(zug2.nr | lower | trim, 'rapid')"
+              then: "Rapid"
+              elif: "or(contains(zug2.nr | lower | trim, 'limited'), contains(zug2.nr | lower | trim, 'ltd'))"
+              then: "Ltd.Exp."
+              elif: "contains(zug2.nr | lower | trim, 'local')"
+              then: "Local"
+              else: "{{zug2.nr}}"
+            x: 8
+            y: 73
+            font: dot
+            size: 19.4
+            scale_x: 0.6
+            color:
+              if: "contains(zug2.nr | lower | trim, 'commuter')"
+              then: "#ff4433"
+              elif: "contains(zug2.nr | lower | trim, 'rapid')"
+              then: "#ffaa22"
+              elif: "or(contains(zug2.nr | lower | trim, 'limited'), contains(zug2.nr | lower | trim, 'ltd'))"
+              then: "#ff4433"
+              elif: "contains(zug2.nr | lower | trim, 'local')"
+              then: "#66ee55"
+              else: "#ffaa22"
+          - type: text
+            value: "{{zug2.vonnach}}"
+            x: 108
+            y: 73
+            font: dot
+            size: 19.4
+            scale_x: 0.62
+            color: "#ffaa22"
+      - type: rect
+        x: 63
+        y: 71
+        width: 43
+        height: 21
+        color: "#0c0c0a"
+      - type: text
+        value: "{{zug2.zeit}}"
+        x: 102
+        y: 73
+        align: right
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#66ee55"
+      - type: rect
+        x: 175
+        y: 71
+        width: 61
+        height: 21
+        color: "#0c0c0a"
+      - if: "not(isEmpty(zug2.reihung | trim))"
+        layers:
+          - type: image
+            file: zug-icon.png
+            x: 179
+            y: 75
+          - type: text
+            id: c2
+            advance: 1
+            value: "{{zug2.reihung | trim}}"
+            x: 191
+            y: 73
+            font: dot
+            size: 19.4
+            scale_x: 0.7216
+            color: "#66ee55"
+          - type: image
+            if: "equals(anim.frame, '0')"
+            file: ryo.png
+            x: "{{c2.end}}"
+            y: 74
+          - type: text
+            else: true
+            value: "cars"
+            x: "{{c2.end}}"
+            y: 73
+            font: dot
+            size: 19.4
+            scale_x: 0.55
+            color: "#66ee55"
+  # ---------- Zeile 3: Hinweis oder "Zug fährt ein" (y 93) ----------
+  - if: "not(isEmpty(zug1.zeit))"
+    layers:
+      - type: text
+        if: "not(isEmpty(zug1.hinweis | trim))"
+        value: "{{zug1.hinweis | trim}}"
+        x: 8
+        y: 95
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffaa22"
+      - type: image
+        elif: "equals(anim.frame, '0')"
+        file: msg.png
+        x: 8
+        y: 96
+      - type: text
+        else: true
+        value: "Train approaching"
+        x: 8
+        y: 95
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ff4433"
 
-  # ---------- Untere Hälfte = Seite B (y 120–239), gespiegelt ----------
-  # Hintergrund für Lücken zwischen den kopierten Blöcken
+  # Gehäuserand rechts schneidet Überlauf ab
+  - type: rect
+    x: 236
+    y: 44
+    width: 4
+    height: 76
+    color: "#1c1c1c"
+
+  # ---------- Untere Hälfte = Seite B ----------
   - type: rect
     x: 0
     y: 120
     width: 240
     height: 120
-    color: "#142a9b"
-
-  # copy-Layer immer am Ende: sie kopieren alles, was davor gezeichnet wurde.
-  # Inhaltsfeld nach links unten (x 44–239 → x 0–195)
-  - type: copy
-    src_x: 44
+    color: "#1c1c1c"
+  - type: copy                     # Kopfbild nach links (x 32-239 -> x 0-207)
+    src_x: 32
     src_y: 0
-    src_width: 196
-    src_height: 120
+    src_width: 208
+    src_height: 44
     x: 0
     y: 120
-
-  # Gleis-Feld außen = unten rechts (x 0–43 → x 196–239)
-  - type: copy
+  - type: copy                     # Gleisnummer außen = rechts (x 0-31 -> x 208-239)
     src_x: 0
     src_y: 0
-    src_width: 44
-    src_height: 120
-    x: 196
+    src_width: 32
+    src_height: 44
+    x: 208
     y: 120
+  - type: copy                     # LED-Teil 1:1
+    src_x: 0
+    src_y: 44
+    src_width: 240
+    src_height: 76
+    x: 0
+    y: 164

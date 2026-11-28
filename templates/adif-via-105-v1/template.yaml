@@ -1,0 +1,253 @@
+meta:
+  name: "Adif Vía 1.05\""
+  description: "Adif Bahnsteiganzeiger (Spanien): gruene LED-Schrift, Laufweg rot, Via mit grossem Gleis und gruenem Streifen aussen"
+  author: ""
+  version: "1.1"
+  instructions: |
+    Bahnsteiganzeiger im Stil von Adif (Spanien), ein Zug.
+    Außen: grüner Streifen, "Vía | Platform" und Gleis (gleis) groß.
+    Innen in grüner LED-Schrift: Hora (zug1.zeit), Tren = Produkt aus nr vor
+    dem ersten Leerzeichen (z.B. ALVIA), rechts die Zugnummer aus nr nach dem
+    Leerzeichen (z.B. 04155); Destino (zug1.vonnach).
+    Rote Zeile: Hinweis (zug1.hinweis) oder "VIA <Halte>" aus zug1.via,
+    bei Verspätung mit "RETRASO X MIN" davor.
+    Akzente und Ñ werden ersetzt (Punktmatrix-Schrift ohne diese Zeichen).
+  canvas:
+    width: 240
+    height: 240
+
+# Seite A oben, Seite B gespiegelt. Vía-Block außen: oben x 0-47 (Streifen
+# x 0-7 außen), unten x 192-239 (Streifen x 232-239 außen). Der Streifen wird
+# unten neu gezeichnet, damit er auch dort am Außenrand sitzt.
+# Farben: Gehäuse #0a0a0a, LED-Feld #161a16, LED grün #7cf56c, rot #ff5a4a,
+# Beschriftung #a0a0a0 / #6c6c6c, Gleis weiß #f0f0f0, Streifen #2f9e44.
+# LED-Schrift wie london-tube: DOTMBold 19.4, scale_x 0.7216.
+# Felder x 51-236: Zeile 1 y 17-39, Zeile 2 y 55-77, Zeile 3 (rot) y 82-104.
+
+fonts:
+  - id: dot
+    file: DOTMBold.TTF
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # ---------- Gehäuse ----------
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 120
+    color: "#0a0a0a"
+
+  # ---------- Vía-Block (außen) ----------
+  - type: rect                     # grüner Streifen
+    x: 0
+    y: 0
+    width: 8
+    height: 120
+    color: "#2f9e44"
+  - type: text
+    value: "Vía"
+    x: 12
+    y: 8
+    font: bold
+    size: 10
+    color: "#a0a0a0"
+  - type: text
+    value: "Platform"
+    x: 12
+    y: 19
+    font: regular
+    size: 10
+    scale_x: 0.85
+    color: "#6c6c6c"
+  - type: text
+    value: "{{gleis}}"
+    x: 8
+    y: 40
+    width: 40
+    height: 50
+    align: center
+    valign: middle
+    font: regular
+    size: 44
+    scale_x: 0.8
+    color: "#f0f0f0"
+
+  # ---------- Inhalt ----------
+  - type: rect                     # deckt Überlauf der Gleisnummer ab
+    x: 48
+    y: 0
+    width: 192
+    height: 120
+    color: "#0a0a0a"
+
+  # Beschriftungen
+  - type: text
+    id: l1
+    advance: 3
+    value: "Hora"
+    x: 52
+    y: 6
+    font: bold
+    size: 10
+    color: "#a0a0a0"
+  - type: text
+    value: "Time"
+    x: "{{l1.end}}"
+    y: 6
+    font: regular
+    size: 10
+    color: "#6c6c6c"
+  - type: text
+    id: l2
+    advance: 3
+    value: "Tren"
+    x: 104
+    y: 6
+    font: bold
+    size: 10
+    color: "#a0a0a0"
+  - type: text
+    value: "Train"
+    x: "{{l2.end}}"
+    y: 6
+    font: regular
+    size: 10
+    color: "#6c6c6c"
+  - type: text
+    id: l3
+    advance: 3
+    value: "Destino"
+    x: 52
+    y: 44
+    font: bold
+    size: 10
+    color: "#a0a0a0"
+  - type: text
+    value: "Destination"
+    x: "{{l3.end}}"
+    y: 44
+    font: regular
+    size: 10
+    color: "#6c6c6c"
+
+  # LED-Felder
+  - type: rect
+    x: 51
+    y: 17
+    width: 186
+    height: 23
+    color: "#161a16"
+  - type: rect
+    x: 51
+    y: 55
+    width: 186
+    height: 23
+    color: "#161a16"
+  - type: rect
+    x: 51
+    y: 82
+    width: 186
+    height: 23
+    color: "#161a16"
+
+  - if: "not(isEmpty(zug1.zeit))"
+    layers:
+      - type: text                 # Hora
+        value: "{{zug1.zeit}}"
+        x: 54
+        y: 19
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#7cf56c"
+      - type: text                 # Tren: Produkt
+        value: "{{zug1.nr | trim | before(' ') | upper}}"
+        x: 104
+        y: 19
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#7cf56c"
+      - type: text                 # Zugnummer rechts
+        value: "{{zug1.nr | trim | after(' ') | trim | upper}}"
+        x: 234
+        y: 19
+        align: right
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#7cf56c"
+      - type: text                 # Destino
+        value: "{{zug1.vonnach | upper | replace('Ñ','N') | replace('Á','A') | replace('É','E') | replace('Í','I') | replace('Ó','O') | replace('Ú','U') | replace('Ü','UE') | replace('Ç','C') | replace('Ä','AE') | replace('Ö','OE') | replace('ß','SS')}}"
+        x: 54
+        y: 57
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#7cf56c"
+      - type: text                 # rote Zeile: Verspätung
+        id: rt
+        advance: 7
+        value:
+          if: "greaterThan(zug1.abw, 0)"
+          then: "RETRASO {{zug1.abw}} MIN"
+          else: ""
+        x: 54
+        y: 84
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ff5a4a"
+      - type: text                 # rote Zeile: Hinweis oder Laufweg
+        value:
+          if: "not(isEmpty(zug1.hinweis | trim))"
+          then: "{{zug1.hinweis | trim | upper | replace('Ñ','N') | replace('Á','A') | replace('É','E') | replace('Í','I') | replace('Ó','O') | replace('Ú','U') | replace('Ü','UE') | replace('Ç','C') | replace('Ä','AE') | replace('Ö','OE') | replace('ß','SS')}}"
+          elif: "not(isEmpty(zug1.via | trim))"
+          then: "VIA {{zug1.via | trim | replace(' - ', ', ') | upper | replace('Ñ','N') | replace('Á','A') | replace('É','E') | replace('Í','I') | replace('Ó','O') | replace('Ú','U') | replace('Ü','UE') | replace('Ç','C') | replace('Ä','AE') | replace('Ö','OE') | replace('ß','SS')}}"
+          else: ""
+        x: "{{rt.end}}"
+        y: 84
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ff5a4a"
+
+  # Gehäuserand rechts schneidet Überlauf ab
+  - type: rect
+    x: 237
+    y: 0
+    width: 3
+    height: 120
+    color: "#0a0a0a"
+
+  # ---------- Untere Hälfte = Seite B, gespiegelt ----------
+  - type: rect
+    x: 0
+    y: 120
+    width: 240
+    height: 120
+    color: "#0a0a0a"
+  - type: copy                     # Inhalt nach links (x 48-239 -> x 0-191)
+    src_x: 48
+    src_y: 0
+    src_width: 192
+    src_height: 120
+    x: 0
+    y: 120
+  - type: copy                     # Vía-Beschriftung und Gleis (x 8-47 -> x 192-231)
+    src_x: 8
+    src_y: 0
+    src_width: 40
+    src_height: 120
+    x: 192
+    y: 120
+  - type: rect                     # Streifen außen rechts
+    x: 232
+    y: 120
+    width: 8
+    height: 120
+    color: "#2f9e44"

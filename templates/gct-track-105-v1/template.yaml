@@ -1,0 +1,241 @@
+meta:
+  name: "Grand Central Track 1.05\""
+  description: "Fantasie-Gleistafel im Art-deco-Stil nach Grand Central (New York): Messingrahmen, Gleis aussen, Linie farbig, Abfahrt, Ziel, Halte, Bemerkung"
+  author: ""
+  version: "1.3"
+  instructions: |
+    Fantasie-Gleistafel im Art-deco-Stil, angelehnt an die Gleiszugänge in
+    Grand Central (kein originalgetreuer Nachbau).
+    Außen: TRACK und Gleisnummer (gleis) mit Fächer-Ornament.
+    Innen: Linie als farbiges Schild aus nr (enthält "Hudson" = grün,
+    "Harlem" = blau, "New Haven" = rot, sonst Messing), Abfahrt und Ziel
+    groß, Halte (via, Trenner " - "), Bemerkung (DELAYED bei Verspätung,
+    sonst Hinweis oder ALL ABOARD) und der nächste Zug (zug2).
+  canvas:
+    width: 240
+    height: 240
+
+# Seite A oben, Seite B gespiegelt: Gleistafel außen (oben x 0-55, unten
+# x 184-239), Haupttafel oben x 56-239, unten x 0-183. Beide Tafeln haben
+# eigene Messingrahmen (rahmen-gleis.png, rahmen-tafel.png), damit das
+# Vertauschen der Blöcke sauber aufgeht.
+# Farben: Schwarz #0b0b0b, Messing #b8935a / dunkel #6e5430,
+# Creme #f3ead2, Halte #d9c9a3, Bernstein #f2b33d, Rot #ff5f4f.
+# Haupttafel innen x 62-233, Gleistafel innen x 6-49.
+# Linienschild y 11-25, Versalien darin per Pixelmessung mittig (Text y 15).
+# Ziel: n = (Messbreite + 8) / Platz; m = 2n / (n + 1) ist 0 (passt) oder 1
+# (passt nicht). Bei m = 1 wird die normale Fassung aus dem Bild geschoben
+# und die gestauchte gezeigt; Überlänge schneidet der rechte Rahmen ab.
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Unsichtbare Messtexte (vom Rahmenbild überdeckt)
+  - type: text
+    id: lm
+    value: "{{zug1.nr | upper}}"
+    x: 0
+    y: 0
+    font: bold
+    size: 10
+    color: "#0b0b0b"
+  - type: text
+    id: tz
+    advance: 7
+    value: "{{zug1.zeit}}"
+    x: 63
+    y: 40
+    font: bold
+    size: 24
+    color: "#0b0b0b"
+  - type: text
+    id: dm
+    value: "{{zug1.vonnach | upper | match('^.{1,30}', 0)}}"
+    x: 0
+    y: 70
+    font: bold
+    size: 18
+    scale_x: 0.75
+    color: "#0b0b0b"
+
+  # ---------- Rahmen ----------
+  - type: image
+    file: rahmen-gleis.png
+    x: 0
+    y: 0
+  - type: image
+    file: rahmen-tafel.png
+    x: 56
+    y: 0
+
+  # ---------- Gleistafel (außen) ----------
+  - type: text
+    value: "TRACK"
+    x: 6
+    y: 13
+    width: 44
+    align: center
+    font: bold
+    size: 10
+    color: "#b8935a"
+  - type: text
+    value: "{{gleis}}"
+    x: 6
+    y: 27
+    width: 44
+    align: center
+    font: bold
+    size: 32
+    scale_x: 0.8
+    color: "#f3ead2"
+  - type: image
+    file: facher.png
+    x: 8
+    y: 86
+
+  # ---------- Haupttafel ----------
+  - if: "not(isEmpty(zug1.nr | trim))"
+    layers:
+      - type: rect                 # Linienschild, Breite nach Text
+        x: 63
+        y: 11
+        width: "{{lm.width + 10}}"
+        height: 15
+        color:
+          if: "contains(zug1.nr | lower, 'hudson')"
+          then: "#009b3a"
+          elif: "contains(zug1.nr | lower, 'harlem')"
+          then: "#0039a6"
+          elif: "contains(zug1.nr | lower, 'haven')"
+          then: "#ee0034"
+          else: "#6e5430"
+      - type: text
+        value: "{{zug1.nr | upper}}"
+        x: 68
+        y: 15
+        font: bold
+        size: 10
+        color: "#ffffff"
+
+  - type: text                     # Abfahrt
+    value: "{{zug1.zeit}}"
+    x: 63
+    y: 30
+    font: bold
+    size: 24
+    color: "#f3ead2"
+  - type: text                     # Ziel, normal
+    value: "{{zug1.vonnach | upper}}"
+    x: "{{tz.end}}"
+    y: "{{35 + ((2 * ((dm.width + 8) / (233 - tz.end))) / (((dm.width + 8) / (233 - tz.end)) + 1)) * 300}}"
+    font: bold
+    size: 18
+    scale_x: 0.75
+    color: "#ffffff"
+  - type: text                     # Ziel, gestaucht (wenn es nicht passt)
+    value: "{{zug1.vonnach | upper}}"
+    x: "{{tz.end}}"
+    y: "{{35 + (1 - (2 * ((dm.width + 8) / (233 - tz.end))) / (((dm.width + 8) / (233 - tz.end)) + 1)) * 300}}"
+    font: bold
+    size: 18
+    scale_x: 0.5
+    color: "#ffffff"
+
+  - type: text                     # Halte
+    if: "not(isEmpty(zug1.via | trim))"
+    value: "{{zug1.via | upper}}"
+    x: 63
+    y: 58
+    max_width: 170
+    font: regular
+    size: 11
+    scale_x: 0.85
+    color: "#d9c9a3"
+    fit_items:
+      split_by: " - "
+      gap: 8
+
+  - type: rect                     # Messinglinie
+    x: 63
+    y: 76
+    width: 170
+    height: 1
+    color: "#b8935a"
+
+  - type: text                     # Bemerkung, nur ganze Wörter
+    if: "not(isEmpty(zug1.zeit))"
+    value:
+      if: "greaterThan(zug1.abw, 0)"
+      then: "DELAYED {{zug1.abw}} MIN"
+      elif: "not(isEmpty(zug1.hinweis | trim))"
+      then: "{{zug1.hinweis | upper}}"
+      else: "ALL ABOARD"
+    x: 63
+    y: 80
+    max_width: 170
+    font: bold
+    size: 13
+    scale_x: 0.85
+    color:
+      if: "greaterThan(zug1.abw, 0)"
+      then: "#ff5f4f"
+      else: "#f2b33d"
+    fit_items:
+      split_by: " "
+      gap: 4
+
+  - type: text                     # nächster Zug
+    if: "not(isEmpty(zug2.zeit))"
+    value: "NEXT  {{zug2.zeit}}  {{zug2.vonnach | upper}}"
+    x: 63
+    y: 98
+    font: regular
+    size: 11
+    scale_x: 0.85
+    color: "#b8935a"
+
+  # Rechten Rahmen neu zeichnen: schneidet überlange Texte ab
+  - type: rect
+    x: 234
+    y: 3
+    width: 3
+    height: 114
+    color: "#0b0b0b"
+  - type: rect
+    x: 234
+    y: 5
+    width: 1
+    height: 110
+    color: "#6e5430"
+  - type: rect
+    x: 237
+    y: 1
+    width: 2
+    height: 118
+    color: "#b8935a"
+  - type: rect
+    x: 239
+    y: 0
+    width: 1
+    height: 120
+    color: "#0b0b0b"
+
+  # ---------- Untere Hälfte = Seite B, gespiegelt ----------
+  - type: copy                     # Haupttafel nach links (x 56-239 -> x 0-183)
+    src_x: 56
+    src_y: 0
+    src_width: 184
+    src_height: 120
+    x: 0
+    y: 120
+  - type: copy                     # Gleistafel außen = rechts (x 0-55 -> x 184-239)
+    src_x: 0
+    src_y: 0
+    src_width: 56
+    src_height: 120
+    x: 184
+    y: 120

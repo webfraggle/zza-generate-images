@@ -1,38 +1,38 @@
 {
-    "folgezuege": "Folgezüge",
-    "gleis": 6,
-    "abschnitt": "A-F",
+    "folgezuege": "Next",
+    "gleis": "2",
+    "abschnitt": "",
     "zug1": {
-        "vonnach": "Sennhof-Kyburg",
-        "nr": "IC23",
-        "zeit": "15:54",
-        "via": "Othmarsingen - Mägenwil - Mellingen - Zürich HB - Winterthur",
-        "abw": 10,
-        "hinweis": "Abweichende Wagenreihung",
+        "vonnach": "Tokyo",
+        "nr": "Rapid",
+        "zeit": "7:30",
+        "via": "Shiomi - Etchujima - Hatchobori",
+        "abw": 0,
+        "hinweis": "",
         "fusszeile": "",
         "abschnitte": "",
-        "reihung": ""
+        "reihung": "10"
     },
     "zug2": {
-        "vonnach": "",
-        "nr": "",
-        "zeit": "",
-        "via": "",
-        "abw": "",
+        "vonnach": "Tokyo",
+        "nr": "Local",
+        "zeit": "7:34",
+        "via": "Shiomi - Etchujima - Hatchobori",
+        "abw": 0,
         "hinweis": "",
         "fusszeile": "",
         "abschnitte": "",
-        "reihung": ""
+        "reihung": "10"
     },
     "zug3": {
-        "vonnach": "",
-        "nr": "",
-        "zeit": "",
+        "vonnach": "Tokyo",
+        "nr": "Local",
+        "zeit": "7:41",
         "via": "",
-        "abw": "",
+        "abw": 0,
         "hinweis": "",
         "fusszeile": "",
         "abschnitte": "",
-        "reihung": ""
+        "reihung": "8"
     }
 }

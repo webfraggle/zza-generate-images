@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Next",
+    "gleis": "23",
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Croton-Harmon",
+        "nr": "Hudson Line",
+        "zeit": "5:15",
+        "via": "Harlem-125 St - Yonkers - Tarrytown - Ossining",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Poughkeepsie",
+        "nr": "Hudson Line",
+        "zeit": "5:42",
+        "via": "Harlem-125 St - Croton-Harmon - Beacon",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Stamford",
+        "nr": "New Haven Line",
+        "zeit": "5:47",
+        "via": "",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

@@ -1,0 +1,305 @@
+meta:
+  name: "DSB S-tog Perron 1.05\""
+  description: "Kopenhagener S-Bahn, Bahnsteiganzeige nach Foto: hellblau, Minuten links, Linie im Farbquadrat, Ziel, Halte"
+  author: ""
+  version: "1.1"
+  instructions: |
+    Bahnsteiganzeige der Kopenhagener S-Bahn (DSB S-tog) nach Foto, nur der
+    Bildschirm (ohne Gehäuse und Gleisnummer). Abweichend vom Original drei
+    Zeilen: zug1 mit Unterwegshalten (via), darunter zug2 und zug3.
+    Links die Minuten: Zug 1 zeigt "½ min" (fährt ein), bei Verspätung die
+    Verspätung; Zug 2 und 3 die Minuten nach Zug 1 (plus abw), zweistellig
+    wie im Original ("03 min"). Linienbuchstabe aus nr im Farbquadrat
+    (A blau, B grün, Bx hellgrün, C orange, E lila, F gelb, H rot, sonst grau).
+    Ein Hinweis (zug1.hinweis) ersetzt die dritte Zeile.
+  canvas:
+    width: 240
+    height: 240
+
+# Symmetrisch ohne Rand-Element: obere Hälfte 1:1 nach unten kopiert.
+# Farben: Grund hellblau #d3e5f3, Trennlinie #b4cde1, Schrift #1f2a33,
+# Halte #3c4a55. Zeilen y 0-39 / 40-79 / 80-119.
+# Spalten: Minuten rechtsbündig bis x 37, "min" ab x 39, Quadrat x 60-81,
+# Ziel ab x 86; Randstreifen x 236-239 schneidet Überlänge ab.
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 120
+    color: "#d3e5f3"
+  - type: rect
+    x: 4
+    y: 40
+    width: 232
+    height: 1
+    color: "#b4cde1"
+  - type: rect
+    x: 4
+    y: 80
+    width: 232
+    height: 1
+    color: "#b4cde1"
+
+  # ---------- zug1 (y 0-39) ----------
+  - if: "not(isEmpty(zug1.zeit))"
+    layers:
+      - type: text                   # Minuten
+        value:
+          if: "and(greaterThan(zug1.abw, 0), greaterThan(zug1.abw, 9))"
+          then: "{{zug1.abw}}"
+          elif: "greaterThan(zug1.abw, 0)"
+          then: "0{{zug1.abw}}"
+          else: "½"
+        x: 37
+        y: 24
+        valign: baseline
+        align: right
+        font: bold
+        size: 24
+        color: "#1f2a33"
+      - type: text
+        value: "min"
+        x: 39
+        y: 24
+        valign: baseline
+        font: regular
+        size: 11
+        color: "#1f2a33"
+      - type: rect                   # Linienquadrat
+        x: 60
+        y: 5
+        width: 22
+        height: 22
+        color:
+          if: "equals(zug1.nr | trim | lower, 'a')"
+          then: "#00a0dc"
+          elif: "equals(zug1.nr | trim | lower, 'bx')"
+          then: "#9ccb3b"
+          elif: "equals(zug1.nr | trim | lower, 'b')"
+          then: "#4ca83d"
+          elif: "equals(zug1.nr | trim | lower, 'c')"
+          then: "#ec8b26"
+          elif: "equals(zug1.nr | trim | lower, 'e')"
+          then: "#7e5ea8"
+          elif: "equals(zug1.nr | trim | lower, 'f')"
+          then: "#ffc61e"
+          elif: "equals(zug1.nr | trim | lower, 'h')"
+          then: "#e2001a"
+          else: "#7a8a96"
+      - type: text
+        value: "{{zug1.nr | trim | match('^[A-Za-z]{1,2}', 0) | upper | replace('BX','Bx')}}"
+        x: 60
+        y: 9
+        width: 22
+        height: 22
+        align: center
+        valign: middle
+        font: bold
+        size: 16
+        scale_x: 0.9
+        color:
+          if: "equals(zug1.nr | trim | lower, 'f')"
+          then: "#1f2a33"
+          else: "#ffffff"
+      - type: text                   # Ziel
+        value: "{{zug1.vonnach}}"
+        x: 86
+        y: 23
+        valign: baseline
+        font: bold
+        size: 20
+        scale_x: 0.85
+        color: "#1f2a33"
+      - type: text                   # Unterwegshalte
+        if: "not(isEmpty(zug1.via | trim))"
+        value: "{{zug1.via | trim}}"
+        x: 60
+        y: 28
+        font: bold
+        size: 11
+        scale_x: 0.85
+        color: "#3c4a55"
+  # ---------- zug2 (y 40-79) ----------
+  - if: "not(isEmpty(zug2.zeit))"
+    layers:
+      - type: text                   # Minuten
+        value:
+          if: "and(greaterThan(zug2.abw, 0), greaterThan(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw), 9))"
+          then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw)}}"
+          elif: "greaterThan(zug2.abw, 0)"
+          then: "0{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw)}}"
+          elif: "greaterThan(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), 9)"
+          then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}}"
+          else: "0{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}}"
+        x: 37
+        y: 69
+        valign: baseline
+        align: right
+        font: bold
+        size: 24
+        color: "#1f2a33"
+      - type: text
+        value: "min"
+        x: 39
+        y: 69
+        valign: baseline
+        font: regular
+        size: 11
+        color: "#1f2a33"
+      - type: rect                   # Linienquadrat
+        x: 60
+        y: 49
+        width: 22
+        height: 22
+        color:
+          if: "equals(zug2.nr | trim | lower, 'a')"
+          then: "#00a0dc"
+          elif: "equals(zug2.nr | trim | lower, 'bx')"
+          then: "#9ccb3b"
+          elif: "equals(zug2.nr | trim | lower, 'b')"
+          then: "#4ca83d"
+          elif: "equals(zug2.nr | trim | lower, 'c')"
+          then: "#ec8b26"
+          elif: "equals(zug2.nr | trim | lower, 'e')"
+          then: "#7e5ea8"
+          elif: "equals(zug2.nr | trim | lower, 'f')"
+          then: "#ffc61e"
+          elif: "equals(zug2.nr | trim | lower, 'h')"
+          then: "#e2001a"
+          else: "#7a8a96"
+      - type: text
+        value: "{{zug2.nr | trim | match('^[A-Za-z]{1,2}', 0) | upper | replace('BX','Bx')}}"
+        x: 60
+        y: 53
+        width: 22
+        height: 22
+        align: center
+        valign: middle
+        font: bold
+        size: 16
+        scale_x: 0.9
+        color:
+          if: "equals(zug2.nr | trim | lower, 'f')"
+          then: "#1f2a33"
+          else: "#ffffff"
+      - type: text                   # Ziel
+        value: "{{zug2.vonnach}}"
+        x: 86
+        y: 67
+        valign: baseline
+        font: bold
+        size: 20
+        scale_x: 0.85
+        color: "#1f2a33"
+  # ---------- zug3 (y 80-119) ----------
+  - if: "and(not(isEmpty(zug3.zeit)), isEmpty(zug1.hinweis | trim))"
+    layers:
+      - type: text                   # Minuten
+        value:
+          if: "and(greaterThan(zug3.abw, 0), greaterThan(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw), 9))"
+          then: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw)}}"
+          elif: "greaterThan(zug3.abw, 0)"
+          then: "0{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw)}}"
+          elif: "greaterThan(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), 9)"
+          then: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}}"
+          else: "0{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}}"
+        x: 37
+        y: 109
+        valign: baseline
+        align: right
+        font: bold
+        size: 24
+        color: "#1f2a33"
+      - type: text
+        value: "min"
+        x: 39
+        y: 109
+        valign: baseline
+        font: regular
+        size: 11
+        color: "#1f2a33"
+      - type: rect                   # Linienquadrat
+        x: 60
+        y: 89
+        width: 22
+        height: 22
+        color:
+          if: "equals(zug3.nr | trim | lower, 'a')"
+          then: "#00a0dc"
+          elif: "equals(zug3.nr | trim | lower, 'bx')"
+          then: "#9ccb3b"
+          elif: "equals(zug3.nr | trim | lower, 'b')"
+          then: "#4ca83d"
+          elif: "equals(zug3.nr | trim | lower, 'c')"
+          then: "#ec8b26"
+          elif: "equals(zug3.nr | trim | lower, 'e')"
+          then: "#7e5ea8"
+          elif: "equals(zug3.nr | trim | lower, 'f')"
+          then: "#ffc61e"
+          elif: "equals(zug3.nr | trim | lower, 'h')"
+          then: "#e2001a"
+          else: "#7a8a96"
+      - type: text
+        value: "{{zug3.nr | trim | match('^[A-Za-z]{1,2}', 0) | upper | replace('BX','Bx')}}"
+        x: 60
+        y: 93
+        width: 22
+        height: 22
+        align: center
+        valign: middle
+        font: bold
+        size: 16
+        scale_x: 0.9
+        color:
+          if: "equals(zug3.nr | trim | lower, 'f')"
+          then: "#1f2a33"
+          else: "#ffffff"
+      - type: text                   # Ziel
+        value: "{{zug3.vonnach}}"
+        x: 86
+        y: 107
+        valign: baseline
+        font: bold
+        size: 20
+        scale_x: 0.85
+        color: "#1f2a33"
+  # ---------- Hinweis statt Zeile 3 ----------
+  - if: "not(isEmpty(zug1.hinweis | trim))"
+    layers:
+      - type: text
+        value: "{{zug1.hinweis | trim}}"
+        x: 8
+        y: 83
+        width: 226
+        height: 34
+        valign: middle
+        line_height: 0.95
+        font: bold
+        size: 13
+        scale_x: 0.85
+        color: "#1f2a33"
+
+  # Randstreifen rechts schneidet Überlänge ab
+  - type: rect
+    x: 236
+    y: 0
+    width: 4
+    height: 120
+    color: "#d3e5f3"
+
+  # ---------- Untere Hälfte = Seite B: Kopie (symmetrisch) ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

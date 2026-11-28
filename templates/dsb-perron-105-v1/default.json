@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Afgange",
+    "gleis": "3",
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Holte",
+        "nr": "B",
+        "zeit": "12:31",
+        "via": "Carlsberg - Dybbølsbro - København H - Vesterport - Nørreport",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Klampenborg",
+        "nr": "C",
+        "zeit": "12:34",
+        "via": "Carlsberg - Dybbølsbro - København H",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Hillerød",
+        "nr": "E",
+        "zeit": "12:41",
+        "via": "Carlsberg - Dybbølsbro - København H",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

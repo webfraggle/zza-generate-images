@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Afgange",
+    "gleis": "2",
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Hillerød",
+        "nr": "A",
+        "zeit": "12:31",
+        "via": "Nørreport - Østerport - Hellerup",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Klampenborg",
+        "nr": "C",
+        "zeit": "12:34",
+        "via": "Nørreport - Østerport - Hellerup",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Holte",
+        "nr": "E",
+        "zeit": "12:38",
+        "via": "Nørreport - Østerport - Hellerup",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}
