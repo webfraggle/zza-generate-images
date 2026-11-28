@@ -1,0 +1,493 @@
+meta:
+  name: "London Tube dunkel 1.05\""
+  description: "London Underground, Punktmatrix-Anzeige, kraeftiges Bernstein auf fast schwarzen LED-Feldern, schwarzes Gehaeuse, 240x240px, 1.05 Zoll, drei Abfahrten mit Minuten-Countdown und laufender Uhr"
+  author: "christoph"
+  version: "1.0"
+  instructions: |
+    Dunkle Variante von london-tubex-105-v1: gleiches Layout, LED-Felder fast
+    schwarz, Schrift in kraeftigem Bernstein.
+    Drei Abfahrten (zug1-zug3) wie auf den Bahnsteiganzeigern der Londoner U-Bahn:
+    Reihenfolge, Ziel, "via" (erste Station aus via) und rechts der Countdown in Minuten.
+    Zug 1 steht am Bahnsteig und hat keine Minutenangabe (ausser bei Verspaetung: abw).
+    Zug 2 und 3 zaehlen relativ zu Zug 1 (zeit - zug1.zeit, plus abw);
+    ueber 99 Minuten steht stattdessen die Abfahrtszeit.
+    Eine Zeile fasst rund 32 Zeichen. Passt "via ..." nicht mehr vor die Minuten,
+    entfaellt es (Tipp: kurze Form eintragen, z.B. "Charing X"); ein zu langes
+    Ziel wird vor der Minutenspalte abgeschnitten.
+    zug1.hinweis ersetzt die dritte Zeile: bis 30 Zeichen in normaler Groesse,
+    laengere Texte klein und zweizeilig (der Rest entfaellt).
+    Unten laeuft die Uhr: Stunde und Minute gross und fett, Sekunden kleiner.
+    Die Schrift hat keine Umlaute: ae/oe/ue/ss werden automatisch eingesetzt.
+  canvas:
+    width: 240
+    height: 240
+  animation:
+    frames: 60
+    frame_delay: 1
+    loop: true
+
+fonts:
+  - id: dot
+    file: DOTMATRI.TTF
+  - id: dotbold
+    file: DOTMBold.TTF
+
+# Dunkle Variante von london-tubex-105-v1 (gleiches Layout und gleiche Logik).
+#
+# Farben:
+#   Gehäuse/Rahmen  #000000  reines Schwarz
+#   LED-Felder      #141308  fast schwarz, leicht warm (7 Stellen: 3 Felder,
+#                            3 Minuten-Freiräumer, Uhr-Feld)
+#   LED-Schrift     #ffa800  kräftiges Bernstein (überall, wo Text leuchtet)
+#
+# Obere Hälfte zeichnen, am Ende per copy 1:1 nach unten (symmetrisch, kein
+# Rand-Element - die Londoner Anzeige hat kein Gleis-Feld).
+# LED-Felder x 5-234, y 5-27 / 31-53 / 57-79, Uhr-Feld x 59-180, y 84-114.
+#
+# Zeilenschrift: DOTMATRI.TTF, size 19.4 mit scale_x 0.7216: die meisten
+# Zeichen sind 7 px breit, die LED-Punktreihen liegen im 2-px-Raster
+# (Versalhöhe 14 px). Text ab x 9.
+#
+# Kräftige LED-Schrift: jeder sichtbare Text wird mehrfach deckungsgleich
+# gezeichnet (loop mit "1|2|3" = drei Durchgänge, fette Uhrziffern zwei).
+#
+# Jede Zeile wird in Pixeln eingepasst:
+#  1. Minutentext unsichtbar messen (m1/m2/m3, vom Gehäuse überdeckt):
+#     mX.end = Breite + 7 px, bei leerem Text 0.
+#  2. Ziel (d1/d2/d3) ungekürzt zeichnen; dX.end = Ende + 7 px.
+#  3. "via ..." ab dX.end, nur wenn es ganz vor die Minuten passt.
+#  4. rect in Feldfarbe räumt die Minutenspalte frei, Minuten rechtsbündig an x 234.
+#  Überlauf rechts überdeckt der Gehäuserand (x 235-239).
+#
+# Uhr: Stunde/Minute DOTMBold.TTF size 30 ungestaucht, feste Ziffernzellen
+# (18 px, Doppelpunkt 9 px). Sekunden DOTMATRI.TTF size 19.4 (Zelle 10 px),
+# unten bündig.
+
+layers:
+  # ---------- Minutentexte messen (unsichtbar, vom Gehäuse überdeckt) ----------
+  - type: text
+    id: m1
+    advance: 7
+    value:
+      if: "or(isEmpty(zug1.vonnach), not(greaterThan(zug1.abw, 0)))"
+      then: ""
+      elif: "greaterThan(zug1.abw, 99)"
+      then: "delayed"
+      elif: "equals(zug1.abw, '1')"
+      then: "1 min"
+      else: "{{zug1.abw}} mins"
+    x: 0
+    y: 0
+    font: dot
+    size: 19.4
+    scale_x: 0.7216
+    color: "#000000"
+
+  - type: text
+    id: m2
+    advance: 7
+    value:
+      if: "or(isEmpty(zug2.vonnach), isEmpty(zug2.zeit | minutes), isEmpty(zug1.zeit | minutes))"
+      then: ""
+      elif: "and(greaterThan(zug2.abw, 0), greaterThan(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw), 99))"
+      then: "{{zug2.zeit | match('[0-9]+:[0-9]+', 0)}}"
+      elif: "and(greaterThan(zug2.abw, 0), equals(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw), '1'))"
+      then: "1 min"
+      elif: "greaterThan(zug2.abw, 0)"
+      then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw)}} mins"
+      elif: "greaterThan(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), 99)"
+      then: "{{zug2.zeit | match('[0-9]+:[0-9]+', 0)}}"
+      elif: "equals(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), '1')"
+      then: "1 min"
+      else: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}} mins"
+    x: 0
+    y: 0
+    font: dot
+    size: 19.4
+    scale_x: 0.7216
+    color: "#000000"
+
+  - type: text
+    id: m3
+    advance: 7
+    value:
+      if: "or(isEmpty(zug3.vonnach), not(isEmpty(zug1.hinweis | trim)), isEmpty(zug3.zeit | minutes), isEmpty(zug1.zeit | minutes))"
+      then: ""
+      elif: "and(greaterThan(zug3.abw, 0), greaterThan(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw), 99))"
+      then: "{{zug3.zeit | match('[0-9]+:[0-9]+', 0)}}"
+      elif: "and(greaterThan(zug3.abw, 0), equals(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw), '1'))"
+      then: "1 min"
+      elif: "greaterThan(zug3.abw, 0)"
+      then: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw)}} mins"
+      elif: "greaterThan(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), 99)"
+      then: "{{zug3.zeit | match('[0-9]+:[0-9]+', 0)}}"
+      elif: "equals(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), '1')"
+      then: "1 min"
+      else: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}} mins"
+    x: 0
+    y: 0
+    font: dot
+    size: 19.4
+    scale_x: 0.7216
+    color: "#000000"
+
+  # ---------- Gehäuse und LED-Felder ----------
+  - type: rect                     # Gehäuse
+    x: 0
+    y: 0
+    width: 240
+    height: 240
+    color: "#000000"
+
+  - type: rect                     # LED-Feld Zeile 1
+    x: 5
+    y: 5
+    width: 230
+    height: 23
+    color: "#141308"
+  - type: rect                     # LED-Feld Zeile 2
+    x: 5
+    y: 31
+    width: 230
+    height: 23
+    color: "#141308"
+  - type: rect                     # LED-Feld Zeile 3
+    x: 5
+    y: 57
+    width: 230
+    height: 23
+    color: "#141308"
+
+  # ---------- Zeile 1: Zug am Bahnsteig ----------
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        id: d1
+        advance: 7
+        value:
+          if: "isEmpty(zug1.vonnach)"
+          then: ""
+          else: "1 {{zug1.vonnach | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: 9
+        y: 7
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffa800"
+      - type: text
+        if: "and(not(isEmpty(zug1.vonnach)), not(isEmpty(zug1.via)))"
+        value: "via {{zug1.via | before(' - ') | trim | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: "{{d1.end}}"
+        y: 7
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        max_width: "{{236 - m1.end - d1.end}}"
+        color: "#ffa800"
+        fit_items:
+          split_by: "|"
+          gap: 7
+
+  - type: rect
+    x: "{{234 - m1.end}}"
+    y: 5
+    width: "{{m1.end + 1}}"
+    height: 23
+    color: "#141308"
+
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        value:
+          if: "or(isEmpty(zug1.vonnach), not(greaterThan(zug1.abw, 0)))"
+          then: ""
+          elif: "greaterThan(zug1.abw, 99)"
+          then: "delayed"
+          elif: "equals(zug1.abw, '1')"
+          then: "1 min"
+          else: "{{zug1.abw}} mins"
+        x: 234
+        y: 7
+        align: right
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffa800"
+
+  # ---------- Zeile 2 ----------
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        id: d2
+        advance: 7
+        value:
+          if: "isEmpty(zug2.vonnach)"
+          then: ""
+          else: "2 {{zug2.vonnach | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: 9
+        y: 33
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffa800"
+      - type: text
+        if: "and(not(isEmpty(zug2.vonnach)), not(isEmpty(zug2.via)))"
+        value: "via {{zug2.via | before(' - ') | trim | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: "{{d2.end}}"
+        y: 33
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        max_width: "{{236 - m2.end - d2.end}}"
+        color: "#ffa800"
+        fit_items:
+          split_by: "|"
+          gap: 7
+
+  - type: rect
+    x: "{{234 - m2.end}}"
+    y: 31
+    width: "{{m2.end + 1}}"
+    height: 23
+    color: "#141308"
+
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        value:
+          if: "or(isEmpty(zug2.vonnach), isEmpty(zug2.zeit | minutes), isEmpty(zug1.zeit | minutes))"
+          then: ""
+          elif: "and(greaterThan(zug2.abw, 0), greaterThan(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw), 99))"
+          then: "{{zug2.zeit | match('[0-9]+:[0-9]+', 0)}}"
+          elif: "and(greaterThan(zug2.abw, 0), equals(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw), '1'))"
+          then: "1 min"
+          elif: "greaterThan(zug2.abw, 0)"
+          then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug2.abw)}} mins"
+          elif: "greaterThan(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), 99)"
+          then: "{{zug2.zeit | match('[0-9]+:[0-9]+', 0)}}"
+          elif: "equals(zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), '1')"
+          then: "1 min"
+          else: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}} mins"
+        x: 234
+        y: 33
+        align: right
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffa800"
+
+  # ---------- Zeile 3 (nur ohne Hinweis) ----------
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        id: d3
+        advance: 7
+        value:
+          if: "or(isEmpty(zug3.vonnach), not(isEmpty(zug1.hinweis | trim)))"
+          then: ""
+          else: "3 {{zug3.vonnach | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: 9
+        y: 59
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffa800"
+      - type: text
+        if: "and(not(isEmpty(zug3.vonnach)), not(isEmpty(zug3.via)), isEmpty(zug1.hinweis | trim))"
+        value: "via {{zug3.via | before(' - ') | trim | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: "{{d3.end}}"
+        y: 59
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        max_width: "{{236 - m3.end - d3.end}}"
+        color: "#ffa800"
+        fit_items:
+          split_by: "|"
+          gap: 7
+
+  - type: rect
+    x: "{{234 - m3.end}}"
+    y: 57
+    width: "{{m3.end + 1}}"
+    height: 23
+    color: "#141308"
+
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        value:
+          if: "or(isEmpty(zug3.vonnach), not(isEmpty(zug1.hinweis | trim)), isEmpty(zug3.zeit | minutes), isEmpty(zug1.zeit | minutes))"
+          then: ""
+          elif: "and(greaterThan(zug3.abw, 0), greaterThan(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw), 99))"
+          then: "{{zug3.zeit | match('[0-9]+:[0-9]+', 0)}}"
+          elif: "and(greaterThan(zug3.abw, 0), equals(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw), '1'))"
+          then: "1 min"
+          elif: "greaterThan(zug3.abw, 0)"
+          then: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(zug3.abw)}} mins"
+          elif: "greaterThan(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), 99)"
+          then: "{{zug3.zeit | match('[0-9]+:[0-9]+', 0)}}"
+          elif: "equals(zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440), '1')"
+          then: "1 min"
+          else: "{{zug3.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440)}} mins"
+        x: 234
+        y: 59
+        align: right
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffa800"
+
+  # ---------- Hinweis: ersetzt Zeile 3 ----------
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        if: "and(not(isEmpty(zug1.hinweis | trim)), isEmpty(zug1.hinweis | trim | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss') | match('^.{31}', 0)))"
+        value: "{{zug1.hinweis | trim | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: 8
+        y: 59
+        width: 224
+        align: center
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffa800"
+      - type: text
+        if: "not(isEmpty(zug1.hinweis | trim | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss') | match('^.{31}', 0)))"
+        value: "{{zug1.hinweis | trim | replace('ä','ae') | replace('ö','oe') | replace('ü','ue') | replace('Ä','Ae') | replace('Ö','Oe') | replace('Ü','Ue') | replace('ß','ss')}}"
+        x: 8
+        y: 57
+        width: 224
+        align: center
+        font: dot
+        size: 12
+        line_height: 0.9
+        color: "#ffa800"
+
+  # ---------- Gehäuserand über allem, was aus den Feldern läuft ----------
+  - type: rect
+    x: 235
+    y: 0
+    width: 5
+    height: 120
+    color: "#000000"
+  - type: rect
+    x: 0
+    y: 80
+    width: 240
+    height: 40
+    color: "#000000"
+
+  # ---------- Uhr ----------
+  - type: rect
+    x: 59
+    y: 84
+    width: 122
+    height: 31
+    color: "#141308"
+
+  - type: loop
+    value: "1|2"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        value: "{{now | format('HH') | match('^.', 0)}}"
+        x: 75
+        y: 86
+        align: center
+        font: dotbold
+        size: 30
+        color: "#ffa800"
+      - type: text
+        value: "{{now | format('HH') | match('.$', 0)}}"
+        x: 93
+        y: 86
+        align: center
+        font: dotbold
+        size: 30
+        color: "#ffa800"
+      - type: text
+        value: ":"
+        x: 107
+        y: 86
+        align: center
+        font: dotbold
+        size: 30
+        color: "#ffa800"
+      - type: text
+        value: "{{now | format('mm') | match('^.', 0)}}"
+        x: 120
+        y: 86
+        align: center
+        font: dotbold
+        size: 30
+        color: "#ffa800"
+      - type: text
+        value: "{{now | format('mm') | match('.$', 0)}}"
+        x: 138
+        y: 86
+        align: center
+        font: dotbold
+        size: 30
+        color: "#ffa800"
+
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text
+        value: ":"
+        x: 152
+        y: 94
+        align: center
+        font: dot
+        size: 19.4
+        color: "#ffa800"
+      - type: text
+        value: "{{now | format('ss') | match('^.', 0)}}"
+        x: 160
+        y: 94
+        align: center
+        font: dot
+        size: 19.4
+        color: "#ffa800"
+      - type: text
+        value: "{{now | format('ss') | match('.$', 0)}}"
+        x: 170
+        y: 94
+        align: center
+        font: dot
+        size: 19.4
+        color: "#ffa800"
+
+  # ---------- untere Hälfte: 1:1 ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

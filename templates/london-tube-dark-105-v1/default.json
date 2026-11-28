@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Next trains",
+    "gleis": 3,
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Mill Hill East",
+        "nr": "Northern",
+        "zeit": "11:30",
+        "via": "Bank",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Edgware",
+        "nr": "Northern",
+        "zeit": "11:33",
+        "via": "Bank",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "High Barnet",
+        "nr": "Northern",
+        "zeit": "11:36",
+        "via": "Bank",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

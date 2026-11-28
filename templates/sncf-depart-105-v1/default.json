@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Départs",
+    "gleis": "7",
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Lyon Part-Dieu",
+        "nr": "TER 17512",
+        "zeit": "15:54",
+        "via": "Beaune - Chalon-sur-Saône - Tournus - Mâcon Ville",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Marseille St-Charles",
+        "nr": "TGV INOUI 6703",
+        "zeit": "16:02",
+        "via": "Lyon Part-Dieu - Avignon TGV",
+        "abw": 10,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Besançon Viotte",
+        "nr": "TER 894211",
+        "zeit": "16:15",
+        "via": "Auxonne - Dole Ville",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

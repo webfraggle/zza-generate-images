@@ -1,0 +1,396 @@
+meta:
+  name: "NYC Subway schwarz 1.05\""
+  description: "U-Bahn New York, aktuelle Anzeigen (weiß auf schwarz), 240×240px, 1.05 Zoll, zwei Abfahrten mit Linienpunkt und Minuten-Countdown"
+  author: ""
+  version: "1.2"
+  instructions: |
+    Zwei Abfahrten (zug1, zug2) im Stil der New Yorker Bahnsteiganzeigen:
+    farbiger Linienpunkt (aus nr), Ziel groß, darunter klein die
+    Unterwegshalte (via), rechts die Minuten bis zur Abfahrt.
+    Countdown wie in den Vorlagen Umuc und Wiener Linien relativ zu Zug 1
+    (Zug 1 = 2 Min.), eine Verspätung (abw) wird aufaddiert.
+    Linienfarben: A C E blau, B D F M orange, G hellgrün, J Z braun,
+    L grau, N Q R W gelb, 1 2 3 rot, 4 5 6 grün, 7 lila, S dunkelgrau;
+    alles andere bekommt einen grauen Punkt mit dem Kürzel aus nr.
+    Ein Hinweis (zug1.hinweis) erscheint als gelbe Fußzeile, die beiden
+    Zeilen rücken dann zusammen. Lange Ziele brechen auf zwei Zeilen um
+    und verdrängen die Unterwegshalte. Gleis und zug3 werden nicht gezeigt.
+    Die helle Fassung ist nyc-subway-weiss-105-v1.
+  canvas:
+    width: 240
+    height: 240
+
+# Seite A = obere Hälfte, Seite B = Kopie davon (symmetrisch, kein Gleis-Feld).
+# Schwarz #000000, Weiß #ffffff, Hellgrau #cfcfcf, Fußzeile #fccc0a.
+#
+# Rechengrößen (Ganzzahldivision), aus unsichtbaren Messtexten:
+#   f  = (hw.width + 999) / 1000      1 mit Hinweis, sonst 0
+#   v1 = (v1.width + 999) / 1000      1, wenn Zug 1 Unterwegshalte hat
+#   n1 = (z1.width / 135 + 1) / 2     1, wenn das Ziel von Zug 1 umbricht
+#   v2, n2                            dasselbe für Zug 2
+# Zeilenhöhe 60 - 13f (60 ohne, 47 mit Hinweis); Fußzeile y 94–119.
+# hw, v1 und v2 messen nur die ersten Zeichen, damit der Wert unter 1000 bleibt.
+#
+# Optische Mittellinie je Zeile: ohne Hinweis y 27 (Zeile 2: y 87).
+# Punkt y 11–42, Block aus Ziel und Via y 11–43, Ziffern der Minuten y 20–33.
+# Das Ziel wird je nach Fall verschoben, damit seine Mitte auf der Linie liegt:
+# mit Via 2 px tiefer, zweizeilig 1 px tiefer, allein über die Boxhöhe gemittelt.
+#
+# Die kleine Via-Zeile wird zweimal an derselben Stelle gezeichnet: das macht
+# die geglätteten Kanten kräftiger und die Schrift auf dem Display schärfer.
+# Die Buchstaben im Linienpunkt sitzen 5 px (Kürzel 3 px) tiefer als die
+# Punkt-Oberkante, damit die Versalhöhe optisch mittig im Kreis steht.
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Unsichtbare Messtexte, werden vom Hintergrund übermalt.
+  - type: text
+    id: hw
+    value: "{{zug1.hinweis | match('^.{1,20}', 0)}}"
+    x: 0
+    y: 0
+    font: bold
+    size: 10
+    color: "#000000"
+  - type: text
+    id: v1
+    value: "{{zug1.via | match('^.{1,10}', 0)}}"
+    x: 0
+    y: 12
+    font: bold
+    size: 10
+    color: "#000000"
+  - type: text
+    id: v2
+    value: "{{zug2.via | match('^.{1,10}', 0)}}"
+    x: 0
+    y: 24
+    font: bold
+    size: 10
+    color: "#000000"
+  - type: text
+    id: z1
+    value: "{{zug1.vonnach}}"
+    x: 0
+    y: 40
+    font: bold
+    size: 18
+    scale_x: 0.78
+    color: "#000000"
+  - type: text
+    id: z2
+    value: "{{zug2.vonnach}}"
+    x: 0
+    y: 70
+    font: bold
+    size: 18
+    scale_x: 0.78
+    color: "#000000"
+
+  - type: rect                     # Hintergrund
+    x: 0
+    y: 0
+    width: 240
+    height: 240
+    color: "#000000"
+
+  # =============== Zeile 1: zug1 ===============
+  - if: "or(not(isEmpty(zug1.vonnach)), not(isEmpty(zug1.nr | trim)))"
+    layers:
+      - if: "not(isEmpty(zug1.nr | trim))"
+        layers:
+          - type: rect             # Farbfläche, die Maske schneidet den Punkt aus
+            x: 6
+            y: "{{11 - ((hw.width + 999) / 1000) * 6}}"
+            width: 32
+            height: 32
+            color:
+              if: "or(equals(zug1.nr | trim | upper, 'A'), equals(zug1.nr | trim | upper, 'C'), equals(zug1.nr | trim | upper, 'E'))"
+              then: "#0039a6"
+              elif: "or(equals(zug1.nr | trim | upper, 'B'), equals(zug1.nr | trim | upper, 'D'), equals(zug1.nr | trim | upper, 'F'), equals(zug1.nr | trim | upper, 'M'))"
+              then: "#ff6319"
+              elif: "equals(zug1.nr | trim | upper, 'G')"
+              then: "#6cbe45"
+              elif: "or(equals(zug1.nr | trim | upper, 'J'), equals(zug1.nr | trim | upper, 'Z'))"
+              then: "#996633"
+              elif: "equals(zug1.nr | trim | upper, 'L')"
+              then: "#a7a9ac"
+              elif: "or(equals(zug1.nr | trim | upper, 'N'), equals(zug1.nr | trim | upper, 'Q'), equals(zug1.nr | trim | upper, 'R'), equals(zug1.nr | trim | upper, 'W'))"
+              then: "#fccc0a"
+              elif: "or(equals(zug1.nr | trim, '1'), equals(zug1.nr | trim, '2'), equals(zug1.nr | trim, '3'))"
+              then: "#ee352e"
+              elif: "or(equals(zug1.nr | trim, '4'), equals(zug1.nr | trim, '5'), equals(zug1.nr | trim, '6'))"
+              then: "#00933c"
+              elif: "equals(zug1.nr | trim, '7')"
+              then: "#b933ad"
+              elif: "equals(zug1.nr | trim | upper, 'S')"
+              then: "#808183"
+              else: "#6e6e6e"
+          - type: image
+            file: punkt-maske.png
+            x: 6
+            y: "{{11 - ((hw.width + 999) / 1000) * 6}}"
+          - type: text             # ein Zeichen: groß
+            if: "not(isEmpty(zug1.nr | trim | match('^[A-Za-z0-9]$', 0)))"
+            value: "{{zug1.nr | trim | upper}}"
+            x: 6
+            y: "{{16 - ((hw.width + 999) / 1000) * 6}}"
+            width: 32
+            height: 32
+            align: center
+            valign: middle
+            font: bold
+            size: 21
+            color:
+              if: "or(equals(zug1.nr | trim | upper, 'N'), equals(zug1.nr | trim | upper, 'Q'), equals(zug1.nr | trim | upper, 'R'), equals(zug1.nr | trim | upper, 'W'))"
+              then: "#000000"
+              else: "#ffffff"
+          - type: text             # sonst: Kürzel klein
+            else: true
+            value: "{{zug1.nr | trim | match('^[A-Za-z]{1,3}|^[0-9]{1,3}', 0)}}"
+            x: 6
+            y: "{{14 - ((hw.width + 999) / 1000) * 6}}"
+            width: 32
+            height: 32
+            align: center
+            valign: middle
+            font: bold
+            size: 13
+            scale_x: 0.8
+            color: "#ffffff"
+
+      # Ziel, bis zu 2 Zeilen; y und Höhe mitteln es auf die Zeilenlinie.
+      - type: text
+        value: "{{zug1.vonnach}}"
+        x: 46
+        y: "{{8 - ((hw.width + 999) / 1000) * 6 + ((v1.width + 999) / 1000) * (1 - (z1.width / 135 + 1) / 2) * 2 + (z1.width / 135 + 1) / 2}}"
+        width: 134
+        height: "{{22 + ((z1.width / 135 + 1) / 2) * 20 + (1 - (v1.width + 999) / 1000) * (1 - (z1.width / 135 + 1) / 2) * 23}}"
+        valign: middle
+        line_height: 0.85
+        font: bold
+        size: 18
+        scale_x: 0.78
+        color: "#ffffff"
+
+      # Unterwegshalte, zweimal gezeichnet; entfallen bei zweizeiligem Ziel
+      - type: text
+        if: "not(isEmpty(zug1.via))"
+        value: "{{zug1.via}}"
+        x: 46
+        y: "{{35 - ((hw.width + 999) / 1000) * 6 + ((z1.width / 135 + 1) / 2) * 300}}"
+        font: regular
+        size: 11
+        max_width: 134
+        color: "#cfcfcf"
+        fit_items:
+          split_by: " - "
+          gap: 7
+      - type: text
+        if: "not(isEmpty(zug1.via))"
+        value: "{{zug1.via}}"
+        x: 46
+        y: "{{35 - ((hw.width + 999) / 1000) * 6 + ((z1.width / 135 + 1) / 2) * 300}}"
+        font: regular
+        size: 11
+        max_width: 134
+        color: "#cfcfcf"
+        fit_items:
+          split_by: " - "
+          gap: 7
+
+      - type: rect                 # deckt eine dritte Zielzeile ab
+        x: 44
+        y: "{{48 - ((hw.width + 999) / 1000) * 6 - ((z1.width / 135 + 1) / 2) * 2}}"
+        width: 140
+        height: "{{12 - ((hw.width + 999) / 1000) * 7 + ((z1.width / 135 + 1) / 2) * 2}}"
+        color: "#000000"
+
+      - type: text                 # Minuten
+        if: "not(isEmpty(zug1.zeit))"
+        value:
+          if: "greaterThan(zug1.abw, 0)"
+          then: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | add(2) | add(zug1.abw)}} min"
+          else: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | add(2)}} min"
+        x: 234
+        y: "{{20 - ((hw.width + 999) / 1000) * 6}}"
+        align: right
+        font: bold
+        size: 18
+        scale_x: 0.9
+        color: "#ffffff"
+
+  # =============== Zeile 2: zug2 ===============
+  - type: rect                     # übermalt, was aus Zeile 1 nach unten läuft
+    x: 0
+    y: "{{60 - ((hw.width + 999) / 1000) * 13}}"
+    width: 240
+    height: 60
+    color: "#000000"
+
+  - type: rect                     # Trennlinie
+    x: 6
+    y: "{{60 - ((hw.width + 999) / 1000) * 13}}"
+    width: 228
+    height: 1
+    color: "#4a4a4a"
+
+  - if: "or(not(isEmpty(zug2.vonnach)), not(isEmpty(zug2.nr | trim)))"
+    layers:
+      - if: "not(isEmpty(zug2.nr | trim))"
+        layers:
+          - type: rect
+            x: 6
+            y: "{{71 - ((hw.width + 999) / 1000) * 19}}"
+            width: 32
+            height: 32
+            color:
+              if: "or(equals(zug2.nr | trim | upper, 'A'), equals(zug2.nr | trim | upper, 'C'), equals(zug2.nr | trim | upper, 'E'))"
+              then: "#0039a6"
+              elif: "or(equals(zug2.nr | trim | upper, 'B'), equals(zug2.nr | trim | upper, 'D'), equals(zug2.nr | trim | upper, 'F'), equals(zug2.nr | trim | upper, 'M'))"
+              then: "#ff6319"
+              elif: "equals(zug2.nr | trim | upper, 'G')"
+              then: "#6cbe45"
+              elif: "or(equals(zug2.nr | trim | upper, 'J'), equals(zug2.nr | trim | upper, 'Z'))"
+              then: "#996633"
+              elif: "equals(zug2.nr | trim | upper, 'L')"
+              then: "#a7a9ac"
+              elif: "or(equals(zug2.nr | trim | upper, 'N'), equals(zug2.nr | trim | upper, 'Q'), equals(zug2.nr | trim | upper, 'R'), equals(zug2.nr | trim | upper, 'W'))"
+              then: "#fccc0a"
+              elif: "or(equals(zug2.nr | trim, '1'), equals(zug2.nr | trim, '2'), equals(zug2.nr | trim, '3'))"
+              then: "#ee352e"
+              elif: "or(equals(zug2.nr | trim, '4'), equals(zug2.nr | trim, '5'), equals(zug2.nr | trim, '6'))"
+              then: "#00933c"
+              elif: "equals(zug2.nr | trim, '7')"
+              then: "#b933ad"
+              elif: "equals(zug2.nr | trim | upper, 'S')"
+              then: "#808183"
+              else: "#6e6e6e"
+          - type: image
+            file: punkt-maske.png
+            x: 6
+            y: "{{71 - ((hw.width + 999) / 1000) * 19}}"
+          - type: text
+            if: "not(isEmpty(zug2.nr | trim | match('^[A-Za-z0-9]$', 0)))"
+            value: "{{zug2.nr | trim | upper}}"
+            x: 6
+            y: "{{76 - ((hw.width + 999) / 1000) * 19}}"
+            width: 32
+            height: 32
+            align: center
+            valign: middle
+            font: bold
+            size: 21
+            color:
+              if: "or(equals(zug2.nr | trim | upper, 'N'), equals(zug2.nr | trim | upper, 'Q'), equals(zug2.nr | trim | upper, 'R'), equals(zug2.nr | trim | upper, 'W'))"
+              then: "#000000"
+              else: "#ffffff"
+          - type: text
+            else: true
+            value: "{{zug2.nr | trim | match('^[A-Za-z]{1,3}|^[0-9]{1,3}', 0)}}"
+            x: 6
+            y: "{{74 - ((hw.width + 999) / 1000) * 19}}"
+            width: 32
+            height: 32
+            align: center
+            valign: middle
+            font: bold
+            size: 13
+            scale_x: 0.8
+            color: "#ffffff"
+
+      - type: text
+        value: "{{zug2.vonnach}}"
+        x: 46
+        y: "{{68 - ((hw.width + 999) / 1000) * 19 + ((v2.width + 999) / 1000) * (1 - (z2.width / 135 + 1) / 2) * 2 + (z2.width / 135 + 1) / 2}}"
+        width: 134
+        height: "{{22 + ((z2.width / 135 + 1) / 2) * 20 + (1 - (v2.width + 999) / 1000) * (1 - (z2.width / 135 + 1) / 2) * 23}}"
+        valign: middle
+        line_height: 0.85
+        font: bold
+        size: 18
+        scale_x: 0.78
+        color: "#ffffff"
+
+      - type: text                 # Unterwegshalte, zweimal gezeichnet
+        if: "not(isEmpty(zug2.via))"
+        value: "{{zug2.via}}"
+        x: 46
+        y: "{{95 - ((hw.width + 999) / 1000) * 19 + ((z2.width / 135 + 1) / 2) * 300}}"
+        font: regular
+        size: 11
+        max_width: 134
+        color: "#cfcfcf"
+        fit_items:
+          split_by: " - "
+          gap: 7
+      - type: text
+        if: "not(isEmpty(zug2.via))"
+        value: "{{zug2.via}}"
+        x: 46
+        y: "{{95 - ((hw.width + 999) / 1000) * 19 + ((z2.width / 135 + 1) / 2) * 300}}"
+        font: regular
+        size: 11
+        max_width: 134
+        color: "#cfcfcf"
+        fit_items:
+          split_by: " - "
+          gap: 7
+
+      - type: rect
+        x: 44
+        y: "{{108 - ((hw.width + 999) / 1000) * 19 - ((z2.width / 135 + 1) / 2) * 2}}"
+        width: 140
+        height: "{{12 - ((hw.width + 999) / 1000) * 7 + ((z2.width / 135 + 1) / 2) * 2}}"
+        color: "#000000"
+
+      - type: text
+        if: "not(isEmpty(zug2.zeit))"
+        value:
+          if: "greaterThan(zug2.abw, 0)"
+          then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2) | add(zug2.abw)}} min"
+          else: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2)}} min"
+        x: 234
+        y: "{{80 - ((hw.width + 999) / 1000) * 19}}"
+        align: right
+        font: bold
+        size: 18
+        scale_x: 0.9
+        color: "#ffffff"
+
+  # =============== Fußzeile mit Hinweis (y 94–119) ===============
+  - if: "not(isEmpty(zug1.hinweis))"
+    layers:
+      - type: rect
+        x: 0
+        y: 94
+        width: 240
+        height: 26
+        color: "#fccc0a"
+      - type: text
+        value: "{{zug1.hinweis}}"
+        x: 6
+        y: 95
+        width: 228
+        height: 24
+        valign: middle
+        align: center
+        line_height: 0.9
+        font: bold
+        size: 11
+        scale_x: 0.75
+        color: "#000000"
+
+  # ---------- Untere Hälfte = Seite B: Kopie (symmetrisch) ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

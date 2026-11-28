@@ -1,0 +1,267 @@
+meta:
+  name: "RFI Binario 1.05\""
+  description: "RFI Bahnsteiganzeiger (Italien): Gleis und Analoguhr aussen, Bernstein-Punktmatrix auf dunklen LED-Feldern fuer Ziel, Abfahrt, Zug und Informationen"
+  author: ""
+  version: "1.0"
+  instructions: |
+    Bahnsteiganzeiger im Stil der RFI-Teleindicatori (Italien), nur Zug 1.
+    Aussen Gleis (gleis, z.B. "6 ovest": Zahl gross, Rest klein daneben) und
+    Analoguhr (Geräteuhr). Innen drei LED-Felder in Bernstein:
+    destinazione = zug1.vonnach, partenza = zug1.zeit, treno = zug1.nr,
+    informazioni = Hinweis (zug1.hinweis) oder Unterwegshalte (zug1.via),
+    bei Verspätung mit "RITARDO X'" davor. Texte in Versalien; Umlaute und
+    Akzente werden ersetzt (Punktmatrix-Schrift ohne diese Zeichen).
+    Zu lange Texte laufen am rechten Feldrand ab.
+  canvas:
+    width: 240
+    height: 240
+
+# Seite A oben, Seite B gespiegelt: Rand-Block (Gleis + Uhr) außen,
+# oben x 0-55, unten x 184-239; Inhalt oben x 56-239, unten x 0-183.
+# Farben: Gehäuse #303235, LED-Feld #2a2817, LED-Schrift #ffb000,
+# Beschriftung #cfcfcf (fett) / #9a9a9a, Gleis #dedede.
+# LED-Schrift wie london-tube: DOTMATRI 19.4, scale_x 0.7216, dreifach
+# gezeichnet (kräftiger). Felder 23 px hoch, Text 2 px unter Feldoberkante.
+# Rechter Gehäuserand x 236-239 wird zuletzt gezeichnet und schneidet ab.
+
+fonts:
+  - id: dot
+    file: DOTMATRI.TTF
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # ---------- Gehäuse und Rand-Block ----------
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 120
+    color: "#303235"
+
+  - type: text                     # Gleisnummer
+    id: gn
+    advance: 1
+    value: "{{gleis | before(' ')}}"
+    x: 5
+    y: 5
+    font: bold
+    size: 32
+    scale_x: 0.85
+    color: "#dedede"
+  - type: text                     # Zusatz, z.B. "ovest"
+    value: "{{gleis | after(' ') | trim}}"
+    x: "{{gn.end}}"
+    y: 19
+    font: bold
+    size: 13
+    scale_x: 0.8
+    color: "#dedede"
+
+  - type: image                    # Analoguhr
+    file: uhr-blatt.png
+    x: 5
+    y: 63
+  - type: image
+    file: uhr-stunde.png
+    x: 28
+    y: 86
+    rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"
+  - type: image
+    file: uhr-minute.png
+    x: 28
+    y: 86
+    rotate: "{{now.minute | mul(6)}}"
+
+  # ---------- Inhalt (x 56-239), deckt Überlauf des Gleis-Textes ab ----------
+  - type: rect
+    x: 56
+    y: 0
+    width: 184
+    height: 120
+    color: "#303235"
+
+  # Beschriftungen
+  - type: text
+    id: lb1
+    advance: 3
+    value: "destinazione"
+    x: 60
+    y: 2
+    font: bold
+    size: 10
+    color: "#cfcfcf"
+  - type: text
+    value: "destination"
+    x: "{{lb1.end}}"
+    y: 2
+    font: regular
+    size: 10
+    color: "#9a9a9a"
+  - type: text
+    id: lb2
+    advance: 3
+    value: "partenza"
+    x: 60
+    y: 39
+    font: bold
+    size: 10
+    color: "#cfcfcf"
+  - type: text
+    value: "dep."
+    x: "{{lb2.end}}"
+    y: 39
+    font: regular
+    size: 10
+    color: "#9a9a9a"
+  - type: text
+    id: lb3
+    advance: 3
+    value: "treno"
+    x: 130
+    y: 39
+    font: bold
+    size: 10
+    color: "#cfcfcf"
+  - type: text
+    value: "train"
+    x: "{{lb3.end}}"
+    y: 39
+    font: regular
+    size: 10
+    color: "#9a9a9a"
+  - type: text
+    id: lb4
+    advance: 3
+    value: "informazioni"
+    x: 60
+    y: 76
+    font: bold
+    size: 10
+    color: "#cfcfcf"
+  - type: text
+    value: "information"
+    x: "{{lb4.end}}"
+    y: 76
+    font: regular
+    size: 10
+    color: "#9a9a9a"
+
+  # LED-Felder
+  - type: rect
+    x: 60
+    y: 13
+    width: 176
+    height: 23
+    color: "#2a2817"
+  - type: rect
+    x: 60
+    y: 50
+    width: 66
+    height: 23
+    color: "#2a2817"
+  - type: rect
+    x: 130
+    y: 50
+    width: 106
+    height: 23
+    color: "#2a2817"
+  - type: rect
+    x: 60
+    y: 87
+    width: 176
+    height: 23
+    color: "#2a2817"
+
+  # LED-Texte, dreifach gezeichnet
+  - type: loop
+    value: "1|2|3"
+    split_by: "|"
+    var: pass
+    layers:
+      - type: text                 # destinazione
+        value: "{{zug1.vonnach | upper | replace('Ä','AE') | replace('Ö','OE') | replace('Ü','UE') | replace('ß','SS') | replace('À','A') | replace('È','E') | replace('É','E') | replace('Ì','I') | replace('Ò','O') | replace('Ù','U')}}"
+        x: 63
+        y: 15
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffb000"
+      - type: text                 # partenza
+        value: "{{zug1.zeit}}"
+        x: 63
+        y: 52
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffb000"
+      - type: text                 # treno
+        value: "{{zug1.nr | upper}}"
+        x: 133
+        y: 52
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffb000"
+      - type: text                 # informazioni: Verspätung
+        id: ri
+        advance: 7
+        value:
+          if: "greaterThan(zug1.abw, 0)"
+          then: "RITARDO {{zug1.abw}}'"
+          else: ""
+        x: 63
+        y: 89
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffb000"
+      - type: text                 # informazioni: Hinweis oder Unterwegshalte
+        value:
+          if: "not(isEmpty(zug1.hinweis | trim))"
+          then: "{{zug1.hinweis | trim | upper | replace('Ä','AE') | replace('Ö','OE') | replace('Ü','UE') | replace('ß','SS') | replace('À','A') | replace('È','E') | replace('É','E') | replace('Ì','I') | replace('Ò','O') | replace('Ù','U')}}"
+          else: "{{zug1.via | upper | replace('Ä','AE') | replace('Ö','OE') | replace('Ü','UE') | replace('ß','SS') | replace('À','A') | replace('È','E') | replace('É','E') | replace('Ì','I') | replace('Ò','O') | replace('Ù','U')}}"
+        x: "{{ri.end}}"
+        y: 89
+        font: dot
+        size: 19.4
+        scale_x: 0.7216
+        color: "#ffb000"
+
+  # Feldgrenzen wiederherstellen: Lücke zwischen partenza und treno, rechter Rand
+  - type: rect
+    x: 126
+    y: 50
+    width: 4
+    height: 23
+    color: "#303235"
+  - type: rect
+    x: 236
+    y: 0
+    width: 4
+    height: 120
+    color: "#303235"
+
+  # ---------- Untere Hälfte = Seite B, gespiegelt ----------
+  - type: rect
+    x: 0
+    y: 120
+    width: 240
+    height: 120
+    color: "#303235"
+  - type: copy                     # Inhalt nach links unten (x 56-239 -> x 0-183)
+    src_x: 56
+    src_y: 0
+    src_width: 184
+    src_height: 120
+    x: 0
+    y: 120
+  - type: copy                     # Gleis + Uhr außen = unten rechts (x 0-55 -> x 184-239)
+    src_x: 0
+    src_y: 0
+    src_width: 56
+    src_height: 120
+    x: 184
+    y: 120

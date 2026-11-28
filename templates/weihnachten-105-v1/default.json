@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 3,
+    "abschnitt": "A-D",
+    "zug1": {
+        "vonnach": "Nürnberg Hbf",
+        "nr": "RE 1",
+        "zeit": "18:24",
+        "via": "Rothenburg - Ansbach - Heilsbronn",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Seiffen (Erzgeb)",
+        "nr": "RB 81",
+        "zeit": "18:41",
+        "via": "Olbernhau - Deutschneudorf",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "",
+        "nr": "",
+        "zeit": "",
+        "via": "",
+        "abw": "",
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

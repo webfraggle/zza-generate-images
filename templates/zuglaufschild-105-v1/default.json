@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 3,
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "München Hbf",
+        "nr": "D 482",
+        "zeit": "15:54",
+        "via": "Hannover - Göttingen - Fulda - Würzburg - Augsburg",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Lüneburg",
+        "nr": "E 3120",
+        "zeit": "16:07",
+        "via": "Winsen (Luhe)",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Cuxhaven",
+        "nr": "N 5417",
+        "zeit": "16:21",
+        "via": "Buxtehude - Stade",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

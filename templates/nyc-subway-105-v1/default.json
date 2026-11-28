@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 2,
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Norwood-205 St",
+        "nr": "D",
+        "zeit": "10:15",
+        "via": "Grand St - 34 St - 125 St",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Astoria",
+        "nr": "N",
+        "zeit": "10:19",
+        "via": "Canal St - Times Sq",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Forest Hills-71 Av",
+        "nr": "R",
+        "zeit": "10:24",
+        "via": "Union St - Canal St",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

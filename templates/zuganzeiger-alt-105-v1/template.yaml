@@ -1,0 +1,423 @@
+meta:
+  name: "Zuganzeiger alt 1.05\""
+  description: "Alter Bahnsteig-Zuganzeiger mit Tafeln im grauen Blechkasten, 240×240px, 1.05 Zoll, Abfahrt und Gleis außen"
+  author: ""
+  version: "1.0"
+  instructions: |
+    Nach dem Vorbild alter Bahnsteig-Zuganzeiger: grauer Blechkasten mit
+    weißen Tafeln. Außen die Abfahrtszeit auf vier Ziffernplättchen,
+    darunter "Abfahrt", "Gleis" und die Gleisnummer. Innen oben die
+    Zuggattung (Kürzel im Kasten, Name und Zugnummer aus zug1.nr), unten
+    die Unterwegshalte (je Zeile einer, aus zug1.via) und fett das Ziel.
+    Es passen 4 Unterwegshalte, bei zweizeiligem Ziel 2; weitere entfallen.
+    Verspätung (abw) ersetzt "Abfahrt" durch ein rotes Schild; ein Hinweis
+    ersetzt die Unterwegshalte durch ein rotes Schild (3 Zeilen, bei
+    zweizeiligem Ziel 2; längere Hinweise werden abgeschnitten).
+    zug2 und zug3 werden nicht angezeigt.
+  canvas:
+    width: 240
+    height: 240
+
+# Seite A = obere Hälfte (y 0–119), Seite B = untere Hälfte (y 120–239).
+# Kasten #7d8c99, Tafelrand #3c4650, Tafel #f1f3f2, Schwarz #111111, Rot #c8161d.
+# Oben:  Rand 4 | Zeit/Gleis x 4–75 | Lücke 4 | Zugtafeln x 80–235 | Rand 4
+# Unten: Rand 4 | Zugtafeln x 4–159 | Lücke 4 | Zeit/Gleis x 164–235 | Rand 4
+#
+# zielw misst das Ziel einzeilig. n = (zielw.width / 145 + 1) / 2 ist 0 bei
+# einzeiligem und 1 bei zweizeiligem Ziel (Ganzzahldivision).
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Unsichtbar (wird vom Kasten übermalt): misst die Breite des Ziels.
+  - type: text
+    id: zielw
+    value: "{{zug1.vonnach}}"
+    x: 0
+    y: 0
+    font: bold
+    size: 18
+    scale_x: 0.68
+    color: "#7d8c99"
+
+  # ---------- Obere Hälfte = Seite A ----------
+  - type: rect                     # Blechkasten
+    x: 0
+    y: 0
+    width: 240
+    height: 120
+    color: "#7d8c99"
+
+  # ===== Zeit/Gleis-Tafel außen (x 4–75) =====
+  - type: rect
+    x: 4
+    y: 4
+    width: 72
+    height: 112
+    color: "#3c4650"
+  - type: rect
+    x: 5
+    y: 5
+    width: 70
+    height: 110
+    color: "#f1f3f2"
+
+  - type: rect                     # Schacht der Ziffernplättchen
+    x: 9
+    y: 9
+    width: 62
+    height: 26
+    color: "#2b3238"
+  - type: rect
+    x: 11
+    y: 12
+    width: 13
+    height: 20
+    color: "#f1f3f2"
+  - type: rect
+    x: 26
+    y: 12
+    width: 13
+    height: 20
+    color: "#f1f3f2"
+  - type: rect
+    x: 41
+    y: 12
+    width: 13
+    height: 20
+    color: "#f1f3f2"
+  - type: rect
+    x: 56
+    y: 12
+    width: 13
+    height: 20
+    color: "#f1f3f2"
+
+  - type: text                     # Stunde Zehner
+    value: "{{zug1.zeit | match('^([0-9]?)([0-9]):([0-9])([0-9])', 1)}}"
+    x: 18
+    y: 13
+    font: bold
+    size: 17
+    color: "#111111"
+    align: center
+  - type: text                     # Stunde Einer
+    value: "{{zug1.zeit | match('^([0-9]?)([0-9]):([0-9])([0-9])', 2)}}"
+    x: 33
+    y: 13
+    font: bold
+    size: 17
+    color: "#111111"
+    align: center
+  - type: text                     # Minute Zehner
+    value: "{{zug1.zeit | match('^([0-9]?)([0-9]):([0-9])([0-9])', 3)}}"
+    x: 48
+    y: 13
+    font: bold
+    size: 17
+    color: "#111111"
+    align: center
+  - type: text                     # Minute Einer
+    value: "{{zug1.zeit | match('^([0-9]?)([0-9]):([0-9])([0-9])', 4)}}"
+    x: 63
+    y: 13
+    font: bold
+    size: 17
+    color: "#111111"
+    align: center
+
+  # "Abfahrt" oder rotes Verspätungsschild
+  - if: "greaterThan(zug1.abw, 0)"
+    layers:
+      - type: rect
+        x: 9
+        y: 37
+        width: 62
+        height: 13
+        color: "#c8161d"
+      - type: text
+        value: "+{{zug1.abw}} Min."
+        x: 40
+        y: 39
+        font: bold
+        size: 10
+        color: "#ffffff"
+        align: center
+  - else:
+    layers:
+      - type: text
+        value: "Abfahrt"
+        x: 40
+        y: 38
+        font: bold
+        size: 11
+        color: "#111111"
+        align: center
+
+  - type: text
+    value: "Gleis"
+    x: 40
+    y: 52
+    font: bold
+    size: 12
+    color: "#111111"
+    align: center
+
+  - type: text
+    value: "{{gleis}}"
+    x: 40
+    y: 65
+    font: bold
+    size: 44
+    scale_x: 0.9
+    color: "#111111"
+    align: center
+
+  # ===== Gattungstafel (x 80–235, y 4–32) =====
+  - type: rect
+    x: 80
+    y: 4
+    width: 156
+    height: 29
+    color: "#3c4650"
+  - type: rect
+    x: 81
+    y: 5
+    width: 154
+    height: 27
+    color: "#f1f3f2"
+
+  - type: text                     # unsichtbar (Tafelfarbe), misst das Kürzel
+    id: kat
+    advance: 8
+    value: "{{zug1.nr | match('^[A-Za-z]+', 0)}}"
+    x: 90
+    y: 11
+    font: bold
+    size: 15
+    color: "#f1f3f2"
+
+  - if: "not(isEmpty(zug1.nr | match('^[A-Za-z]+', 0)))"
+    layers:
+      - type: rect                 # Kasten um das Kürzel
+        x: 85
+        y: 8
+        width: "{{kat.width + 10}}"
+        height: 21
+        color: "#111111"
+      - type: rect
+        x: 87
+        y: 10
+        width: "{{kat.width + 6}}"
+        height: 17
+        color: "#f1f3f2"
+      - type: text
+        value: "{{zug1.nr | match('^[A-Za-z]+', 0)}}"
+        x: 90
+        y: 11
+        font: bold
+        size: 15
+        color: "#111111"
+
+  # Gattungsname und Zugnummer; was nicht mehr passt, entfällt.
+  # Unbekannte Kürzel (auch TEE, dessen Name nicht passt) zeigen nur die Nummer.
+  - type: text
+    value:
+      if: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'D')"
+      then: "Schnellzug {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'E')"
+      then: "Eilzug {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'F')"
+      then: "Fernschnellzug {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'N')"
+      then: "Nahverkehrszug {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'P')"
+      then: "Personenzug {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'S')"
+      then: "S-Bahn {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'U')"
+      then: "U-Bahn {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'IC')"
+      then: "Intercity {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'EC')"
+      then: "EuroCity {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'IR')"
+      then: "InterRegio {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'ICE')"
+      then: "InterCityExpress {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'RE')"
+      then: "Regional-Express {{zug1.nr | match('[0-9]+', 0)}}"
+      elif: "equals(zug1.nr | match('^[A-Za-z]+', 0) | upper, 'RB')"
+      then: "Regionalbahn {{zug1.nr | match('[0-9]+', 0)}}"
+      else: "{{zug1.nr | match('[0-9]+', 0)}}"
+    x: "{{kat.end}}"
+    y: 12
+    font: bold
+    size: 13
+    scale_x: 0.8
+    max_width: "{{233 - kat.end}}"
+    color: "#111111"
+    fit_items:
+      split_by: " "
+      gap: 5
+
+  # ===== Zieltafel (x 80–235, y 37–115) =====
+  - type: rect
+    x: 80
+    y: 37
+    width: 156
+    height: 79
+    color: "#3c4650"
+  - type: rect
+    x: 81
+    y: 38
+    width: 154
+    height: 77
+    color: "#f1f3f2"
+
+  # Parken: unterer Rand der Zieltafel samt Kasten (y 115–119) in die noch
+  # leere untere Hälfte legen (y 230–234, dorthin läuft kein Text); wird am
+  # Ende zurückkopiert und schneidet Text ab, der unten aus der Tafel läuft.
+  - type: copy
+    src_x: 80
+    src_y: 115
+    src_width: 156
+    src_height: 5
+    x: 0
+    y: 230
+
+  # ----- Mit Hinweis: rotes Schild statt der Unterwegshalte, Ziel unten -----
+  # Das Schild fasst 3 Zeilen (y 40–77), bei zweizeiligem Ziel 2 (y 40–65).
+  # Zeilenabstand 12 px; das Abdeck-Rechteck beginnt genau an der
+  # Zeilengrenze darunter und verdeckt Zeilen, die nicht mehr passen.
+  - if: "not(isEmpty(zug1.hinweis))"
+    layers:
+      - type: rect
+        x: 84
+        y: 40
+        width: 148
+        height: "{{38 - ((zielw.width / 145 + 1) / 2) * 12}}"
+        color: "#c8161d"
+      - type: text
+        value: "{{zug1.hinweis}}"
+        x: 87
+        y: 42
+        width: 142
+        height: "{{36 - ((zielw.width / 145 + 1) / 2) * 12}}"
+        valign: middle
+        align: center
+        line_height: 0.9
+        font: bold
+        size: 11
+        scale_x: 0.7
+        color: "#ffffff"
+      - type: rect
+        x: 81
+        y: "{{78 - ((zielw.width / 145 + 1) / 2) * 12}}"
+        width: 154
+        height: "{{37 + ((zielw.width / 145 + 1) / 2) * 12}}"
+        color: "#f1f3f2"
+      - type: text                 # Ziel, bis zu 2 Zeilen, unten
+        value: "{{zug1.vonnach}}"
+        x: 86
+        y: 73
+        width: 144
+        height: 40
+        valign: bottom
+        align: center
+        line_height: 0.9
+        font: bold
+        size: 18
+        scale_x: 0.68
+        color: "#111111"
+
+  # ----- Ohne Hinweis: Unterwegshalte untereinander, Ziel direkt darunter -----
+  # Jeder Durchlauf übermalt die Tafel ab seiner Zeile, schreibt den Halt und
+  # setzt das Ziel eine Zeile tiefer. So steht das Ziel am Ende unter dem
+  # letzten Halt. Ohne Halte bleibt das zuerst gezeichnete, mittige Ziel stehen.
+  # Bei zweizeiligem Ziel (n = 1) schiebt der Summand n * (i / 2) * 300 den
+  # dritten und vierten Durchlauf aus dem Bild: es bleiben zwei Halte.
+  - else:
+    layers:
+      - type: text
+        value: "{{zug1.vonnach}}"
+        x: 86
+        y: 38
+        width: 144
+        height: 77
+        valign: middle
+        align: center
+        line_height: 0.9
+        font: bold
+        size: 18
+        scale_x: 0.68
+        color: "#111111"
+
+      - type: loop
+        value: "{{zug1.via}}"
+        split_by: " - "
+        var: "halt"
+        max_items: 4
+        layers:
+          - type: rect
+            x: 81
+            y: "{{43 + i * 12 + ((zielw.width / 145 + 1) / 2) * (i / 2) * 300}}"
+            width: 154
+            height: "{{72 - i * 12}}"
+            color: "#f1f3f2"
+          - type: text
+            value: "{{halt}}"
+            x: 158
+            y: "{{43 + i * 12 + ((zielw.width / 145 + 1) / 2) * (i / 2) * 300}}"
+            font: regular
+            size: 11
+            scale_x: 0.9
+            color: "#111111"
+            align: center
+          - type: text
+            value: "{{zug1.vonnach}}"
+            x: 86
+            y: "{{57 + i * 12 + ((zielw.width / 145 + 1) / 2) * (i / 2) * 300}}"
+            width: 144
+            align: center
+            line_height: 0.9
+            font: bold
+            size: 18
+            scale_x: 0.68
+            color: "#111111"
+
+  - type: copy                     # zurückkopieren
+    src_x: 0
+    src_y: 230
+    src_width: 156
+    src_height: 5
+    x: 80
+    y: 115
+
+  # ---------- Untere Hälfte = Seite B, gespiegelt ----------
+  - type: rect                     # Blechkasten (überschreibt auch die Parkfläche)
+    x: 0
+    y: 120
+    width: 240
+    height: 120
+    color: "#7d8c99"
+
+  - type: copy                     # Zugtafeln nach links: x 80–235 -> x 4–159
+    src_x: 80
+    src_y: 4
+    src_width: 156
+    src_height: 112
+    x: 4
+    y: 124
+
+  - type: copy                     # Zeit/Gleis nach rechts außen: x 4–75 -> x 164–235
+    src_x: 4
+    src_y: 4
+    src_width: 72
+    src_height: 112
+    x: 164
+    y: 124

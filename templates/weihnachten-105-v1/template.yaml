@@ -1,0 +1,283 @@
+meta:
+  name: "Weihnachten 1.05\""
+  description: "Kitschiges Weihnachts-Theme: Tannenkranz mit blinkenden Lichtern, Abfahrt und Ziel in Mountains of Christmas"
+  version: "1.0"
+  instructions: |
+    Zeigt nur Abfahrtszeit (zug1.zeit, mit Verspaetung zug1.abw) und Ziel (zug1.vonnach).
+    Die Lichterkette im Kranz blinkt als Frame-Animation.
+  canvas:
+    width: 240
+    height: 240
+  animation:
+    frames: 6
+    frame_delay: 0.5
+    loop: true
+
+fonts:
+  - id: xmas
+    file: MountainsofChristmas-Bold.ttf
+
+layers:
+  # ---------- Obere Haelfte = Seite A ----------
+  # Kranz: Tannenzweige, Beeren, Schleife, Lichterkette (aus) und roter Innengrund
+  - type: image
+    file: kranz.png
+    x: 0
+    y: 0
+
+  # Lichter, die im jeweiligen Frame leuchten
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 3
+    y: 3
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 20
+    y: 3
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '3'))"
+    file: licht-blau.png
+    x: 35
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 52
+    y: 2
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'))"
+    file: licht-rot.png
+    x: 69
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '4'))"
+    file: licht-gelb.png
+    x: 86
+    y: 4
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 139
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 156
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 171
+    y: 2
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 190
+    y: 0
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 207
+    y: 2
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 224
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '4'))"
+    file: licht-rot.png
+    x: 226
+    y: 17
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '4'))"
+    file: licht-gelb.png
+    x: 228
+    y: 36
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 228
+    y: 52
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-gruen.png
+    x: 226
+    y: 69
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 228
+    y: 88
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 226
+    y: 105
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '3'))"
+    file: licht-blau.png
+    x: 209
+    y: 107
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 192
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-rot.png
+    x: 177
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 158
+    y: 105
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 142
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 124
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'))"
+    file: licht-rot.png
+    x: 109
+    y: 106
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 91
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 75
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-gruen.png
+    x: 57
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 40
+    y: 105
+  - type: image
+    if: "or(equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 23
+    y: 107
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 6
+    y: 107
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 1
+    y: 89
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-rot.png
+    x: 3
+    y: 74
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-gelb.png
+    x: 2
+    y: 57
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 1
+    y: 39
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 3
+    y: 23
+
+  # Abfahrtszeit, bei Verspaetung mit +Minuten
+  - type: text
+    value:
+      if: "greaterThan(zug1.abw, 0)"
+      then: "{{zug1.zeit}}  +{{zug1.abw}}'"
+      else: "{{zug1.zeit}}"
+    x: 24
+    y: 21
+    width: 192
+    align: center
+    font: xmas
+    size: 26
+    color: "#ffd23f"
+
+  - type: image
+    file: trenner.png
+    x: 60
+    y: 50
+
+  # Ziel - Groesse richtet sich nach der Laenge
+  # sehr lang (ab 33 Zeichen): klein, bis zu 2 Zeilen
+  - type: text
+    if: "not(isEmpty(zug1.vonnach | match('^.{33,}', 0)))"
+    value: "{{zug1.vonnach}}"
+    x: 24
+    y: 60
+    width: 192
+    height: 38
+    align: center
+    valign: middle
+    line_height: 0.85
+    scale_x: 0.85
+    font: xmas
+    size: 19
+    color: "#fff6e0"
+  # lang (17-32 Zeichen): mittel, bis zu 2 Zeilen
+  - type: text
+    elif: "not(isEmpty(zug1.vonnach | match('^.{17,}', 0)))"
+    value: "{{zug1.vonnach}}"
+    x: 24
+    y: 60
+    width: 192
+    height: 38
+    align: center
+    valign: middle
+    line_height: 0.8
+    scale_x: 0.85
+    font: xmas
+    size: 22
+    color: "#fff6e0"
+  # kurz: gross, eine Zeile
+  - type: text
+    else: true
+    value: "{{zug1.vonnach}}"
+    x: 24
+    y: 59
+    width: 192
+    height: 40
+    align: center
+    valign: middle
+    line_height: 0.8
+    scale_x: 0.9
+    font: xmas
+    size: 27
+    color: "#fff6e0"
+
+  # ---------- Untere Haelfte = Seite B (symmetrisch, kein Rand-Element) ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

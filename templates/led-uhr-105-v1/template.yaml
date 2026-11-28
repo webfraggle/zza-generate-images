@@ -1,0 +1,211 @@
+meta:
+  name: "LED-Uhr 1.05\""
+  description: "LED-Uhr in Punktmatrix-Optik, Uhrzeit gross oben, Datum darunter"
+  author: "christoph"
+  version: "1.3"
+  canvas:
+    width: 240
+    height: 240
+  timezone: "Europe/Berlin"
+  animation:
+    frames: 60
+    frame_delay: 1
+    loop: true
+
+fonts:
+  - id: led
+    file: sams-town.TTF
+  - id: blok
+    file: FS-Blok.ttf
+
+# Aufbau: obere Hälfte zeichnen, am Ende per copy 1:1 nach unten
+# (symmetrisch, kein Rand-Element).
+# Uhrzeit (Sam's Town, 56 px): jede Ziffer in einer festen Zelle (34 px,
+# Doppelpunkt 12 px, Start x 6), zentriert, damit schmale Einsen die Zeit
+# nicht springen lassen. Dahinter dunkle "8" als unbeleuchtete LED-Punkte.
+# Datum (FS Blok) "1. Januar 2026", zentriert. März als "Maerz" (Umlaut in
+# der Schrift ungeprüft).
+# Farbe: #ffcc00, unbeleuchtet #2e2400.
+# Hinweis: auf dem Gerät ist das Datum fest 1.1.2026.
+
+layers:
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 120
+    color: "#000000"
+
+  # ---------- unbeleuchtete Punkte ----------
+  - type: text
+    value: "8"
+    x: 23
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+  - type: text
+    value: "8"
+    x: 57
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+  - type: text
+    value: ":"
+    x: 80
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+  - type: text
+    value: "8"
+    x: 103
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+  - type: text
+    value: "8"
+    x: 137
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+  - type: text
+    value: ":"
+    x: 160
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+  - type: text
+    value: "8"
+    x: 183
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+  - type: text
+    value: "8"
+    x: 217
+    y: 10
+    font: led
+    size: 56
+    color: "#2e2400"
+    align: center
+
+  # ---------- Uhrzeit HH:MM:SS ----------
+  - type: text
+    value: "{{now | format('HH') | match('^.', 0)}}"
+    x: 23
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+  - type: text
+    value: "{{now | format('HH') | match('.$', 0)}}"
+    x: 57
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+  - type: text
+    value: ":"
+    x: 80
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+  - type: text
+    value: "{{now | format('mm') | match('^.', 0)}}"
+    x: 103
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+  - type: text
+    value: "{{now | format('mm') | match('.$', 0)}}"
+    x: 137
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+  - type: text
+    value: ":"
+    x: 160
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+  - type: text
+    value: "{{now | format('ss') | match('^.', 0)}}"
+    x: 183
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+  - type: text
+    value: "{{now | format('ss') | match('.$', 0)}}"
+    x: 217
+    y: 10
+    font: led
+    size: 56
+    color: "#ffcc00"
+    align: center
+
+  # ---------- Datum (FS Blok), zentriert ----------
+  - type: text
+    value:
+      if: "equals(now.month, '1')"
+      then: "{{now.day}}. Januar {{now.year}}"
+      elif: "equals(now.month, '2')"
+      then: "{{now.day}}. Februar {{now.year}}"
+      elif: "equals(now.month, '3')"
+      then: "{{now.day}}. Maerz {{now.year}}"
+      elif: "equals(now.month, '4')"
+      then: "{{now.day}}. April {{now.year}}"
+      elif: "equals(now.month, '5')"
+      then: "{{now.day}}. Mai {{now.year}}"
+      elif: "equals(now.month, '6')"
+      then: "{{now.day}}. Juni {{now.year}}"
+      elif: "equals(now.month, '7')"
+      then: "{{now.day}}. Juli {{now.year}}"
+      elif: "equals(now.month, '8')"
+      then: "{{now.day}}. August {{now.year}}"
+      elif: "equals(now.month, '9')"
+      then: "{{now.day}}. September {{now.year}}"
+      elif: "equals(now.month, '10')"
+      then: "{{now.day}}. Oktober {{now.year}}"
+      elif: "equals(now.month, '11')"
+      then: "{{now.day}}. November {{now.year}}"
+      else: "{{now.day}}. Dezember {{now.year}}"
+    x: 120
+    y: 74
+    font: blok
+    size: 40
+    color: "#ffcc00"
+    align: center
+
+  # ---------- untere Hälfte: 1:1 ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

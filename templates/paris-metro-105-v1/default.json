@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Prochains métros",
+    "gleis": "5 Bobigny",
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Bobigny - Pablo Picasso",
+        "nr": "M5",
+        "zeit": "10:08",
+        "via": "Gare d'Austerlitz - Bastille - République - Gare du Nord",
+        "abw": 0,
+        "hinweis": "Fermeture de la Gare d'Austerlitz : privilégier la station Saint-Marcel pour rejoindre la gare à pied depuis la ligne 5.",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Bobigny - Pablo Picasso",
+        "nr": "M5",
+        "zeit": "10:11",
+        "via": "Gare d'Austerlitz - Bastille - République - Gare du Nord",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Bobigny - Pablo Picasso",
+        "nr": "M5",
+        "zeit": "10:15",
+        "via": "",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

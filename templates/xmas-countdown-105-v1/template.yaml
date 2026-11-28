@@ -1,0 +1,370 @@
+meta:
+  name: "Weihnachts-Countdown 1.05\""
+  description: "Tannenkranz mit blinkenden Lichtern, Countdown Tage/Std/Min/Sek bis Heiligabend (24.12.)"
+  version: "1.0"
+  instructions: |
+    Zaehlt mit der Geraete-Uhr bis Heiligabend, 24.12. 0:00 Uhr, herunter.
+    Vom 24. bis 31.12. steht dort "Frohe Weihnachten!". Zugdaten werden nicht angezeigt.
+    Das Geraet braucht die Internetzeit, damit das Datum stimmt.
+  canvas:
+    width: 240
+    height: 240
+  animation:
+    frames: 6
+    frame_delay: 0.5
+    loop: true
+
+fonts:
+  - id: xmas
+    file: MountainsofChristmas-Bold.ttf
+
+layers:
+  # ---------- Obere Haelfte = Seite A ----------
+  - type: image
+    file: kranz.png
+    x: 0
+    y: 0
+
+  # Lichter, die im jeweiligen Frame leuchten
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 3
+    y: 3
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 20
+    y: 3
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '3'))"
+    file: licht-blau.png
+    x: 35
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 52
+    y: 2
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'))"
+    file: licht-rot.png
+    x: 69
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '4'))"
+    file: licht-gelb.png
+    x: 86
+    y: 4
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 139
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 156
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 171
+    y: 2
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 190
+    y: 0
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 207
+    y: 2
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 224
+    y: 1
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '4'))"
+    file: licht-rot.png
+    x: 226
+    y: 17
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '4'))"
+    file: licht-gelb.png
+    x: 228
+    y: 36
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 228
+    y: 52
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-gruen.png
+    x: 226
+    y: 69
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 228
+    y: 88
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 226
+    y: 105
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '3'))"
+    file: licht-blau.png
+    x: 209
+    y: 107
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 192
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-rot.png
+    x: 177
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 158
+    y: 105
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 142
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 124
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'))"
+    file: licht-rot.png
+    x: 109
+    y: 106
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 91
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 75
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-gruen.png
+    x: 57
+    y: 108
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '5'))"
+    file: licht-rot.png
+    x: 40
+    y: 105
+  - type: image
+    if: "or(equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gelb.png
+    x: 23
+    y: 107
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '1'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 6
+    y: 107
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 1
+    y: 89
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-rot.png
+    x: 3
+    y: 74
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '4'))"
+    file: licht-gelb.png
+    x: 2
+    y: 57
+  - type: image
+    if: "or(equals(anim.frame, '0'),equals(anim.frame, '5'))"
+    file: licht-blau.png
+    x: 1
+    y: 39
+  - type: image
+    if: "or(equals(anim.frame, '2'),equals(anim.frame, '3'),equals(anim.frame, '4'),equals(anim.frame, '5'))"
+    file: licht-gruen.png
+    x: 3
+    y: 23
+
+  # Ab Heiligabend: Gruss statt Countdown
+  - if: "and(equals(now.month, '12'), greaterThan(now.day, 23))"
+    layers:
+      - type: text
+        value: "Frohe"
+        x: 24
+        y: 24
+        width: 192
+        align: center
+        font: xmas
+        size: 30
+        color: "#ffd23f"
+      - type: image
+        file: trenner.png
+        x: 60
+        y: 56
+      - type: text
+        value: "Weihnachten!"
+        x: 24
+        y: 64
+        width: 192
+        align: center
+        font: xmas
+        size: 30
+        color: "#fff6e0"
+
+  - else: true
+    layers:
+      - type: text
+        value: "Noch bis Heiligabend"
+        x: 24
+        y: 20
+        width: 192
+        align: center
+        font: xmas
+        size: 18
+        color: "#ffd23f"
+      - type: image
+        file: trenner.png
+        x: 60
+        y: 41
+      # Countdown bis 24.12. 0:00 (Jahr ohne Schalttag gerechnet)
+      - type: text
+        value:
+          if: "equals(now.month, '12')"
+          then: "{{now.day | mul(-1) | add(23) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '11')"
+          then: "{{now.day | mul(-1) | add(53) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '10')"
+          then: "{{now.day | mul(-1) | add(84) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '9')"
+          then: "{{now.day | mul(-1) | add(114) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '8')"
+          then: "{{now.day | mul(-1) | add(145) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '7')"
+          then: "{{now.day | mul(-1) | add(176) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '6')"
+          then: "{{now.day | mul(-1) | add(206) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '5')"
+          then: "{{now.day | mul(-1) | add(237) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '4')"
+          then: "{{now.day | mul(-1) | add(267) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '3')"
+          then: "{{now.day | mul(-1) | add(298) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '2')"
+          then: "{{now.day | mul(-1) | add(326) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          elif: "equals(now.month, '1')"
+          then: "{{now.day | mul(-1) | add(357) | add(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(86400) | sub(0.49999) | round)}}"
+          else: ""
+        x: 24
+        y: 39
+        width: 48
+        align: center
+        scale_x: 0.9
+        font: xmas
+        size: 41
+        color: "#fff6e0"
+      - type: text
+        value:
+          if: "greaterThan(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(3600) | sub(0.49999) | round | mod(24), 9)"
+          then: "{{now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(3600) | sub(0.49999) | round | mod(24)}}"
+          else: "0{{now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(3600) | sub(0.49999) | round | mod(24)}}"
+        x: 72
+        y: 39
+        width: 48
+        align: center
+        scale_x: 0.9
+        font: xmas
+        size: 41
+        color: "#fff6e0"
+      - type: text
+        value:
+          if: "greaterThan(now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(60) | sub(0.4999) | round | mod(60), 9)"
+          then: "{{now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(60) | sub(0.4999) | round | mod(60)}}"
+          else: "0{{now | format('HH:mm') | minutes | mul(60) | add(now.second) | mul(-1) | add(86400) | div(60) | sub(0.4999) | round | mod(60)}}"
+        x: 120
+        y: 39
+        width: 48
+        align: center
+        scale_x: 0.9
+        font: xmas
+        size: 41
+        color: "#fff6e0"
+      - type: text
+        value:
+          if: "greaterThan(now.second | mul(-1) | mod(60), 9)"
+          then: "{{now.second | mul(-1) | mod(60)}}"
+          else: "0{{now.second | mul(-1) | mod(60)}}"
+        x: 168
+        y: 39
+        width: 48
+        align: center
+        scale_x: 0.9
+        font: xmas
+        size: 41
+        color: "#fff6e0"
+      - type: text
+        value: "Tage"
+        x: 24
+        y: 82
+        width: 48
+        align: center
+        font: xmas
+        size: 14
+        color: "#ffd23f"
+      - type: text
+        value: "Std."
+        x: 72
+        y: 82
+        width: 48
+        align: center
+        font: xmas
+        size: 14
+        color: "#ffd23f"
+      - type: text
+        value: "Min."
+        x: 120
+        y: 82
+        width: 48
+        align: center
+        font: xmas
+        size: 14
+        color: "#ffd23f"
+      - type: text
+        value: "Sek."
+        x: 168
+        y: 82
+        width: 48
+        align: center
+        font: xmas
+        size: 14
+        color: "#ffd23f"
+
+  # ---------- Untere Haelfte = Seite B (symmetrisch) ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

@@ -1,0 +1,372 @@
+meta:
+  name: "Paris Métro 1.05\""
+  description: "RATP Métro Paris, Bahnsteiganzeige: weisse Kopfzeile mit Linie und Richtung (aus gleis), Countdown 1er/2e métro, Infofeld mit Uhr"
+  author: ""
+  version: "1.3"
+  instructions: |
+    Bahnsteiganzeige der Pariser Métro (RATP).
+    Kopfzeile aus dem Feld gleis: "<Linie> <Richtung>", z.B. "5 Bobigny"
+    oder "M5 Bobigny". Alles nach dem ersten Leerzeichen ist die Richtung
+    (darf Leerzeichen enthalten). Steht nur eine Linie in gleis (z.B. "5"),
+    kommt die Richtung aus zug1.vonnach. Lange Richtungen werden gestaucht.
+    Linienfarben 1-14, 3bis, 7bis; alles andere bekommt einen grauen Kreis.
+    Countdown wie umuc/nyc relativ zu Zug 1 (Zug 1 = 2 Min.), Verspätung
+    (abw) wird aufaddiert. Rechts Infofeld mit Uhr und zug1.hinweis.
+  canvas:
+    width: 240
+    height: 240
+
+# Symmetrisches Layout ohne Rand-Element (Kopfzeile über die ganze Breite),
+# daher wird die obere Hälfte 1:1 nach unten kopiert.
+# Farben: Kopf #f4f4f2, Navy #25305f, Körper #111111, Ziffern #f5c400,
+# Infofeld #eceee4, Text dunkel #1d1d1b. Untere Leiste in Linienfarbe.
+#
+# Linie L = gleis | before(' ') | strip('M') | trim | lower
+# Richtung: unsichtbarer Messtext rw (höchstens 34 Zeichen). Ist er breiter
+# als 176 px, wird die normale Fassung aus dem Bild geschoben (y + 300) und
+# die gestauchte gezeigt, sonst umgekehrt.
+# Buchstaben in den Kreisen und die Richtung sind per Pixelmessung optisch
+# auf die Kreismitte (y 14.5) gesetzt. Die Uhr sitzt mittig in der sichtbar
+# schwarzen Ecke x 199-239, y 30-49 (Uhr-Rechteck geht in den Rahmen über).
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  - type: text                     # Messtext Richtung, wird übermalt
+    id: rw
+    value:
+      if: "contains(gleis, ' ')"
+      then: "{{gleis | after(' ') | trim | match('^.{1,34}', 0)}}"
+      else: "{{zug1.vonnach | match('^.{1,34}', 0)}}"
+    x: 0
+    y: 0
+    font: bold
+    size: 21
+    scale_x: 0.82
+    color: "#f4f4f2"
+
+  # ---------- Kopfzeile y 0-29 ----------
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 30
+    color: "#f4f4f2"
+
+  - type: image                    # M-Ring
+    file: m-ring-kopf.png
+    x: 4
+    y: 3
+  - type: text
+    value: "M"
+    x: 4
+    y: 6
+    width: 24
+    height: 24
+    align: center
+    valign: middle
+    font: bold
+    size: 15
+    color: "#25305f"
+
+  - type: rect                     # Linienkreis: Farbfläche + Maske
+    x: 31
+    y: 3
+    width: 24
+    height: 24
+    color: &linienfarbe
+      if: "equals(gleis | before(' ') | strip('M') | trim | lower, '1')"
+      then: "#ffcd00"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '2')"
+      then: "#003ca6"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '3')"
+      then: "#837902"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '3bis')"
+      then: "#6ec4e8"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '4')"
+      then: "#cf009e"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '5')"
+      then: "#ff7e2e"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '6')"
+      then: "#6eca97"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '7')"
+      then: "#fa9aba"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '7bis')"
+      then: "#6eca97"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '8')"
+      then: "#e19bdf"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '9')"
+      then: "#b6bd00"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '10')"
+      then: "#c9910d"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '11')"
+      then: "#704b1c"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '12')"
+      then: "#007852"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '13')"
+      then: "#6ec4e8"
+      elif: "equals(gleis | before(' ') | strip('M') | trim | lower, '14')"
+      then: "#62259d"
+      else: "#8c8c8c"
+  - type: image
+    file: maske-kopf.png
+    x: 31
+    y: 3
+
+  - type: text                     # Liniennummer, kurz
+    if: "isEmpty(gleis | before(' ') | strip('M') | trim | match('^.{3,}', 0))"
+    value: "{{gleis | before(' ') | strip('M') | trim | lower}}"
+    x: 31
+    y: 6
+    width: 24
+    height: 24
+    align: center
+    valign: middle
+    font: bold
+    size: 15
+    color: &linientext
+      if: "or(equals(gleis | before(' ') | strip('M') | trim | lower, '2'), equals(gleis | before(' ') | strip('M') | trim | lower, '3'), equals(gleis | before(' ') | strip('M') | trim | lower, '4'), equals(gleis | before(' ') | strip('M') | trim | lower, '11'), equals(gleis | before(' ') | strip('M') | trim | lower, '12'), equals(gleis | before(' ') | strip('M') | trim | lower, '14'))"
+      then: "#ffffff"
+      elif: "or(equals(gleis | before(' ') | strip('M') | trim | lower, '1'), equals(gleis | before(' ') | strip('M') | trim | lower, '3bis'), equals(gleis | before(' ') | strip('M') | trim | lower, '5'), equals(gleis | before(' ') | strip('M') | trim | lower, '6'), equals(gleis | before(' ') | strip('M') | trim | lower, '7'), equals(gleis | before(' ') | strip('M') | trim | lower, '7bis'), equals(gleis | before(' ') | strip('M') | trim | lower, '8'), equals(gleis | before(' ') | strip('M') | trim | lower, '9'), equals(gleis | before(' ') | strip('M') | trim | lower, '10'), equals(gleis | before(' ') | strip('M') | trim | lower, '13'))"
+      then: "#1d1d1b"
+      else: "#ffffff"
+  - type: text                     # Liniennummer, lang (3bis, 7bis)
+    else: true
+    value: "{{gleis | before(' ') | strip('M') | trim | lower}}"
+    x: 31
+    y: 5
+    width: 24
+    height: 24
+    align: center
+    valign: middle
+    font: bold
+    size: 10
+    scale_x: 0.75
+    color: *linientext
+
+  - type: text                     # Richtung, normal
+    value: &richtung
+      if: "contains(gleis, ' ')"
+      then: "{{gleis | after(' ') | trim}}"
+      else: "{{zug1.vonnach}}"
+    x: 60
+    y: "{{7 + (rw.width / 177) * 300}}"
+    max_width: 176
+    line_height: 2
+    font: bold
+    size: 21
+    scale_x: 0.82
+    color: "#25305f"
+  - type: text                     # Richtung, gestaucht
+    value: *richtung
+    x: 60
+    y: "{{7 + (1 - rw.width / 177) * 300}}"
+    max_width: 176
+    line_height: 2
+    font: bold
+    size: 21
+    scale_x: 0.6
+    color: "#25305f"
+
+  # ---------- Körper y 30-119 (deckt umgebrochene Richtung ab) ----------
+  - type: rect
+    x: 0
+    y: 30
+    width: 240
+    height: 90
+    color: "#111111"
+
+  # Countdown links (x 0-117): Beschriftung klein, hochgestelltes er/e
+  - type: text
+    id: l1
+    value: "1"
+    x: 8
+    y: 37
+    font: regular
+    size: 10
+    color: "#ffffff"
+  - type: text
+    id: l1s
+    value: "er"
+    x: "{{l1.end}}"
+    y: 35
+    font: regular
+    size: 10
+    scale_x: 0.8
+    scale_y: 0.8
+    color: "#ffffff"
+  - type: text
+    value: " métro"
+    x: "{{l1s.end}}"
+    y: 37
+    font: regular
+    size: 10
+    color: "#ffffff"
+
+  - type: text
+    id: l2
+    value: "2"
+    x: 66
+    y: 37
+    font: regular
+    size: 10
+    color: "#ffffff"
+  - type: text
+    id: l2s
+    value: "e"
+    x: "{{l2.end}}"
+    y: 35
+    font: regular
+    size: 10
+    scale_x: 0.8
+    scale_y: 0.8
+    color: "#ffffff"
+  - type: text
+    value: " métro"
+    x: "{{l2s.end}}"
+    y: 37
+    font: regular
+    size: 10
+    color: "#ffffff"
+
+  - type: text                     # 1er métro (Ziffern y 66-89)
+    value:
+      if: "isEmpty(zug1.zeit)"
+      then: "-"
+      elif: "greaterThan(zug1.abw, 0)"
+      then: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | add(2) | add(zug1.abw)}}"
+      else: "{{zug1.zeit | minutes | sub(zug1.zeit | minutes) | add(2)}}"
+    x: 0
+    y: 90
+    width: 58
+    align: center
+    valign: baseline
+    font: bold
+    size: 34
+    color: "#f5c400"
+
+  - type: rect                     # Trennstrich, mittig zu den Ziffern (Mitte y 77.5)
+    x: 58
+    y: 61
+    width: 2
+    height: 34
+    color: "#e8e8e8"
+
+  - type: text                     # 2e métro
+    value:
+      if: "isEmpty(zug2.zeit)"
+      then: "-"
+      elif: "greaterThan(zug2.abw, 0)"
+      then: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2) | add(zug2.abw)}}"
+      else: "{{zug2.zeit | minutes | sub(zug1.zeit | minutes) | mod(1440) | add(2)}}"
+    x: 60
+    y: 90
+    width: 58
+    align: center
+    valign: baseline
+    font: bold
+    size: 34
+    color: "#f5c400"
+
+  # Infofeld rechts (x 120-236, y 33-111)
+  - type: rect
+    x: 120
+    y: 33
+    width: 117
+    height: 79
+    color: "#eceee4"
+
+  - type: image
+    file: m-ring-info.png
+    x: 124
+    y: 36
+  - type: text
+    value: "M"
+    x: 124
+    y: 39
+    width: 14
+    height: 14
+    align: center
+    valign: middle
+    font: bold
+    size: 10
+    color: "#25305f"
+  - type: rect
+    x: 141
+    y: 36
+    width: 14
+    height: 14
+    color: *linienfarbe
+  - type: image
+    file: maske-info.png
+    x: 141
+    y: 36
+  - type: text
+    value: "{{gleis | before(' ') | strip('M') | trim | lower | match('^[0-9]+', 0)}}"
+    x: 142
+    y: 39
+    width: 14
+    height: 14
+    align: center
+    valign: middle
+    font: bold
+    size: 10
+    scale_x: 0.85
+    color: *linientext
+
+  - type: rect                     # Uhr
+    x: 199
+    y: 33
+    width: 38
+    height: 17
+    color: "#161616"
+  - type: text
+    value: "{{now | format('HH:mm')}}"
+    x: 200
+    y: 35
+    width: 40
+    height: 17
+    align: center
+    valign: middle
+    font: bold
+    size: 13
+    color: "#f5c400"
+
+  - type: text                     # Hinweis
+    if: "not(isEmpty(zug1.hinweis))"
+    value: "{{zug1.hinweis}}"
+    x: 124
+    y: 54
+    width: 110
+    font: regular
+    size: 11
+    scale_x: 0.82
+    line_height: 0.95
+    color: "#1d1d1b"
+
+  # schneidet überlange Hinweise ab, dann Leiste in Linienfarbe
+  - type: rect
+    x: 118
+    y: 112
+    width: 122
+    height: 2
+    color: "#111111"
+  - type: rect
+    x: 0
+    y: 114
+    width: 240
+    height: 6
+    color: *linienfarbe
+
+  # ---------- Untere Hälfte = Seite B: Kopie (symmetrisch) ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

@@ -1,0 +1,283 @@
+meta:
+  name: "SNCF Départs 1.05\""
+  description: "SNCF Hallenanzeiger Departs: dunkelblau, Abfahrtszeit gelb, Ziel weiss, drei gleich grosse Zeilen"
+  author: ""
+  version: "1.3"
+  instructions: |
+    Abfahrtstafel im Stil der SNCF-Hallenanzeiger (Départs), drei Züge.
+    Je Zug eine Zeile: Zeit gelb, Ziel weiss; darunter klein Zuggattung und
+    Nummer (nr) und "à l'heure" bzw. "retard X min" (abw). Bei Zug 1 folgt
+    dahinter der Hinweis. Lange Ziele werden gestaucht und, wenn nötig,
+    am rechten Rand abgeschnitten. Gleis wird wie im Original nicht gezeigt.
+  canvas:
+    width: 240
+    height: 240
+
+# Symmetrisch ohne Rand-Element: obere Hälfte 1:1 nach unten kopiert.
+# Zeilen je 40 px: y 0 / 40 / 80, abwechselnd #0a1f4d und #13306b.
+# Zeit gelb #ffd400, Text weiss, Nummer graublau #aebad8, Verspätung #ff9f1c.
+# Ziel: Messtexte d1-d3; passt das Ziel nicht neben die Zeit, wird die
+# normale Fassung aus dem Bild geschoben (y + 300) und die gestauchte
+# (einzeilig, ohne Umbruch) gezeigt. Ein Randstreifen x 235-239 je Zeile
+# schneidet Überlänge ab.
+
+fonts:
+  - id: bold
+    file: NimbusSanL-Bol.otf
+  - id: regular
+    file: NimbusSanL-Reg.otf
+
+layers:
+  # Unsichtbare Messtexte, werden übermalt
+  - type: text
+    id: d1
+    value: "{{zug1.vonnach | match('^.{1,34}', 0)}}"
+    x: 0
+    y: 0
+    font: bold
+    size: 20
+    scale_x: 0.8
+    color: "#0a1f4d"
+  - type: text
+    id: d2
+    value: "{{zug2.vonnach | match('^.{1,34}', 0)}}"
+    x: 0
+    y: 30
+    font: bold
+    size: 20
+    scale_x: 0.8
+    color: "#0a1f4d"
+  - type: text
+    id: d3
+    value: "{{zug3.vonnach | match('^.{1,34}', 0)}}"
+    x: 0
+    y: 60
+    font: bold
+    size: 20
+    scale_x: 0.8
+    color: "#0a1f4d"
+
+  # =============== Zug 1 (y 0-39) ===============
+  - type: rect
+    x: 0
+    y: 0
+    width: 240
+    height: 40
+    color: "#0a1f4d"
+  - if: "not(isEmpty(zug1.zeit))"
+    layers:
+      - type: text
+        id: t1
+        advance: 6
+        value: "{{zug1.zeit}}"
+        x: 6
+        y: 3
+        font: bold
+        size: 20
+        color: "#ffd400"
+      - type: text
+        value: "{{zug1.vonnach}}"
+        x: "{{t1.end}}"
+        y: "{{4 + (d1.width / (235 - t1.end)) * 300}}"
+        max_width: "{{235 - t1.end}}"
+        line_height: 3
+        font: bold
+        size: 20
+        scale_x: 0.8
+        color: "#ffffff"
+      - type: text
+        value: "{{zug1.vonnach}}"
+        x: "{{t1.end}}"
+        y: "{{4 + (1 - d1.width / (235 - t1.end)) * 300}}"
+        font: bold
+        size: 20
+        scale_x: 0.6
+        color: "#ffffff"
+      - type: text
+        id: n1
+        advance: 6
+        value: "{{zug1.nr}}"
+        x: 6
+        y: 25
+        font: regular
+        size: 12
+        scale_x: 0.9
+        color: "#aebad8"
+      - type: text
+        id: s1
+        advance: 6
+        value:
+          if: "greaterThan(zug1.abw, 0)"
+          then: "retard {{zug1.abw}} min"
+          else: "à l'heure"
+        x: "{{n1.end}}"
+        y: 25
+        font: bold
+        size: 12
+        scale_x: 0.9
+        color:
+          if: "greaterThan(zug1.abw, 0)"
+          then: "#ff9f1c"
+          else: "#ffffff"
+      - type: text
+        if: "not(isEmpty(zug1.hinweis))"
+        value: "{{zug1.hinweis}}"
+        x: "{{s1.end}}"
+        y: 25
+        max_width: "{{235 - s1.end}}"
+        font: regular
+        size: 12
+        scale_x: 0.85
+        color: "#ffd400"
+        fit_items:
+          split_by: " "
+          gap: 3
+  - type: rect                     # Randstreifen rechts
+    x: 235
+    y: 0
+    width: 5
+    height: 40
+    color: "#0a1f4d"
+
+  # =============== Zug 2 (y 40-79) ===============
+  - type: rect
+    x: 0
+    y: 40
+    width: 240
+    height: 40
+    color: "#13306b"
+  - if: "not(isEmpty(zug2.zeit))"
+    layers:
+      - type: text
+        id: t2
+        advance: 6
+        value: "{{zug2.zeit}}"
+        x: 6
+        y: 43
+        font: bold
+        size: 20
+        color: "#ffd400"
+      - type: text
+        value: "{{zug2.vonnach}}"
+        x: "{{t2.end}}"
+        y: "{{44 + (d2.width / (235 - t2.end)) * 300}}"
+        max_width: "{{235 - t2.end}}"
+        line_height: 3
+        font: bold
+        size: 20
+        scale_x: 0.8
+        color: "#ffffff"
+      - type: text
+        value: "{{zug2.vonnach}}"
+        x: "{{t2.end}}"
+        y: "{{44 + (1 - d2.width / (235 - t2.end)) * 300}}"
+        font: bold
+        size: 20
+        scale_x: 0.6
+        color: "#ffffff"
+      - type: text
+        id: n2
+        advance: 6
+        value: "{{zug2.nr}}"
+        x: 6
+        y: 65
+        font: regular
+        size: 12
+        scale_x: 0.9
+        color: "#aebad8"
+      - type: text
+        value:
+          if: "greaterThan(zug2.abw, 0)"
+          then: "retard {{zug2.abw}} min"
+          else: "à l'heure"
+        x: "{{n2.end}}"
+        y: 65
+        font: bold
+        size: 12
+        scale_x: 0.9
+        color:
+          if: "greaterThan(zug2.abw, 0)"
+          then: "#ff9f1c"
+          else: "#ffffff"
+  - type: rect
+    x: 235
+    y: 40
+    width: 5
+    height: 40
+    color: "#13306b"
+
+  # =============== Zug 3 (y 80-119) ===============
+  - type: rect
+    x: 0
+    y: 80
+    width: 240
+    height: 40
+    color: "#0a1f4d"
+  - if: "not(isEmpty(zug3.zeit))"
+    layers:
+      - type: text
+        id: t3
+        advance: 6
+        value: "{{zug3.zeit}}"
+        x: 6
+        y: 83
+        font: bold
+        size: 20
+        color: "#ffd400"
+      - type: text
+        value: "{{zug3.vonnach}}"
+        x: "{{t3.end}}"
+        y: "{{84 + (d3.width / (235 - t3.end)) * 300}}"
+        max_width: "{{235 - t3.end}}"
+        line_height: 3
+        font: bold
+        size: 20
+        scale_x: 0.8
+        color: "#ffffff"
+      - type: text
+        value: "{{zug3.vonnach}}"
+        x: "{{t3.end}}"
+        y: "{{84 + (1 - d3.width / (235 - t3.end)) * 300}}"
+        font: bold
+        size: 20
+        scale_x: 0.6
+        color: "#ffffff"
+      - type: text
+        id: n3
+        advance: 6
+        value: "{{zug3.nr}}"
+        x: 6
+        y: 105
+        font: regular
+        size: 12
+        scale_x: 0.9
+        color: "#aebad8"
+      - type: text
+        value:
+          if: "greaterThan(zug3.abw, 0)"
+          then: "retard {{zug3.abw}} min"
+          else: "à l'heure"
+        x: "{{n3.end}}"
+        y: 105
+        font: bold
+        size: 12
+        scale_x: 0.9
+        color:
+          if: "greaterThan(zug3.abw, 0)"
+          then: "#ff9f1c"
+          else: "#ffffff"
+  - type: rect
+    x: 235
+    y: 80
+    width: 5
+    height: 40
+    color: "#0a1f4d"
+
+  # =============== Untere Hälfte = Seite B: Kopie (symmetrisch) ===============
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120

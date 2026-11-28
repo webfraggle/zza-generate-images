@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Folgezüge",
+    "gleis": 3,
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Kleve",
+        "nr": "E 3120",
+        "zeit": "11:32",
+        "via": "Düsseldorf - Krefeld",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Hamburg-Altona",
+        "nr": "D 734",
+        "zeit": "11:47",
+        "via": "Dortmund - Münster - Bremen",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Aachen Hbf",
+        "nr": "N 6218",
+        "zeit": "12:04",
+        "via": "Horrem - Düren",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

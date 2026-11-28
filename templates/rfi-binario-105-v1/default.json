@@ -1,0 +1,38 @@
+{
+    "folgezuege": "Prossimi treni",
+    "gleis": "6 ovest",
+    "abschnitt": "",
+    "zug1": {
+        "vonnach": "Marzabotto",
+        "nr": "R 11625",
+        "zeit": "12:35",
+        "via": "Casalecchio di Reno - Sasso Marconi - Lama di Reno",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug2": {
+        "vonnach": "Porretta Terme",
+        "nr": "R 11627",
+        "zeit": "13:05",
+        "via": "Sasso Marconi - Marzabotto - Vergato",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    },
+    "zug3": {
+        "vonnach": "Bologna Centrale",
+        "nr": "R 11630",
+        "zeit": "13:20",
+        "via": "Casalecchio di Reno",
+        "abw": 0,
+        "hinweis": "",
+        "fusszeile": "",
+        "abschnitte": "",
+        "reihung": ""
+    }
+}

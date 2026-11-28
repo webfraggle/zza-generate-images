@@ -1,0 +1,61 @@
+meta:
+  name: "Bahnhofsuhr 1.05\""
+  description: "Analoge Bahnhofsuhr, weisses Zifferblatt mit blauem Rand auf Schwarz, laufender Sekundenzeiger"
+  version: "1.0"
+  display: "1.05 Zoll"
+  instructions: |
+    Reine Uhr, keine Zugdaten. Zeigt die Geraete-Uhr mit laufendem Sekundenzeiger.
+  canvas:
+    width: 240
+    height: 240
+  timezone: "Europe/Berlin"
+  animation:
+    frames: 60
+    frame_delay: 1
+    loop: true
+
+layers:
+  # ---------- Obere Haelfte = Seite A (y 0-119) ----------
+  - type: rect                     # Hintergrund schwarz
+    x: 0
+    y: 0
+    width: 240
+    height: 240
+    color: "#000000"
+
+  - type: image                    # Zifferblatt 116x116, Mitte (120, 60)
+    file: face.png
+    x: 62
+    y: 2
+
+  - type: image                    # Stundenzeiger
+    file: hand-hour.png
+    x: 120
+    y: 60
+    rotate: "{{now.hour12 | mul(30) | add(now.minute | div(2))}}"
+
+  - type: image                    # Minutenzeiger
+    file: hand-min.png
+    x: 120
+    y: 60
+    rotate: "{{now.minute | mul(6)}}"
+
+  - type: image                    # Sekundenzeiger mit Kelle
+    file: hand-sec.png
+    x: 120
+    y: 60
+    rotate: "{{now.second | mul(6)}}"
+
+  - type: image                    # Achse
+    file: hub.png
+    x: 115
+    y: 55
+
+  # ---------- Untere Haelfte = Seite B: symmetrisch, ganze Haelfte kopieren ----------
+  - type: copy
+    src_x: 0
+    src_y: 0
+    src_width: 240
+    src_height: 120
+    x: 0
+    y: 120
